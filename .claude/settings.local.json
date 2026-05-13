@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"D:\\\\dev\\\\turneria\" -Recurse -File)",
+      "Bash(Select-Object FullName)",
+      "Bash(cd /d \"D:\\\\dev\\\\ConsultoriaDigital\")",
+      "Bash(python --version)",
+      "Bash(python3 --version)",
+      "Bash(node --version)",
+      "PowerShell(Start-Process python -ArgumentList \"-m\",\"http.server\",\"3000\",\"--directory\",\"D:\\\\dev\\\\ConsultoriaDigital\" -WindowStyle Hidden -PassThru)",
+      "PowerShell(Start-Process powershell -ArgumentList \"-NoExit\",\"-Command\",\"cd 'D:\\\\dev\\\\ConsultoriaDigital'; npx --yes serve -p 3000 .\" -WindowStyle Normal)"
+    ]
+  }
+}
