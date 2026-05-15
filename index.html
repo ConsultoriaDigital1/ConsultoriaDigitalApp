@@ -140,7 +140,8 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
   border-bottom: 1px solid var(--border); z-index: 100; position: relative;
 }
 .brand { display: flex; align-items: center; gap: 0.5rem; margin-right: 0.8rem; flex-shrink: 0; }
-.logo-mark.brand-logo { padding: 0.42rem 0.7rem; font-size: 0.9rem; }
+.logo-mark.brand-logo { padding: 0.42rem 0.7rem; font-size: 0.9rem; cursor: pointer; }
+.logo-mark.brand-logo:focus-visible { outline: 2px solid #579dff; outline-offset: 2px; }
 
 .nav-tabs { display: flex; gap: 0.15rem; }
 .nav-tab {
@@ -536,16 +537,18 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
   max-width: 1060px; height: min(720px, calc(100vh - 32px));
   border-radius: 12px; overflow: hidden; background: var(--surface);
 }
+.card-cover-strip {
+  display: block; height: 56px; flex-shrink: 0;
+  background: var(--surface3); background-position: center; background-size: cover;
+  background-repeat: no-repeat; border-bottom: 1px solid var(--border);
+  transition: height 150ms ease;
+}
+.card-cover-strip.show { height: 104px; }
+.card-cover-strip .card-detail-topbar { border-bottom: none; }
 .card-detail-topbar {
   height: 56px; padding: 0 1rem; border-bottom: 1px solid var(--border);
   display: flex; align-items: center; gap: 0.65rem; flex-shrink: 0;
 }
-.card-cover-strip {
-  display: none; height: 88px; flex-shrink: 0;
-  background: var(--surface3); background-position: center; background-size: cover;
-  background-repeat: no-repeat; border-bottom: 1px solid var(--border);
-}
-.card-cover-strip.show { display: block; }
 .card-status-select {
   appearance: none; border: none; border-radius: 4px;
   background: var(--surface3); color: var(--text-hi);
@@ -680,13 +683,13 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 
 @media (max-width: 620px) {
   .overlay { padding: 0.45rem; }
-  .card-cover-strip { height: 68px; }
+  .card-cover-strip.show { height: 68px; }
   .card-detail-main { padding: 1rem; }
   .card-title-row { gap: 0.55rem; }
   .card-title-input { font-size: 1.18rem; min-height: 62px; }
   .card-subtitle, .card-action-row, .card-props, .trello-section, .client-details { margin-left: 0; }
   .card-title-check { display: none; }
-  .card-window-actions .card-icon-btn:not(.modal-close) { display: none; }
+  .card-window-actions .card-icon-btn:not(.modal-close):not(.cover-top-btn) { display: none; }
 }
 
 /* Status chips */
@@ -886,7 +889,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
   <!-- Top Nav -->
   <nav class="topnav">
     <div class="brand">
-      <div class="logo-mark brand-logo" aria-label="consultoria digital">
+      <div class="logo-mark brand-logo" aria-label="Ir a clientes" role="button" tabindex="0" onclick="goClientesHome()" onkeydown="onBrandLogoKeydown(event)">
         <span class="logo-text-main">consultor&iacute;a</span><span class="logo-text-strong">digital</span>
       </div>
       <div class="brand-icon">
@@ -1015,23 +1018,24 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
      ═══════════════════════════════════════════ -->
 <div id="card-overlay" class="overlay" onclick="overlayBg(event)">
   <div class="modal card-detail-modal" onclick="event.stopPropagation()">
-    <div class="card-detail-topbar">
-      <div class="card-status-wrap">
-        <select id="modal-status-select" class="card-status-select" onchange="setStatus(this.value)">
-          <option value="iniciada">Iniciada</option>
-          <option value="en_proceso">En proceso</option>
-          <option value="finalizado">Hecho</option>
-        </select>
-      </div>
-      <span class="modal-head-title sr-only" id="modal-title">Nueva tarjeta</span>
-      <div class="card-window-actions">
-        <button class="card-icon-btn" onclick="toggleCardDetails()" title="Detalles">i</button>
-        <button class="card-icon-btn" onclick="syncModalPreview()" title="Actualizar vista">...</button>
-        <button class="card-icon-btn modal-close" onclick="closeModal()" title="Cerrar">x</button>
+    <div id="modal-cover-strip" class="card-cover-strip">
+      <div class="card-detail-topbar">
+        <div class="card-status-wrap">
+          <select id="modal-status-select" class="card-status-select" onchange="setStatus(this.value)">
+            <option value="iniciada">Iniciada</option>
+            <option value="en_proceso">En proceso</option>
+            <option value="finalizado">Hecho</option>
+          </select>
+        </div>
+        <span class="modal-head-title sr-only" id="modal-title">Nueva tarjeta</span>
+        <div class="card-window-actions">
+          <button class="card-icon-btn cover-top-btn" onclick="$('f-cover').click()" title="Editar portada">&#128444;</button>
+          <button class="card-icon-btn" onclick="toggleCardDetails()" title="Detalles">i</button>
+          <button class="card-icon-btn" onclick="syncModalPreview()" title="Actualizar vista">...</button>
+          <button class="card-icon-btn modal-close" onclick="closeModal()" title="Cerrar">x</button>
+        </div>
       </div>
     </div>
-
-    <div id="modal-cover-strip" class="card-cover-strip"></div>
 
     <div class="card-detail-shell">
       <main class="card-detail-main">
@@ -1065,7 +1069,6 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
               <div id="cover-preview" class="cover-preview"></div>
               <input id="f-cover" class="cover-file" type="file" accept="image/*" onchange="loadCoverImage(this)" />
               <div class="cover-actions">
-                <button type="button" class="btn btn-ghost btn-sm" onclick="$('f-cover').click()">Portada</button>
                 <button type="button" class="btn btn-ghost btn-sm" onclick="clearCoverImage()">Quitar</button>
               </div>
             </div>
@@ -1551,6 +1554,17 @@ function switchTab(tab) {
   closeDD();
   if (tab === 'calendario') renderCalendar();
   if (tab === 'talentos')   renderTalentos();
+}
+
+function goClientesHome() {
+  switchTab('clientes');
+}
+
+function onBrandLogoKeydown(event) {
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault();
+    goClientesHome();
+  }
 }
 
 function filterTeam(team) {
