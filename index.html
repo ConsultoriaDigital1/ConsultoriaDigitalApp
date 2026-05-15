@@ -33,7 +33,7 @@
   --shadow-lg: 0 16px 48px rgba(0,0,0,0.55);
 }
 
-html { font-size: 126.5%; }
+html { font-size: 151.8%; }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: var(--font-body); background: var(--bg); color: var(--text); min-height: 100vh; }
@@ -257,11 +257,11 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
    ═══════════════════════════════════════════ */
 .kanban-wrap {
   flex: 1; overflow-x: auto; overflow-y: hidden;
-  padding: 0.9rem 1rem; display: flex; gap: 0.85rem; align-items: stretch;
+  padding: 1.1rem 1.25rem; display: flex; gap: 1rem; align-items: stretch;
 }
 
 .kanban-col {
-  min-width: 295px; width: 295px; height: 100%; flex-shrink: 0;
+  min-width: 350px; width: 350px; height: 100%; flex-shrink: 0;
   display: flex; flex-direction: column; gap: 0;
   background: var(--surface); border-radius: var(--r-md);
 }
@@ -292,8 +292,8 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 
 .col-cards {
   flex: 1; overflow-y: auto;
-  display: flex; flex-direction: column; gap: 0.5rem;
-  padding: 0 0.55rem 0.5rem;
+  display: flex; flex-direction: column; gap: 0.6rem;
+  padding: 0 0.7rem 0.7rem;
   min-height: 40px;
   transition: background 150ms ease;
 }
@@ -311,11 +311,11 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 .kcard.dragging { opacity: 0.45; transform: rotate(2deg) scale(0.97); }
 
 .kcard-cover {
-  height: 92px; width: 100%; flex-shrink: 0;
+  height: 110px; width: 100%; flex-shrink: 0;
   background: var(--surface3); background-position: center; background-size: cover;
 }
 
-.kcard-body { padding: 0.6rem 0.72rem 0.62rem; }
+.kcard-body { padding: 0.72rem 0.85rem 0.75rem; }
 
 .kcard-top { display: flex; align-items: flex-start; gap: 0.45rem; margin-bottom: 0.45rem; }
 .kcard-check {
@@ -326,7 +326,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 .kcard:hover .kcard-check { border-color: var(--muted); }
 .kcard-check.done { border-color: var(--success); background: var(--success); }
 
-.kcard-title { font-size: 0.85rem; font-weight: 500; color: var(--text-hi); line-height: 1.35; flex: 1; }
+.kcard-title { font-size: 0.9rem; font-weight: 500; color: var(--text-hi); line-height: 1.35; flex: 1; }
 
 .kcard-meta { display: flex; align-items: center; gap: 0.38rem; flex-wrap: wrap; }
 .kcard-date {
@@ -668,6 +668,18 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
    ═══════════════════════════════════════════ */
 .cal-wrap { flex: 1; padding: 1rem 1.1rem; overflow-y: auto; }
 .google-cal-panel { height: 100%; min-height: 520px; }
+.google-cal-team { margin-bottom: 1rem; }
+.google-cal-title {
+  display: flex; align-items: center; gap: 0.45rem;
+  color: var(--text-hi); font-weight: 800; font-size: 0.82rem;
+  margin-bottom: 0.45rem;
+}
+.google-cal-empty {
+  min-height: 120px; display: flex; align-items: center; justify-content: center;
+  border: 1px dashed var(--border2); border-radius: var(--r-sm);
+  color: var(--muted); background: var(--surface);
+  font-size: 0.78rem;
+}
 .google-cal-frame {
   width: 100%; height: 100%; min-height: 520px;
   border: 1px solid var(--border); border-radius: var(--r-sm);
@@ -879,6 +891,9 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
     <!-- Sidebar -->
     <aside class="sidebar">
       <div class="sb-label">Equipos</div>
+      <button class="sb-btn"        data-team="all"        onclick="filterTeam('all')">
+        <span class="sb-dot d-all"></span> Todos
+      </button>
       <button class="sb-btn"        data-team="marketing"  onclick="filterTeam('marketing')">
         <span class="sb-dot d-marketing"></span> Marketing
       </button>
@@ -1215,11 +1230,25 @@ const AVA_COLORS = [
 ───────────────────────────────────────── */
 let usersCache = [];
 let cardsCache = [];
+let calendarsCache = {};
 const getUsers = () => usersCache;
 const getCards = () => cardsCache;
-const getGoogleCalendar = () => localStorage.getItem('cd_google_calendar') || '';
-const setGoogleCalendar = (v) => localStorage.setItem('cd_google_calendar', v);
-const clearGoogleCalendarStorage = () => localStorage.removeItem('cd_google_calendar');
+
+function currentCalendarTeam() {
+  return activeTeam !== 'all' && canViewTeam(activeTeam) ? activeTeam : (currentUser ? currentUser.equipo : 'marketing');
+}
+
+function getGoogleCalendar(team = currentCalendarTeam()) {
+  return calendarsCache[team] || '';
+}
+
+async function saveGoogleCalendar(team, url) {
+  const data = await api('/api/calendars/' + team, {
+    method: 'PUT',
+    body: JSON.stringify({ googleCalendarUrl: url }),
+  });
+  calendarsCache[data.calendar.equipo] = data.calendar.googleCalendarUrl || '';
+}
 
 async function api(path, options = {}) {
   const res = await fetch(path, {
@@ -1241,6 +1270,7 @@ async function loadAppData() {
   currentUser = data.user;
   usersCache = data.users || [];
   cardsCache = data.cards || [];
+  calendarsCache = data.calendars || {};
   return data;
 }
 
@@ -1252,7 +1282,10 @@ function replaceCard(card) {
 
 function isAdmin() { return currentUser && currentUser.equipo === 'admin'; }
 function allowedTeams() { return isAdmin() ? ['marketing','desarrollo','admin'] : [currentUser.equipo]; }
-function canViewTeam(team) { return allowedTeams().includes(team); }
+function canViewTeam(team) { return team === 'all' ? isAdmin() : allowedTeams().includes(team); }
+function defaultFormTeam() {
+  return activeTeam !== 'all' && canViewTeam(activeTeam) ? activeTeam : currentUser.equipo;
+}
 
 /* ─────────────────────────────────────────
    SEED
@@ -1467,6 +1500,8 @@ function filterTeam(team) {
   document.querySelectorAll('.sb-btn[data-team]').forEach(b => b.classList.toggle('active', b.dataset.team === team));
   $('clientes-sub').textContent = (team === 'admin' ? 'Tabla de control — ' : 'Tablero Kanban — ') + (TEAMS[team] || 'Todos');
   renderBoard();
+  if (activeTab === 'calendario') renderCalendar();
+  if (activeTab === 'talentos') renderTalentos();
 }
 
 /* ─────────────────────────────────────────
@@ -1741,7 +1776,7 @@ function openNewCard(status = 'iniciada') {
   clearForm();
   setStatus(status);
   pickColor('none');
-  $('f-equipo').value = canViewTeam(activeTeam) ? activeTeam : currentUser.equipo;
+  $('f-equipo').value = defaultFormTeam();
   syncTeamSelect('f-equipo');
   populateUsers(currentUser ? currentUser.id : null);
   $('activity-comment').value = '';
@@ -2007,20 +2042,44 @@ function normalizeGoogleCalendar(raw) {
   }
 }
 
-function configureGoogleCalendar() {
-  const raw = prompt('Pega la URL de insercion o el ID de Google Calendar:', getGoogleCalendar());
+function promptCalendarTeam() {
+  if (!(activeTeam === 'all' && isAdmin())) return currentCalendarTeam();
+  const raw = prompt('Equipo para configurar: marketing, desarrollo o admin', 'marketing');
+  if (raw === null) return '';
+  const team = String(raw || '').trim().toLowerCase();
+  if (!allowedTeams().includes(team)) {
+    toast('Equipo invalido', 'error');
+    return '';
+  }
+  return team;
+}
+
+async function configureGoogleCalendar() {
+  const team = promptCalendarTeam();
+  if (!team) return;
+  const raw = prompt('Pega la URL de insercion o el ID de Google Calendar para ' + (TEAMS[team] || team) + ':', getGoogleCalendar(team));
   if (raw === null) return;
   const url = normalizeGoogleCalendar(raw);
   if (!url) { toast('Google Calendar invalido', 'error'); return; }
-  setGoogleCalendar(url);
-  renderCalendar();
-  toast('Google Calendar configurado', 'success');
+  try {
+    await saveGoogleCalendar(team, url);
+    renderCalendar();
+    toast('Google Calendar configurado', 'success');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
 }
 
-function clearGoogleCalendar() {
-  clearGoogleCalendarStorage();
-  renderCalendar();
-  toast('Google Calendar quitado', 'success');
+async function clearGoogleCalendar() {
+  const team = promptCalendarTeam();
+  if (!team) return;
+  try {
+    await saveGoogleCalendar(team, '');
+    renderCalendar();
+    toast('Google Calendar quitado', 'success');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
 }
 
 function setGoogleCalendarMode(on) {
@@ -2035,11 +2094,38 @@ function setGoogleCalendarMode(on) {
   $('cal-body').style.display = on ? 'none' : '';
 }
 
+function calendarCardDate(card) {
+  return dateFromInput(card.vence) || (card.creadoEn ? new Date(card.creadoEn) : null);
+}
+
+function renderAllGoogleCalendars() {
+  const teams = allowedTeams();
+  setGoogleCalendarMode(true);
+  $('cal-sub').textContent = 'Todos los calendarios';
+  $('google-cal-panel').innerHTML = teams.map(team => {
+    const url = getGoogleCalendar(team);
+    return `<div class="google-cal-team">
+      <div class="google-cal-title">
+        <span class="sb-dot ${TEAM_DOT[team]||'d-all'}" style="display:inline-block"></span>
+        ${esc(TEAMS[team]||team)}
+      </div>
+      ${url
+        ? `<iframe class="google-cal-frame" src="${esc(url)}" loading="lazy"></iframe>`
+        : `<div class="google-cal-empty">Sin Google Calendar configurado</div>`}
+    </div>`;
+  }).join('');
+}
+
 function renderCalendar() {
-  const googleUrl = getGoogleCalendar();
+  if (activeTeam === 'all' && isAdmin()) {
+    renderAllGoogleCalendars();
+    return;
+  }
+  const team = currentCalendarTeam();
+  const googleUrl = getGoogleCalendar(team);
   if (googleUrl) {
     setGoogleCalendarMode(true);
-    $('cal-sub').textContent = 'Google Calendar';
+    $('cal-sub').textContent = (TEAMS[team] || team) + ' - Google Calendar';
     $('google-cal-panel').innerHTML =
       `<iframe class="google-cal-frame" src="${esc(googleUrl)}" loading="lazy"></iframe>`;
     return;
@@ -2047,13 +2133,13 @@ function renderCalendar() {
 
   setGoogleCalendarMode(false);
   $('google-cal-panel').innerHTML = '';
-  $('cal-sub').textContent = MONTHS[calMonth] + ' ' + calYear;
+  $('cal-sub').textContent = (TEAMS[team] || team) + ' - ' + MONTHS[calMonth] + ' ' + calYear;
   $('cal-header').innerHTML = DAYS.map(d => `<div class="cal-lbl">${d}</div>`).join('');
 
   const cardsByDay = {};
-  getCards().forEach(c => {
-    if (!c.creadoEn) return;
-    const d = new Date(c.creadoEn);
+  getCards().filter(c => c.equipo === team).forEach(c => {
+    const d = calendarCardDate(c);
+    if (!d) return;
     if (d.getFullYear() === calYear && d.getMonth() === calMonth) {
       const day = d.getDate();
       if (!cardsByDay[day]) cardsByDay[day] = [];
@@ -2091,8 +2177,9 @@ function changeMonth(dir) {
    TALENTOS
 ───────────────────────────────────────── */
 function renderTalentos() {
-  const users = getUsers();
-  $('talentos-sub').textContent = users.length + ' miembro' + (users.length!==1?'s':'') + ' registrado' + (users.length!==1?'s':'');
+  const users = activeTeam === 'all' && isAdmin() ? getUsers() : getUsers().filter(u => u.equipo === activeTeam);
+  const teamName = activeTeam === 'all' ? 'todos los equipos' : (TEAMS[activeTeam] || 'equipo actual');
+  $('talentos-sub').textContent = users.length + ' miembro' + (users.length!==1?'s':'') + ' registrado' + (users.length!==1?'s':'') + ' en ' + teamName;
   $('talent-grid').innerHTML = users.map((u,i) => `
     <div class="talent-card">
       <div class="talent-ava" style="background:${AVA_COLORS[i%AVA_COLORS.length]}">${initials(u)}</div>

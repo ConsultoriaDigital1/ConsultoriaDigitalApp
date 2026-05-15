@@ -36,3 +36,10 @@ CREATE TABLE IF NOT EXISTS cards (
 CREATE INDEX IF NOT EXISTS idx_cards_equipo ON cards(equipo);
 CREATE INDEX IF NOT EXISTS idx_cards_usuario ON cards(usuario);
 CREATE INDEX IF NOT EXISTS idx_cards_estado ON cards(estado);
+
+CREATE TABLE IF NOT EXISTS team_calendars (
+  equipo TEXT PRIMARY KEY CHECK (equipo IN ('marketing', 'desarrollo', 'admin')),
+  google_calendar_url TEXT NOT NULL DEFAULT '',
+  updated_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);

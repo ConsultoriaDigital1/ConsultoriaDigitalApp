@@ -5,7 +5,11 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js",
+    "dev": "node scripts/dev.js",
+    "dev:server": "node --watch server.js",
+    "setup:postgres": "powershell -ExecutionPolicy Bypass -File scripts/setup-local-postgres.ps1",
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose stop postgres",
     "db:schema": "node db/schema.js",
     "db:seed": "node db/seed.js"
   },

@@ -155,12 +155,46 @@ async function visibleCards(user) {
   return rows.map(cardDTO);
 }
 
+async function visibleCalendars(user) {
+  const teams = allowedTeams(user);
+  const calendars = Object.fromEntries(teams.map((team) => [team, '']));
+  const { rows } = await pool.query(
+    'SELECT equipo, google_calendar_url FROM team_calendars WHERE equipo = ANY($1)',
+    [teams]
+  );
+  rows.forEach((row) => {
+    calendars[row.equipo] = row.google_calendar_url;
+  });
+  return calendars;
+}
+
 function cleanUsername(value) {
   return String(value || '').trim().toLowerCase();
 }
 
 function cleanTeam(value) {
   return ['marketing', 'desarrollo', 'admin'].includes(value) ? value : '';
+}
+
+function cleanCalendarUrl(value) {
+  const url = String(value || '').trim();
+  if (!url) return '';
+  if (url.length > 2048) {
+    const err = new Error('El calendario es demasiado largo.');
+    err.status = 400;
+    throw err;
+  }
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'https:' || parsed.hostname !== 'calendar.google.com' || !parsed.pathname.includes('/calendar/embed')) {
+      throw new Error();
+    }
+  } catch (_err) {
+    const err = new Error('Google Calendar invalido.');
+    err.status = 400;
+    throw err;
+  }
+  return url;
 }
 
 function cardValues(body, user, existing = {}) {
@@ -268,6 +302,7 @@ app.get('/api/bootstrap', requireAuth, async (req, res, next) => {
       user: userDTO(req.user),
       users: await visibleUsers(req.user),
       cards: await visibleCards(req.user),
+      calendars: await visibleCalendars(req.user),
       teams: allowedTeams(req.user),
     });
   } catch (err) {
@@ -373,6 +408,35 @@ app.put('/api/cards/:id', requireAuth, async (req, res, next) => {
       ]
     );
     res.json({ card: cardDTO(rows[0]) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.put('/api/calendars/:team', requireAuth, async (req, res, next) => {
+  try {
+    const equipo = cleanTeam(req.params.team);
+    if (!equipo) return res.status(400).json({ error: 'Equipo invalido.' });
+    if (!canAccessTeam(req.user, equipo)) return res.status(403).json({ error: 'Sin permiso.' });
+
+    const googleCalendarUrl = cleanCalendarUrl(req.body.googleCalendarUrl);
+    const { rows } = await pool.query(
+      `INSERT INTO team_calendars (equipo, google_calendar_url, updated_by, updated_at)
+       VALUES ($1, $2, $3, NOW())
+       ON CONFLICT (equipo) DO UPDATE SET
+         google_calendar_url = EXCLUDED.google_calendar_url,
+         updated_by = EXCLUDED.updated_by,
+         updated_at = NOW()
+       RETURNING equipo, google_calendar_url`,
+      [equipo, googleCalendarUrl, req.user.id]
+    );
+
+    res.json({
+      calendar: {
+        equipo: rows[0].equipo,
+        googleCalendarUrl: rows[0].google_calendar_url,
+      },
+    });
   } catch (err) {
     next(err);
   }
