@@ -371,14 +371,16 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 /* Admin table */
 .admin-table-wrap {
   flex: 1; overflow: auto; padding: 0.9rem 1rem;
+  background: linear-gradient(180deg, rgba(231,255,79,0.035), transparent 220px);
 }
 .admin-summary {
   display: grid; grid-template-columns: repeat(4, minmax(130px, 1fr));
   gap: 0.65rem; margin-bottom: 0.75rem;
 }
 .admin-metric {
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: var(--r-sm); padding: 0.7rem 0.85rem;
+  background: rgba(22,27,34,0.72); border: 1px solid var(--border);
+  border-left: 3px solid rgba(231,255,79,0.55);
+  border-radius: var(--r-xs); padding: 0.7rem 0.85rem;
 }
 .admin-metric-label {
   color: var(--muted); font-size: 0.64rem; font-weight: 900;
@@ -389,25 +391,53 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
   font-size: 1.25rem; font-weight: 900; margin-top: 0.2rem;
 }
 .admin-table-panel {
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: var(--r-sm); overflow: auto;
+  background: transparent; border: none; border-radius: 0; overflow: auto;
 }
 .admin-table {
-  width: 100%; min-width: 980px; border-collapse: collapse;
+  width: 100%; min-width: 1040px; border-collapse: separate; border-spacing: 0 0.4rem;
 }
 .admin-table th, .admin-table td {
-  padding: 0.68rem 0.75rem; border-bottom: 1px solid var(--border);
+  padding: 0.58rem 0.75rem; border-bottom: none;
   text-align: left; font-size: 0.76rem; vertical-align: middle;
 }
 .admin-table th {
   color: var(--muted); font-size: 0.62rem; font-weight: 900;
   text-transform: uppercase; letter-spacing: 0.08em; background: var(--bg2);
   position: sticky; top: 0; z-index: 1;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
 }
-.admin-table tr { cursor: pointer; }
-.admin-table tr:hover td { background: rgba(166,197,226,0.05); }
-.admin-client { color: var(--text-hi); font-weight: 800; }
+.admin-table th:first-child { border-radius: var(--r-xs) 0 0 var(--r-xs); }
+.admin-table th:last-child { border-radius: 0 var(--r-xs) var(--r-xs) 0; }
+.admin-table tbody tr { cursor: pointer; }
+.admin-table tbody td {
+  background: rgba(34,39,43,0.86);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.admin-table tbody td:first-child {
+  border-left: 4px solid rgba(166,197,226,0.2);
+  border-radius: var(--r-xs) 0 0 var(--r-xs);
+}
+.admin-table tbody td:last-child {
+  border-right: 1px solid var(--border);
+  border-radius: 0 var(--r-xs) var(--r-xs) 0;
+}
+.admin-table tbody tr.debt td:first-child,
+.admin-table tbody tr.overdue td:first-child { border-left-color: var(--danger); }
+.admin-table tbody tr.soon:not(.overdue) td:first-child { border-left-color: var(--warn); }
+.admin-table tbody tr:hover td {
+  background: rgba(44,51,58,0.96);
+  border-color: var(--border2);
+}
+.admin-client { color: var(--text-hi); font-weight: 900; line-height: 1.25; }
 .admin-muted { color: var(--muted); }
+.admin-data {
+  color: var(--text-hi); font-family: Consolas, "Courier New", monospace;
+  font-size: 0.72rem; letter-spacing: 0.01em;
+}
+.admin-money { color: var(--text-hi); font-weight: 900; white-space: nowrap; }
+.admin-assignee { color: var(--text); font-weight: 700; }
 .admin-badge {
   display: inline-flex; align-items: center; justify-content: center;
   min-width: 58px; padding: 0.2rem 0.5rem; border-radius: 999px;
@@ -510,6 +540,12 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
   height: 56px; padding: 0 1rem; border-bottom: 1px solid var(--border);
   display: flex; align-items: center; gap: 0.65rem; flex-shrink: 0;
 }
+.card-cover-strip {
+  display: none; height: 88px; flex-shrink: 0;
+  background: var(--surface3); background-position: center; background-size: cover;
+  background-repeat: no-repeat; border-bottom: 1px solid var(--border);
+}
+.card-cover-strip.show { display: block; }
 .card-status-select {
   appearance: none; border: none; border-radius: 4px;
   background: var(--surface3); color: var(--text-hi);
@@ -579,18 +615,16 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
   color: var(--text-hi); font-size: 0.76rem; outline: none; width: 100%;
 }
 .card-prop .color-picker { margin-bottom: 0; }
+.cover-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.45rem; align-items: stretch; margin-bottom: 0.45rem;
+}
 .cover-preview {
   height: 86px; border-radius: 6px; border: 1px solid var(--border2);
   background: var(--surface3); background-position: center; background-size: cover;
-  margin-bottom: 0.45rem;
 }
-.cover-actions { display: flex; flex-direction: column; gap: 0.4rem; }
-.cover-file { color: var(--text); font-size: 0.72rem; width: 100%; }
-.cover-file::file-selector-button {
-  border: 1px solid var(--border2); border-radius: 6px; background: var(--surface2);
-  color: var(--text-hi); padding: 0.36rem 0.55rem; margin-right: 0.45rem;
-  cursor: pointer;
-}
+.cover-actions { display: flex; flex-direction: column; gap: 0.35rem; min-width: 92px; }
+.cover-file { display: none; }
 .trello-section { margin-left: 2.45rem; margin-bottom: 1rem; }
 .trello-section-title {
   display: flex; align-items: center; gap: 0.55rem;
@@ -646,6 +680,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 
 @media (max-width: 620px) {
   .overlay { padding: 0.45rem; }
+  .card-cover-strip { height: 68px; }
   .card-detail-main { padding: 1rem; }
   .card-title-row { gap: 0.55rem; }
   .card-title-input { font-size: 1.18rem; min-height: 62px; }
@@ -996,6 +1031,8 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
       </div>
     </div>
 
+    <div id="modal-cover-strip" class="card-cover-strip"></div>
+
     <div class="card-detail-shell">
       <main class="card-detail-main">
         <div class="card-title-row">
@@ -1005,33 +1042,34 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
         <div id="modal-card-subtitle" class="card-subtitle">en Iniciada</div>
 
         <div class="card-action-row">
-          <button class="trello-action" onclick="$('f-usuario').focus()">Miembro</button>
-          <button class="trello-action" onclick="$('f-cover').click()">Portada</button>
           <button class="trello-action" onclick="setCardDetailsOpen(true); $('f-vence').focus()">Fechas</button>
           <button class="trello-action" onclick="toggleCardDetails()">Detalles</button>
         </div>
 
         <div class="card-props">
           <div class="card-prop">
-            <span class="card-prop-label">Miembro asignado</span>
-            <select id="f-usuario" class="card-select" onchange="syncModalPreview()"></select>
-          </div>
-          <div class="card-prop">
-            <span class="card-prop-label">Portada</span>
-            <div id="cover-preview" class="cover-preview"></div>
-            <div class="color-picker" id="color-picker"></div>
-            <div class="cover-actions">
-              <input id="f-cover" class="cover-file" type="file" accept="image/*" onchange="loadCoverImage(this)" />
-              <button type="button" class="btn btn-ghost btn-sm" onclick="clearCoverImage()">Quitar foto</button>
-            </div>
-          </div>
-          <div class="card-prop">
-            <span class="card-prop-label">Equipo</span>
+            <span class="card-prop-label">Equipo asignado</span>
             <select id="f-equipo" class="card-select" onchange="onCardTeamChange()">
               <option value="marketing">Equipo de Marketing</option>
               <option value="desarrollo">Equipo de Desarrollo</option>
               <option value="admin">Administracion</option>
             </select>
+          </div>
+          <div class="card-prop">
+            <span class="card-prop-label">Miembro asignado</span>
+            <select id="f-usuario" class="card-select" onchange="syncModalPreview()"></select>
+          </div>
+          <div class="card-prop">
+            <span class="card-prop-label">Portada</span>
+            <div class="cover-row">
+              <div id="cover-preview" class="cover-preview"></div>
+              <input id="f-cover" class="cover-file" type="file" accept="image/*" onchange="loadCoverImage(this)" />
+              <div class="cover-actions">
+                <button type="button" class="btn btn-ghost btn-sm" onclick="$('f-cover').click()">Portada</button>
+                <button type="button" class="btn btn-ghost btn-sm" onclick="clearCoverImage()">Quitar</button>
+              </div>
+            </div>
+            <div class="color-picker" id="color-picker"></div>
           </div>
         </div>
 
@@ -1456,9 +1494,18 @@ function cardCoverStyle(card) {
 
 function updateCoverPreview() {
   const preview = $('cover-preview');
-  if (!preview) return;
-  preview.style.backgroundColor = coverColor(modalColor);
-  preview.style.backgroundImage = modalCoverImage ? "url('" + modalCoverImage.replace(/'/g, '%27') + "')" : '';
+  const strip = $('modal-cover-strip');
+  const bg = coverColor(modalColor);
+  const img = modalCoverImage ? "url('" + modalCoverImage.replace(/'/g, '%27') + "')" : '';
+  if (preview) {
+    preview.style.backgroundColor = bg;
+    preview.style.backgroundImage = img;
+  }
+  if (strip) {
+    strip.style.backgroundColor = bg;
+    strip.style.backgroundImage = img;
+    strip.classList.toggle('show', !!modalCoverImage || modalColor !== 'none');
+  }
 }
 
 function loadCoverImage(input) {
@@ -1658,16 +1705,21 @@ function adminRowHTML(c, users) {
   const debt = hasDebt(c);
   const due = dueInfo(c);
   const sub = c.ca || c.ta || '';
+  const rowState = [
+    debt ? 'debt' : '',
+    due.key === 'overdue' ? 'overdue' : '',
+    due.key === 'today' || due.key === 'soon' ? 'soon' : ''
+  ].filter(Boolean).join(' ');
   return `
-    <tr onclick="openCard('${c.id}')">
+    <tr class="${rowState}" onclick="openCard('${c.id}')">
       <td>
         <div class="admin-client">${esc(c.nf || c.rs || '(Sin nombre)')}</div>
         ${sub ? `<div class="admin-muted">${esc(sub)}</div>` : ''}
       </td>
       <td>${c.rs ? esc(c.rs) : '<span class="admin-muted">-</span>'}</td>
-      <td>${c.cuit ? esc(c.cuit) : '<span class="admin-muted">-</span>'}</td>
+      <td>${c.cuit ? `<span class="admin-data">${esc(c.cuit)}</span>` : '<span class="admin-muted">-</span>'}</td>
       <td><span class="admin-badge ${debt ? 'debt' : 'ok'}">${debt ? 'Debe' : 'OK'}</span></td>
-      <td>${debt ? esc(moneyText(c.montoDeuda)) : '<span class="admin-muted">-</span>'}</td>
+      <td>${debt ? `<span class="admin-money">${esc(moneyText(c.montoDeuda))}</span>` : '<span class="admin-muted">-</span>'}</td>
       <td>
         <span class="admin-due ${due.cls}">
           ${esc(due.label)}
@@ -1675,7 +1727,7 @@ function adminRowHTML(c, users) {
         </span>
       </td>
       <td><span class="admin-status ${esc(c.estado)}">${esc(statusText(c.estado))}</span></td>
-      <td>${assignee ? esc((assignee.nombre + ' ' + (assignee.apellido||'')).trim()) : '<span class="admin-muted">Sin asignar</span>'}</td>
+      <td>${assignee ? `<span class="admin-assignee">${esc((assignee.nombre + ' ' + (assignee.apellido||'')).trim())}</span>` : '<span class="admin-muted">Sin asignar</span>'}</td>
       <td><button class="btn btn-subtle btn-sm" onclick="event.stopPropagation();openCard('${c.id}')">Editar</button></td>
     </tr>`;
 }
