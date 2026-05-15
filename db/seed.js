@@ -14,7 +14,7 @@ async function hash(password) {
 
 async function main() {
   const users = [
-    { id: 'admin-sistema', username: 'admin', nombre: 'Admin', apellido: 'Sistema', password: 'admin123', equipo: 'admin' },
+    { id: 'admin-sistema', username: 'admin', nombre: 'Admin', apellido: 'Sistema', password: 'Motomipasion1', equipo: 'admin' },
     { id: 'juan-marketing', username: 'juan', nombre: 'Juan', apellido: 'Garcia', password: 'pass123', equipo: 'marketing' },
     { id: 'ana-dev', username: 'ana', nombre: 'Ana', apellido: 'Lopez', password: 'pass123', equipo: 'desarrollo' },
   ];
@@ -23,7 +23,10 @@ async function main() {
     await pool.query(
       `INSERT INTO users (id, username, nombre, apellido, password_hash, equipo)
        VALUES ($1, $2, $3, $4, $5, $6)
-       ON CONFLICT (username) DO NOTHING`,
+       ON CONFLICT (username) DO UPDATE SET
+         password_hash = CASE WHEN users.username = 'admin' THEN EXCLUDED.password_hash ELSE users.password_hash END,
+         equipo = CASE WHEN users.username = 'admin' THEN EXCLUDED.equipo ELSE users.equipo END,
+         updated_at = CASE WHEN users.username = 'admin' THEN NOW() ELSE users.updated_at END`,
       [user.id, user.username, user.nombre, user.apellido, await hash(user.password), user.equipo]
     );
   }
@@ -51,7 +54,7 @@ async function main() {
     );
   }
 
-  console.log('Seed listo. Usuarios: admin/admin123, juan/pass123, ana/pass123');
+  console.log('Seed listo. Usuarios: admin/Motomipasion1, juan/pass123, ana/pass123');
 }
 
 main()

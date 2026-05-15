@@ -29,7 +29,7 @@ npm run db:seed
 
 Usuarios iniciales:
 
-- `admin` / `admin123`
+- `admin` / `Motomipasion1`
 - `juan` / `pass123`
 - `ana` / `pass123`
 
