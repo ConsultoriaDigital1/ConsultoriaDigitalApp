@@ -85,7 +85,7 @@ function userDTO(row) {
   };
 }
 
-function cardDTO(row) {
+function cardDTO(row, descriptionHistory = []) {
   return {
     id: row.id,
     nf: row.nf,
@@ -105,8 +105,51 @@ function cardDTO(row) {
     debe: row.debe,
     montoDeuda: row.monto_deuda,
     vence: row.vence,
+    venceHora: row.vence_hora || '',
     coverImage: row.cover_image,
+    checklist: cleanChecklist(row.checklist),
+    descriptionHistory,
   };
+}
+
+function descriptionHistoryDTO(row) {
+  return {
+    id: row.id,
+    cardId: row.card_id,
+    userId: row.user_id,
+    description: row.description,
+    creadoEn: Number(row.creado_en),
+  };
+}
+
+async function descriptionHistoryByCardIds(cardIds, db = pool) {
+  const ids = [...new Set(cardIds.filter(Boolean))];
+  const historyByCard = new Map(ids.map((id) => [id, []]));
+  if (!ids.length) return historyByCard;
+
+  const { rows } = await db.query(
+    `SELECT id, card_id, user_id, description, creado_en
+     FROM card_description_history
+     WHERE card_id = ANY($1)
+     ORDER BY creado_en DESC, created_at DESC`,
+    [ids]
+  );
+
+  for (const row of rows) {
+    if (!historyByCard.has(row.card_id)) historyByCard.set(row.card_id, []);
+    historyByCard.get(row.card_id).push(descriptionHistoryDTO(row));
+  }
+  return historyByCard;
+}
+
+async function insertDescriptionHistory(db, cardId, userId, description, creadoEn = Date.now()) {
+  const { rows } = await db.query(
+    `INSERT INTO card_description_history (id, card_id, user_id, description, creado_en)
+     VALUES ($1, $2, $3, $4, $5)
+     RETURNING id, card_id, user_id, description, creado_en`,
+    [mkId(), cardId, userId, String(description || ''), creadoEn]
+  );
+  return descriptionHistoryDTO(rows[0]);
 }
 
 function isAdmin(user) {
@@ -154,7 +197,8 @@ async function visibleCards(user) {
     'SELECT * FROM cards WHERE equipo = ANY($1) ORDER BY creado_en DESC',
     [teams]
   );
-  return rows.map(cardDTO);
+  const historyByCard = await descriptionHistoryByCardIds(rows.map((row) => row.id));
+  return rows.map((row) => cardDTO(row, historyByCard.get(row.id) || []));
 }
 
 async function visibleCalendars(user) {
@@ -168,6 +212,24 @@ function cleanUsername(value) {
 
 function cleanTeam(value) {
   return ['marketing', 'desarrollo', 'admin'].includes(value) ? value : '';
+}
+
+function cleanChecklist(value) {
+  let items = value;
+  if (typeof items === 'string') {
+    try {
+      items = JSON.parse(items);
+    } catch (_err) {
+      items = [];
+    }
+  }
+  if (!Array.isArray(items)) return [];
+  return items.slice(0, 100).map((item) => {
+    const text = String(item && item.text != null ? item.text : '').trim().slice(0, 500);
+    if (!text) return null;
+    const id = String(item && item.id ? item.id : '').trim().slice(0, 80) || mkId();
+    return { id, text, done: item && item.done === true };
+  }).filter(Boolean);
 }
 
 function calendarUrlFromEnv(team) {
@@ -217,6 +279,7 @@ function cleanAvatarImage(value) {
 
 function cardValues(body, user, existing = {}) {
   const equipo = cleanTeam(body.equipo || existing.equipo || user.equipo);
+  const rawVenceHora = String(body.venceHora ?? existing.vence_hora ?? '');
   if (!equipo || !canAccessTeam(user, equipo)) {
     const err = new Error('No tenes permiso para ese equipo.');
     err.status = 403;
@@ -238,7 +301,9 @@ function cardValues(body, user, existing = {}) {
     debe: body.debe === 'si' ? 'si' : 'no',
     montoDeuda: String(body.montoDeuda || ''),
     vence: String(body.vence || ''),
+    venceHora: /^\d{2}:\d{2}$/.test(rawVenceHora) ? rawVenceHora : '',
     coverImage: String(body.coverImage || ''),
+    checklist: cleanChecklist(body.checklist ?? existing.checklist ?? []),
   };
 }
 
@@ -386,49 +451,80 @@ app.post('/api/cards', requireAuth, async (req, res, next) => {
     const data = cardValues(req.body, req.user);
     validateCardRequired(data);
     data.usuario = await validateAssignedUser(req.user, data.usuario, data.equipo);
-    const { rows } = await pool.query(
-      `INSERT INTO cards (
-        id, nf, rs, cuit, ca, ntel, t, ta, c, color, estado, equipo, usuario,
-        creado_por, creado_en, debe, monto_deuda, vence, cover_image
-      )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
-      RETURNING *`,
-      [
-        mkId(), data.nf, data.rs, data.cuit, data.ca, data.ntel, data.t, data.ta, data.c,
-        data.color, data.estado, data.equipo, data.usuario, req.user.id, Date.now(),
-        data.debe, data.montoDeuda, data.vence, data.coverImage,
-      ]
-    );
-    res.status(201).json({ card: cardDTO(rows[0]) });
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const cardId = mkId();
+      const creadoEn = Date.now();
+      const { rows } = await client.query(
+        `INSERT INTO cards (
+          id, nf, rs, cuit, ca, ntel, t, ta, c, color, estado, equipo, usuario,
+          creado_por, creado_en, debe, monto_deuda, vence, vence_hora, cover_image, checklist
+        )
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21::jsonb)
+        RETURNING *`,
+        [
+          cardId, data.nf, data.rs, data.cuit, data.ca, data.ntel, data.t, data.ta, data.c,
+          data.color, data.estado, data.equipo, data.usuario, req.user.id, creadoEn,
+          data.debe, data.montoDeuda, data.vence, data.venceHora, data.coverImage, JSON.stringify(data.checklist),
+        ]
+      );
+      const history = data.c.trim()
+        ? [await insertDescriptionHistory(client, cardId, req.user.id, data.c, creadoEn)]
+        : [];
+      await client.query('COMMIT');
+      res.status(201).json({ card: cardDTO(rows[0], history) });
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw err;
+    } finally {
+      client.release();
+    }
   } catch (err) {
     next(err);
   }
 });
 
 app.put('/api/cards/:id', requireAuth, async (req, res, next) => {
+  const client = await pool.connect();
   try {
-    const current = await pool.query('SELECT * FROM cards WHERE id = $1', [req.params.id]);
-    if (!current.rows[0]) return res.status(404).json({ error: 'Tarjeta no encontrada.' });
-    if (!canAccessTeam(req.user, current.rows[0].equipo)) return res.status(403).json({ error: 'Sin permiso.' });
+    await client.query('BEGIN');
+    const current = await client.query('SELECT * FROM cards WHERE id = $1 FOR UPDATE', [req.params.id]);
+    if (!current.rows[0]) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Tarjeta no encontrada.' });
+    }
+    if (!canAccessTeam(req.user, current.rows[0].equipo)) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ error: 'Sin permiso.' });
+    }
     const data = cardValues(req.body, req.user, current.rows[0]);
     validateCardRequired(data);
     data.usuario = await validateAssignedUser(req.user, data.usuario, data.equipo);
-    const { rows } = await pool.query(
+    const { rows } = await client.query(
       `UPDATE cards SET
         nf=$1, rs=$2, cuit=$3, ca=$4, ntel=$5, t=$6, ta=$7, c=$8, color=$9,
         estado=$10, equipo=$11, usuario=$12, debe=$13, monto_deuda=$14, vence=$15,
-        cover_image=$16, updated_at=NOW()
-       WHERE id=$17
+        vence_hora=$16, cover_image=$17, checklist=$18::jsonb, updated_at=NOW()
+       WHERE id=$19
        RETURNING *`,
       [
         data.nf, data.rs, data.cuit, data.ca, data.ntel, data.t, data.ta, data.c, data.color,
         data.estado, data.equipo, data.usuario, data.debe, data.montoDeuda, data.vence,
-        data.coverImage, req.params.id,
+        data.venceHora, data.coverImage, JSON.stringify(data.checklist), req.params.id,
       ]
     );
-    res.json({ card: cardDTO(rows[0]) });
+    if (String(data.c) !== String(current.rows[0].c || '')) {
+      await insertDescriptionHistory(client, req.params.id, req.user.id, data.c);
+    }
+    const historyByCard = await descriptionHistoryByCardIds([req.params.id], client);
+    await client.query('COMMIT');
+    res.json({ card: cardDTO(rows[0], historyByCard.get(req.params.id) || []) });
   } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
     next(err);
+  } finally {
+    client.release();
   }
 });
 

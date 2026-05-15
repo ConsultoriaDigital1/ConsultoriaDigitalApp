@@ -329,22 +329,22 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 .kcard:hover .kcard-check { border-color: var(--muted); }
 .kcard-check.done { border-color: var(--success); background: var(--success); }
 
-.kcard-title { font-size: 0.9rem; font-weight: 500; color: var(--text-hi); line-height: 1.35; flex: 1; }
+.kcard-title { font-size: 0.78rem; font-weight: 500; color: var(--text-hi); line-height: 1.35; flex: 1; }
 
 .kcard-meta { display: flex; align-items: center; gap: 0.38rem; flex-wrap: wrap; }
 .kcard-date {
   display: inline-flex; align-items: center; gap: 0.28rem;
-  font-size: 0.68rem; font-weight: 600; padding: 0.15rem 0.45rem;
+  font-size: 0.6rem; font-weight: 600; padding: 0.15rem 0.45rem;
   border-radius: var(--r-xs); background: var(--surface3); color: var(--muted);
 }
 .kcard-date.has-date { background: rgba(245,205,71,0.15); color: var(--warn); }
 .kcard-icons { display: flex; align-items: center; gap: 0.4rem; margin-left: auto; }
-.kcard-icon { font-size: 0.72rem; color: var(--muted); }
+.kcard-icon { font-size: 0.62rem; color: var(--muted); }
 .kcard-avatars { display: flex; gap: 0.18rem; margin-left: auto; }
 .kcard-ava {
   width: 22px; height: 22px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  font-size: 0.58rem; font-weight: 900; color: white;
+  font-size: 0.5rem; font-weight: 900; color: white;
   border: 1.5px solid var(--surface2);
   background-position: center; background-size: cover; background-repeat: no-repeat;
 }
@@ -534,144 +534,318 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 .profile-photo-actions { display: flex; gap: 0.45rem; flex-wrap: wrap; }
 
 .card-detail-modal {
-  max-width: 1060px; height: min(720px, calc(100vh - 32px));
+  max-width: 980px; height: min(660px, calc(100vh - 32px));
   border-radius: 12px; overflow: hidden; background: var(--surface);
 }
 .card-cover-strip {
-  display: block; height: 56px; flex-shrink: 0;
+  display: block; height: 44px; flex-shrink: 0;
   background: var(--surface3); background-position: center; background-size: cover;
   background-repeat: no-repeat; border-bottom: 1px solid var(--border);
   transition: height 150ms ease;
 }
-.card-cover-strip.show { height: 104px; }
+.card-cover-strip.show { height: 74px; }
 .card-cover-strip .card-detail-topbar { border-bottom: none; }
 .card-detail-topbar {
-  height: 56px; padding: 0 1rem; border-bottom: 1px solid var(--border);
-  display: flex; align-items: center; gap: 0.65rem; flex-shrink: 0;
+  height: 44px; padding: 0 0.75rem; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 0.45rem; flex-shrink: 0;
 }
 .card-status-select {
   appearance: none; border: none; border-radius: 4px;
   background: var(--surface3); color: var(--text-hi);
-  font-weight: 800; font-size: 0.78rem; padding: 0.32rem 1.55rem 0.32rem 0.55rem;
+  font-weight: 800; font-size: 0.68rem; padding: 0.24rem 1.35rem 0.24rem 0.45rem;
   cursor: pointer; outline: none;
 }
 .card-status-wrap { position: relative; }
 .card-status-wrap::after {
-  content: "v"; position: absolute; right: 0.55rem; top: 50%;
-  transform: translateY(-54%); font-size: 0.65rem; color: var(--text);
+  content: "v"; position: absolute; right: 0.45rem; top: 50%;
+  transform: translateY(-54%); font-size: 0.58rem; color: var(--text);
   pointer-events: none;
 }
-.card-window-actions { margin-left: auto; display: flex; align-items: center; gap: 0.35rem; }
+.card-window-actions {
+  margin-left: auto; display: flex; align-items: center; gap: 0.35rem;
+  position: relative;
+}
 .card-icon-btn {
-  width: 32px; height: 32px; border: none; border-radius: 6px;
+  width: 28px; height: 28px; border: none; border-radius: 6px;
   display: inline-flex; align-items: center; justify-content: center;
-  background: transparent; color: var(--text); cursor: pointer; font-size: 1rem;
+  background: transparent; color: var(--text); cursor: pointer; font-size: 0.85rem;
 }
 .card-icon-btn:hover { background: var(--surface2); color: var(--text-hi); }
+.cover-menu {
+  display: none; position: absolute; top: calc(100% + 6px); right: 34px;
+  width: 190px; padding: 0.45rem; border-radius: var(--r-sm);
+  background: var(--surface2); border: 1px solid var(--border2);
+  box-shadow: var(--shadow-lg); z-index: 25;
+}
+.cover-menu.open { display: block; }
+.cover-menu-actions { display: flex; gap: 0.35rem; margin-bottom: 0.45rem; }
+.cover-menu .btn { flex: 1; }
+.cover-menu .color-picker { margin-bottom: 0; }
 .card-detail-shell {
-  display: grid; grid-template-columns: minmax(0, 1fr) 430px;
+  display: grid; grid-template-columns: minmax(0, 1fr) 340px;
   min-height: 0; flex: 1;
 }
-.card-detail-main { padding: 1.35rem 1.55rem; overflow-y: auto; min-width: 0; }
+.card-detail-main { padding: 0.95rem 1.15rem; overflow-y: auto; min-width: 0; }
 .card-detail-activity {
   background: #161a1d; border-left: 1px solid var(--border);
-  padding: 1.25rem 1rem; overflow-y: auto; min-width: 0;
+  padding: 0.95rem 0.85rem; overflow-y: auto; min-width: 0;
 }
-.card-title-row { display: flex; align-items: flex-start; gap: 0.75rem; margin-bottom: 0.35rem; }
+.card-title-row { display: flex; align-items: flex-start; gap: 0.55rem; margin-bottom: 0.2rem; }
 .card-title-check {
-  width: 18px; height: 18px; border-radius: 50%; background: var(--success);
-  flex-shrink: 0; margin-top: 0.45rem; position: relative;
+  width: 16px; height: 16px; border-radius: 50%; background: var(--success);
+  flex-shrink: 0; margin-top: 0.32rem; position: relative;
 }
 .card-title-check::after {
-  content: ""; width: 8px; height: 4px; border-left: 2px solid #1d2125;
-  border-bottom: 2px solid #1d2125; position: absolute; left: 4px; top: 5px;
+  content: ""; width: 7px; height: 4px; border-left: 2px solid #1d2125;
+  border-bottom: 2px solid #1d2125; position: absolute; left: 4px; top: 4px;
   transform: rotate(-45deg);
 }
 .card-title-input {
-  width: 100%; min-height: 76px; border: 1px solid transparent; border-radius: 8px;
+  width: 100%; min-height: 46px; border: 1px solid transparent; border-radius: 6px;
   background: transparent; color: var(--text-hi); resize: none; overflow: hidden;
-  font-family: var(--font-disp); font-size: 1.55rem; line-height: 1.2; font-weight: 800;
-  padding: 0.3rem 0.45rem; outline: none;
+  font-family: var(--font-disp); font-size: 1.05rem; line-height: 1.18; font-weight: 800;
+  padding: 0.22rem 0.35rem; outline: none;
 }
 .card-title-input:hover, .card-title-input:focus {
   background: rgba(166,197,226,0.06); border-color: var(--border2);
 }
-.card-subtitle { margin-left: 2.45rem; color: var(--muted); font-size: 0.78rem; margin-bottom: 1.15rem; }
-.card-action-row { display: flex; gap: 0.45rem; flex-wrap: wrap; margin: 0 0 1.35rem 2.45rem; }
+.card-subtitle { margin-left: 2.05rem; color: var(--muted); font-size: 0.62rem; margin-bottom: 0.75rem; }
+.card-action-row { display: flex; gap: 0.32rem; flex-wrap: wrap; margin: 0 0 0.85rem 2.05rem; }
 .trello-action {
   border: 1px solid var(--border2); background: var(--surface2); color: var(--text);
-  border-radius: 6px; padding: 0.45rem 0.62rem; font-size: 0.78rem; font-weight: 700;
-  cursor: pointer; display: inline-flex; align-items: center; gap: 0.35rem;
+  border-radius: 6px; padding: 0.32rem 0.48rem; font-size: 0.62rem; font-weight: 700;
+  cursor: pointer; display: inline-flex; align-items: center; gap: 0.25rem;
 }
 .trello-action:hover { background: var(--surface3); color: var(--text-hi); }
+.trello-action.has-due {
+  background: rgba(87,157,255,0.14); border-color: rgba(87,157,255,0.45); color: #85b8ff;
+}
+.due-popover {
+  display: none; position: fixed; width: 306px; max-height: calc(100vh - 20px);
+  overflow-y: auto; z-index: 500; padding: 0.55rem;
+  background: #282a2e; border: 1px solid #3f454d; border-radius: 8px;
+  box-shadow: 0 18px 44px rgba(0,0,0,0.5); color: #b6c2cf;
+}
+.due-popover.open { display: block; }
+.due-head {
+  display: grid; grid-template-columns: 28px 1fr 28px; align-items: center;
+  margin-bottom: 0.42rem; color: var(--text-hi); font-size: 0.68rem; font-weight: 900;
+}
+.due-close {
+  width: 24px; height: 24px; border: none; border-radius: 5px;
+  background: transparent; color: var(--text); cursor: pointer; font-size: 0.86rem;
+}
+.due-close:hover { background: var(--surface3); color: var(--text-hi); }
+.due-nav {
+  display: grid; grid-template-columns: 26px 26px 1fr 26px 26px;
+  align-items: center; gap: 0.22rem; margin-bottom: 0.5rem;
+}
+.due-nav button {
+  height: 24px; border: none; border-radius: 5px; background: transparent;
+  color: var(--text); cursor: pointer; font-size: 0.72rem;
+}
+.due-nav button:hover { background: var(--surface3); color: var(--text-hi); }
+.due-month {
+  text-align: center; color: var(--text-hi); font-size: 0.68rem; font-weight: 900;
+}
+.due-weekdays,
+.due-grid {
+  display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.08rem;
+}
+.due-weekdays {
+  margin-bottom: 0.12rem; color: var(--muted); font-size: 0.56rem; font-weight: 900;
+}
+.due-weekdays span { text-align: center; padding: 0.18rem 0; }
+.due-day {
+  height: 31px; border: none; border-radius: 4px; background: transparent;
+  color: #c9d1d9; cursor: pointer; font-size: 0.66rem; font-weight: 700;
+}
+.due-day:hover { background: var(--surface3); color: var(--text-hi); }
+.due-day.muted { color: #858b92; }
+.due-day.today {
+  color: #579dff; box-shadow: inset 0 -2px 0 #579dff; border-radius: 0;
+}
+.due-day.selected {
+  background: rgba(87,157,255,0.22); color: #85b8ff; box-shadow: none; border-radius: 4px;
+}
+.due-field { margin-top: 0.62rem; }
+.due-label {
+  display: block; color: var(--text); font-size: 0.58rem; font-weight: 900; margin-bottom: 0.24rem;
+}
+.due-row {
+  display: grid; grid-template-columns: 20px minmax(0, 1fr) minmax(96px, 1fr);
+  gap: 0.28rem; align-items: center;
+}
+.due-row.two { grid-template-columns: 20px minmax(0, 1fr); }
+.due-check {
+  width: 15px; height: 15px; accent-color: #579dff; cursor: pointer;
+}
+.due-input,
+.due-select {
+  width: 100%; min-height: 36px; border: 1px solid #758195; border-radius: 4px;
+  background: #2c2f33; color: var(--text-hi); padding: 0.34rem 0.42rem;
+  font-size: 0.64rem; outline: none;
+}
+.due-input:disabled,
+.due-select:disabled {
+  opacity: 0.35; cursor: not-allowed; border-color: var(--border); background: var(--surface2);
+}
+.due-select {
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, #b6c2cf 50%), linear-gradient(135deg, #b6c2cf 50%, transparent 50%);
+  background-position: calc(100% - 15px) 15px, calc(100% - 10px) 15px;
+  background-size: 5px 5px, 5px 5px; background-repeat: no-repeat;
+}
+.due-note {
+  color: var(--text); font-size: 0.58rem; line-height: 1.3; margin: 0.38rem 0 0.55rem;
+}
+.due-actions { display: grid; gap: 0.34rem; }
+.due-actions .btn { width: 100%; justify-content: center; }
 .card-props {
-  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.8rem; margin: 0 0 1.25rem 2.45rem;
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem; margin: 0 0 0.85rem 2.05rem;
 }
 .card-prop-label {
-  display: block; color: var(--muted); font-size: 0.67rem; font-weight: 900;
-  margin-bottom: 0.35rem; text-transform: uppercase;
+  display: block; color: var(--muted); font-size: 0.54rem; font-weight: 900;
+  margin-bottom: 0.22rem; text-transform: uppercase;
 }
 .card-select {
-  min-height: 34px; padding: 0.35rem 0.5rem; border-radius: 6px;
+  min-height: 28px; padding: 0.24rem 0.4rem; border-radius: 6px;
   border: 1px solid var(--border2); background: var(--surface2);
-  color: var(--text-hi); font-size: 0.76rem; outline: none; width: 100%;
+  color: var(--text-hi); font-size: 0.62rem; outline: none; width: 100%;
 }
 .card-prop .color-picker { margin-bottom: 0; }
 .cover-row {
   display: grid; grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0.45rem; align-items: stretch; margin-bottom: 0.45rem;
+  gap: 0.35rem; align-items: stretch; margin-bottom: 0.35rem;
 }
 .cover-preview {
-  height: 86px; border-radius: 6px; border: 1px solid var(--border2);
+  height: 58px; border-radius: 6px; border: 1px solid var(--border2);
   background: var(--surface3); background-position: center; background-size: cover;
 }
-.cover-actions { display: flex; flex-direction: column; gap: 0.35rem; min-width: 92px; }
+.cover-actions { display: flex; flex-direction: column; gap: 0.25rem; min-width: 78px; }
 .cover-file { display: none; }
-.trello-section { margin-left: 2.45rem; margin-bottom: 1rem; }
+.trello-section { margin-left: 2.05rem; margin-bottom: 0.75rem; }
 .trello-section-title {
-  display: flex; align-items: center; gap: 0.55rem;
-  color: var(--text-hi); font-size: 0.9rem; font-weight: 900; margin-bottom: 0.7rem;
+  display: flex; align-items: center; gap: 0.4rem;
+  color: var(--text-hi); font-size: 0.72rem; font-weight: 900; margin-bottom: 0.45rem;
 }
 .trello-description {
-  min-height: 78px; background: transparent; border-color: var(--border2);
+  min-height: 54px; background: transparent; border-color: var(--border2);
 }
 .trello-description::placeholder { color: var(--muted); }
+.checklist-action-icon,
+.checklist-title-icon,
+.kcard-checklist-icon {
+  width: 13px; height: 13px; border: 1.5px solid currentColor; border-radius: 3px;
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.checklist-action-icon::after,
+.checklist-title-icon::after,
+.kcard-checklist-icon::after {
+  content: ""; width: 6px; height: 3px; border-left: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor; transform: rotate(-45deg); margin-top: -1px;
+}
+.checklist-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+.checklist-head .trello-section-title { margin-bottom: 0; }
+.checklist-actions { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+.checklist-actions .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.checklist-progress-row {
+  display: grid; grid-template-columns: 28px 1fr; align-items: center; gap: 0.4rem;
+  margin-bottom: 0.42rem; color: var(--muted); font-size: 0.58rem;
+}
+.checklist-progress-track {
+  height: 5px; border-radius: 999px; background: var(--surface3); overflow: hidden;
+}
+.checklist-progress-bar {
+  display: block; width: 0; height: 100%; border-radius: inherit;
+  background: #579dff; transition: width 150ms ease;
+}
+.checklist-items { display: flex; flex-direction: column; gap: 0.28rem; margin-bottom: 0.45rem; }
+.checklist-item {
+  display: grid; grid-template-columns: 18px minmax(0, 1fr) 24px; align-items: center;
+  gap: 0.35rem; min-height: 28px;
+}
+.checklist-item-check {
+  width: 15px; height: 15px; accent-color: #579dff; cursor: pointer;
+}
+.checklist-item-text {
+  width: 100%; border: 1px solid transparent; border-radius: 5px;
+  background: transparent; color: var(--text-hi); padding: 0.22rem 0.32rem;
+  font-size: 0.66rem; outline: none;
+}
+.checklist-item-text.done { color: var(--muted); text-decoration: line-through; }
+.checklist-item-text:hover,
+.checklist-item-text:focus { background: rgba(166,197,226,0.06); border-color: var(--border2); }
+.checklist-item-del {
+  width: 24px; height: 24px; border: none; border-radius: 5px;
+  background: transparent; color: var(--muted); cursor: pointer;
+}
+.checklist-item-del:hover { background: var(--surface2); color: var(--danger); }
+.checklist-add { display: none; }
+.checklist-new-actions { display: flex; gap: 0.45rem; margin-top: 0.4rem; }
+.checklist-empty { color: var(--muted); font-size: 0.64rem; margin-bottom: 0.45rem; }
+.kcard-checklist {
+  display: inline-flex; align-items: center; gap: 0.25rem;
+  color: var(--muted); font-size: 0.6rem; font-weight: 700;
+}
+.kcard-checklist.done { color: var(--success); }
+.kcard-checklist-icon { width: 12px; height: 12px; border-radius: 2px; }
 .client-details {
-  margin-left: 2.45rem; border-top: 1px solid var(--border); padding-top: 0.9rem;
+  margin-left: 2.05rem; border-top: 1px solid var(--border); padding-top: 0.65rem;
 }
 .client-details summary {
-  cursor: pointer; color: var(--text-hi); font-weight: 900; font-size: 0.86rem;
-  margin-bottom: 0.8rem;
+  cursor: pointer; color: var(--text-hi); font-weight: 900; font-size: 0.7rem;
+  margin-bottom: 0.55rem;
 }
-.client-detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 0.85rem; }
+.client-detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 0.55rem; }
 .activity-head {
   display: flex; align-items: center; justify-content: space-between; gap: 0.8rem;
-  color: var(--text-hi); font-weight: 900; font-size: 0.86rem; margin-bottom: 0.75rem;
+  color: var(--text-hi); font-weight: 900; font-size: 0.7rem; margin-bottom: 0.55rem;
 }
 .activity-toggle {
   border: 1px solid var(--border2); border-radius: 6px; background: transparent;
-  color: var(--text); padding: 0.42rem 0.7rem; font-size: 0.76rem; font-weight: 700;
+  color: var(--text); padding: 0.32rem 0.52rem; font-size: 0.65rem; font-weight: 700;
   cursor: pointer;
 }
 .activity-toggle:hover { background: var(--surface2); color: var(--text-hi); }
 .activity-input {
-  min-height: 42px; max-height: 100px; margin-bottom: 1rem;
+  min-height: 34px; max-height: 80px; margin-bottom: 0.7rem;
   background: var(--surface); border-color: var(--border);
 }
-.activity-list { display: flex; flex-direction: column; gap: 0.85rem; }
-.activity-item { display: flex; gap: 0.65rem; color: var(--text); font-size: 0.78rem; line-height: 1.35; }
+.activity-list { display: flex; flex-direction: column; gap: 0.6rem; }
+.activity-item { display: flex; gap: 0.5rem; color: var(--text); font-size: 0.64rem; line-height: 1.3; }
 .activity-avatar {
-  width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
+  width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
-  font-size: 0.66rem; font-weight: 900; color: white;
+  font-size: 0.56rem; font-weight: 900; color: white;
   background: linear-gradient(135deg,#579dff,#7c3aed);
   background-position: center; background-size: cover; background-repeat: no-repeat;
 }
 .activity-item strong { color: var(--text-hi); }
-.activity-date { color: #85b8ff; font-size: 0.72rem; margin-top: 0.1rem; }
-.activity-empty { color: var(--muted); font-size: 0.78rem; padding-left: 2.45rem; }
+.activity-date { color: #85b8ff; font-size: 0.62rem; margin-top: 0.08rem; }
+.activity-description { margin-top: 0.2rem; white-space: pre-wrap; color: var(--text); }
+.activity-description.empty { color: var(--muted); font-style: italic; }
+.activity-empty { color: var(--muted); font-size: 0.64rem; padding-left: 2.05rem; }
 .card-modal-foot { background: var(--surface); }
+.card-detail-modal .form-group { margin-bottom: 0.55rem; }
+.card-detail-modal .form-row { gap: 0.55rem; }
+.card-detail-modal .form-label { font-size: 0.56rem; margin-bottom: 0.2rem; }
+.card-detail-modal .form-input,
+.card-detail-modal .form-select,
+.card-detail-modal .form-textarea {
+  padding: 0.42rem 0.6rem;
+  font-size: 0.66rem;
+}
+.card-detail-modal .color-picker { gap: 0.3rem; margin-bottom: 0.55rem; }
+.card-detail-modal .cp-swatch,
+.card-detail-modal .cp-none { width: 24px; height: 18px; font-size: 0.55rem; }
+.card-detail-modal .btn { padding: 0.4rem 0.7rem; font-size: 0.66rem; }
+.card-detail-modal .btn-sm { padding: 0.28rem 0.5rem; font-size: 0.64rem; }
+.card-detail-modal .modal-foot { padding: 0.65rem 1rem 0.8rem; gap: 0.4rem; }
 
 @media (max-width: 900px) {
   .card-detail-modal { height: calc(100vh - 16px); }
@@ -683,13 +857,13 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 
 @media (max-width: 620px) {
   .overlay { padding: 0.45rem; }
-  .card-cover-strip.show { height: 68px; }
-  .card-detail-main { padding: 1rem; }
+  .card-cover-strip.show { height: 56px; }
+  .card-detail-main, .card-detail-activity { padding: 0.8rem; }
   .card-title-row { gap: 0.55rem; }
-  .card-title-input { font-size: 1.18rem; min-height: 62px; }
+  .card-title-input { font-size: 0.98rem; min-height: 44px; }
   .card-subtitle, .card-action-row, .card-props, .trello-section, .client-details { margin-left: 0; }
   .card-title-check { display: none; }
-  .card-window-actions .card-icon-btn:not(.modal-close):not(.cover-top-btn) { display: none; }
+  .card-window-actions .card-icon-btn:not(.modal-close):not(.cover-menu-btn) { display: none; }
 }
 
 /* Status chips */
@@ -1029,10 +1203,16 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
         </div>
         <span class="modal-head-title sr-only" id="modal-title">Nueva tarjeta</span>
         <div class="card-window-actions">
-          <button class="card-icon-btn cover-top-btn" onclick="$('f-cover').click()" title="Editar portada">&#128444;</button>
-          <button class="card-icon-btn" onclick="toggleCardDetails()" title="Detalles">i</button>
-          <button class="card-icon-btn" onclick="syncModalPreview()" title="Actualizar vista">...</button>
+          <button class="card-icon-btn cover-menu-btn" onclick="toggleCoverMenu(event)" title="Imagen y color">...</button>
           <button class="card-icon-btn modal-close" onclick="closeModal()" title="Cerrar">x</button>
+          <input id="f-cover" class="cover-file" type="file" accept="image/*" onchange="loadCoverImage(this)" />
+          <div id="cover-menu" class="cover-menu" onclick="event.stopPropagation()">
+            <div class="cover-menu-actions">
+              <button type="button" class="btn btn-ghost btn-sm" onclick="$('f-cover').click()">Subir imagen</button>
+              <button type="button" class="btn btn-ghost btn-sm" onclick="clearCoverImage()">Quitar</button>
+            </div>
+            <div class="color-picker" id="color-picker"></div>
+          </div>
         </div>
       </div>
     </div>
@@ -1046,8 +1226,8 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
         <div id="modal-card-subtitle" class="card-subtitle">en Iniciada</div>
 
         <div class="card-action-row">
-          <button class="trello-action" onclick="setCardDetailsOpen(true); $('f-vence').focus()">Fechas</button>
-          <button class="trello-action" onclick="toggleCardDetails()">Detalles</button>
+          <button class="trello-action" onclick="openChecklistSection()"><span class="checklist-action-icon"></span> Checklist</button>
+          <button id="due-action-btn" class="trello-action" onclick="openDuePopover(event)">Vencimiento</button>
         </div>
 
         <div class="card-props">
@@ -1063,17 +1243,6 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
             <span class="card-prop-label">Miembro asignado</span>
             <select id="f-usuario" class="card-select" onchange="syncModalPreview()"></select>
           </div>
-          <div class="card-prop">
-            <span class="card-prop-label">Portada</span>
-            <div class="cover-row">
-              <div id="cover-preview" class="cover-preview"></div>
-              <input id="f-cover" class="cover-file" type="file" accept="image/*" onchange="loadCoverImage(this)" />
-              <div class="cover-actions">
-                <button type="button" class="btn btn-ghost btn-sm" onclick="clearCoverImage()">Quitar</button>
-              </div>
-            </div>
-            <div class="color-picker" id="color-picker"></div>
-          </div>
         </div>
 
         <section class="trello-section">
@@ -1081,7 +1250,31 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
           <textarea id="f-c" class="form-textarea trello-description" placeholder="Anadir una descripcion mas detallada..." oninput="syncModalPreview()"></textarea>
         </section>
 
-        <details id="client-details" class="client-details" ontoggle="syncDetailsToggle()">
+        <section id="checklist-section" class="trello-section checklist-section" data-open="false" style="display:none">
+          <div class="checklist-head">
+            <div class="trello-section-title"><span class="checklist-title-icon"></span> Checklist</div>
+            <div class="checklist-actions">
+              <button id="checklist-hide-btn" class="btn btn-ghost btn-sm" type="button" onclick="toggleChecklistDone()">Ocultar marcados</button>
+              <button class="btn btn-ghost btn-sm" type="button" onclick="deleteChecklist()">Eliminar</button>
+            </div>
+          </div>
+          <div class="checklist-progress-row">
+            <span id="checklist-progress-text">0%</span>
+            <div class="checklist-progress-track"><span id="checklist-progress-bar" class="checklist-progress-bar"></span></div>
+          </div>
+          <div id="checklist-items" class="checklist-items"></div>
+          <div id="checklist-empty" class="checklist-empty">Sin elementos todavia.</div>
+          <div id="checklist-add" class="checklist-add">
+            <textarea id="checklist-new-text" class="form-textarea trello-description" rows="2" placeholder="Anade un elemento" onkeydown="onChecklistInputKey(event)"></textarea>
+            <div class="checklist-new-actions">
+              <button class="btn btn-primary btn-sm" type="button" onclick="addChecklistItem()">Anadir</button>
+              <button class="btn btn-ghost btn-sm" type="button" onclick="hideChecklistInput(true)">Cancelar</button>
+            </div>
+          </div>
+          <button id="checklist-add-toggle" class="btn btn-ghost btn-sm" type="button" onclick="showChecklistInput()">Anade un elemento</button>
+        </section>
+
+        <details id="client-details" class="client-details">
           <summary>Datos del cliente</summary>
           <div class="client-detail-grid">
             <div class="form-group">
@@ -1121,7 +1314,8 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
             </div>
             <div class="form-group">
               <label class="form-label">Vencimiento</label>
-              <input id="f-vence" class="form-input" type="date" />
+              <input id="f-vence" class="form-input" type="date" onchange="syncDueButton()" />
+              <input id="f-vence-hora" type="hidden" />
             </div>
           </div>
         </details>
@@ -1130,7 +1324,6 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
       <aside class="card-detail-activity">
         <div class="activity-head">
           <span>Comentarios y Actividad</span>
-          <button id="details-toggle" class="activity-toggle" onclick="toggleCardDetails()">Mostrar detalles</button>
         </div>
         <textarea id="activity-comment" class="form-textarea activity-input" placeholder="Escribe un comentario..." onkeydown="addActivityComment(event)"></textarea>
         <div id="activity-list" class="activity-list"></div>
@@ -1148,6 +1341,61 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 <!-- ═══════════════════════════════════════════
      PROFILE MODAL
      ═══════════════════════════════════════════ -->
+<div id="due-popover" class="due-popover" onclick="event.stopPropagation()">
+  <div class="due-head">
+    <span></span>
+    <span style="text-align:center">Fechas</span>
+    <button class="due-close" type="button" onclick="closeDuePopover()">&times;</button>
+  </div>
+  <div class="due-nav">
+    <button type="button" onclick="changeDueMonth(-12)">&laquo;</button>
+    <button type="button" onclick="changeDueMonth(-1)">&lsaquo;</button>
+    <div id="due-month-label" class="due-month"></div>
+    <button type="button" onclick="changeDueMonth(1)">&rsaquo;</button>
+    <button type="button" onclick="changeDueMonth(12)">&raquo;</button>
+  </div>
+  <div class="due-weekdays">
+    <span>lun</span><span>mar</span><span>mi&eacute;</span><span>jue</span><span>vie</span><span>s&aacute;b</span><span>dom</span>
+  </div>
+  <div id="due-calendar-grid" class="due-grid"></div>
+
+  <div class="due-field">
+    <label class="due-label">Fecha de inicio</label>
+    <div class="due-row two">
+      <input class="due-check" type="checkbox" disabled />
+      <input class="due-input" type="text" placeholder="D/M/AAAA" disabled />
+    </div>
+  </div>
+
+  <div class="due-field">
+    <label class="due-label">Fecha de vencimiento</label>
+    <div class="due-row">
+      <input id="due-enabled" class="due-check" type="checkbox" onchange="toggleDueEnabled(this.checked)" />
+      <input id="due-date-input" class="due-input" type="text" placeholder="D/M/AAAA" oninput="onDueDateText(this.value)" onblur="normalizeDueDateText()" />
+      <select id="due-time-input" class="due-select"></select>
+    </div>
+  </div>
+
+  <div class="due-field">
+    <label class="due-label">Peri&oacute;dico</label>
+    <select class="due-select" disabled>
+      <option>Nunca</option>
+    </select>
+  </div>
+
+  <div class="due-field">
+    <label class="due-label">Crear recordatorio</label>
+    <select class="due-select" disabled>
+      <option>1 d&iacute;a antes</option>
+    </select>
+  </div>
+  <div class="due-note">Se enviar&aacute;n recordatorios a todos los miembros y seguidores de esta tarjeta.</div>
+  <div class="due-actions">
+    <button class="btn btn-primary btn-sm" type="button" onclick="applyDuePopover()">Guardar</button>
+    <button class="btn btn-ghost btn-sm" type="button" onclick="removeDueDate()">Quitar</button>
+  </div>
+</div>
+
 <div id="profile-overlay" class="overlay" onclick="profileBg(event)">
   <div class="modal" style="max-width:400px" onclick="event.stopPropagation()">
     <div class="modal-head">
@@ -1357,6 +1605,11 @@ let editingId   = null;
 let modalStatus = 'iniciada';
 let modalColor  = 'none';
 let modalCoverImage = '';
+let duePickerYear = null;
+let duePickerMonth = null;
+let dueDraftDate = '';
+let modalChecklist = [];
+let checklistHideDone = false;
 let profileAvatarImage = '';
 let calYear, calMonth;
 
@@ -1469,6 +1722,7 @@ function syncTeamSelect(id) {
 ───────────────────────────────────────── */
 function buildColorPicker() {
   const cp = $('color-picker');
+  if (!cp) return;
   cp.innerHTML =
     `<div class="cp-none sel" id="cp-none" onclick="pickColor('none')" title="Sin color">✕</div>` +
     COLORS.map(c =>
@@ -1483,6 +1737,17 @@ function pickColor(key) {
   if (el) el.classList.add('sel');
   updateCoverPreview();
   syncModalPreview();
+}
+
+function toggleCoverMenu(event) {
+  if (event) event.stopPropagation();
+  const menu = $('cover-menu');
+  if (menu) menu.classList.toggle('open');
+}
+
+function closeCoverMenu() {
+  const menu = $('cover-menu');
+  if (menu) menu.classList.remove('open');
 }
 
 function coverColor(key) {
@@ -1544,6 +1809,160 @@ function clearCoverImage() {
   syncModalPreview();
 }
 
+function makeChecklistId() {
+  return 'ci-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+}
+
+function normalizeChecklist(items) {
+  if (!Array.isArray(items)) return [];
+  return items.slice(0, 100).map(item => {
+    const text = String(item && item.text != null ? item.text : '').trim().slice(0, 500);
+    if (!text) return null;
+    return {
+      id: String(item && item.id ? item.id : makeChecklistId()).slice(0, 80),
+      text,
+      done: item && item.done === true,
+    };
+  }).filter(Boolean);
+}
+
+function checklistStats(items) {
+  const list = Array.isArray(items) ? items : [];
+  const total = list.length;
+  const done = list.filter(item => item && item.done === true).length;
+  return { total, done, pct: total ? Math.round(done * 100 / total) : 0 };
+}
+
+function openChecklistSection() {
+  const section = $('checklist-section');
+  if (!section) return;
+  section.dataset.open = 'true';
+  renderChecklist();
+  showChecklistInput();
+}
+
+function showChecklistInput() {
+  const section = $('checklist-section');
+  if (section) section.dataset.open = 'true';
+  const add = $('checklist-add');
+  const toggle = $('checklist-add-toggle');
+  if (add) add.style.display = 'block';
+  if (toggle) toggle.style.display = 'none';
+  const input = $('checklist-new-text');
+  if (input) setTimeout(() => input.focus(), 0);
+  renderChecklist();
+}
+
+function hideChecklistInput(clear) {
+  const add = $('checklist-add');
+  const toggle = $('checklist-add-toggle');
+  const input = $('checklist-new-text');
+  if (clear && input) input.value = '';
+  if (add) add.style.display = 'none';
+  if (toggle) toggle.style.display = '';
+  renderChecklist();
+}
+
+function addChecklistItem() {
+  const input = $('checklist-new-text');
+  const text = input ? input.value.trim() : '';
+  if (!text) return;
+  modalChecklist = normalizeChecklist([...modalChecklist, { id: makeChecklistId(), text, done: false }]);
+  if (input) input.value = '';
+  checklistHideDone = false;
+  renderChecklist();
+  if (input) input.focus();
+}
+
+function onChecklistInputKey(event) {
+  if (event.key === 'Enter' && !event.shiftKey) {
+    event.preventDefault();
+    addChecklistItem();
+  }
+  if (event.key === 'Escape') hideChecklistInput(true);
+}
+
+function toggleChecklistItem(index, done) {
+  if (!modalChecklist[index]) return;
+  modalChecklist[index].done = done === true;
+  renderChecklist();
+}
+
+function renameChecklistItem(index, value) {
+  if (!modalChecklist[index]) return;
+  const text = String(value || '').trim();
+  if (!text) {
+    deleteChecklistItem(index);
+    return;
+  }
+  if (modalChecklist[index].text === text) return;
+  modalChecklist[index].text = text.slice(0, 500);
+  renderChecklist();
+}
+
+function deleteChecklistItem(index) {
+  modalChecklist.splice(index, 1);
+  if (!modalChecklist.length) checklistHideDone = false;
+  renderChecklist();
+}
+
+function toggleChecklistDone() {
+  checklistHideDone = !checklistHideDone;
+  renderChecklist();
+}
+
+function deleteChecklist() {
+  if (modalChecklist.length && !confirm('Eliminar checklist?')) return;
+  modalChecklist = [];
+  checklistHideDone = false;
+  const section = $('checklist-section');
+  if (section) section.dataset.open = 'false';
+  hideChecklistInput(true);
+  renderChecklist();
+}
+
+function renderChecklist() {
+  const section = $('checklist-section');
+  if (!section) return;
+  modalChecklist = normalizeChecklist(modalChecklist);
+  const stats = checklistStats(modalChecklist);
+  const isOpen = section.dataset.open === 'true' || stats.total > 0;
+  section.style.display = isOpen ? '' : 'none';
+
+  const progressText = $('checklist-progress-text');
+  const progressBar = $('checklist-progress-bar');
+  if (progressText) progressText.textContent = stats.pct + '%';
+  if (progressBar) {
+    progressBar.style.width = stats.pct + '%';
+    progressBar.style.background = stats.pct === 100 && stats.total ? 'var(--success)' : '#579dff';
+  }
+
+  const hideBtn = $('checklist-hide-btn');
+  if (hideBtn) {
+    hideBtn.disabled = stats.done === 0;
+    hideBtn.textContent = checklistHideDone ? 'Mostrar marcados' : 'Ocultar marcados';
+  }
+
+  const visibleItems = modalChecklist
+    .map((item, index) => ({ item, index }))
+    .filter(({ item }) => !checklistHideDone || !item.done);
+  const itemsEl = $('checklist-items');
+  if (itemsEl) {
+    itemsEl.innerHTML = visibleItems.map(({ item, index }) => `
+      <div class="checklist-item">
+        <input class="checklist-item-check" type="checkbox" ${item.done ? 'checked' : ''} onchange="toggleChecklistItem(${index}, this.checked)" />
+        <input class="checklist-item-text${item.done ? ' done' : ''}" value="${esc(item.text)}" onblur="renameChecklistItem(${index}, this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()} if(event.key==='Escape'){this.value=this.defaultValue;this.blur()}" />
+        <button class="checklist-item-del" type="button" onmousedown="event.preventDefault()" onclick="deleteChecklistItem(${index})" title="Eliminar">x</button>
+      </div>
+    `).join('');
+  }
+  const empty = $('checklist-empty');
+  if (empty) {
+    empty.style.display = stats.total && !visibleItems.length ? '' : (stats.total ? 'none' : '');
+    empty.textContent = stats.total && !visibleItems.length ? 'Elementos marcados ocultos.' : 'Sin elementos todavia.';
+  }
+}
+
 /* ─────────────────────────────────────────
    NAVIGATION
 ───────────────────────────────────────── */
@@ -1592,7 +2011,8 @@ function filteredCards() {
       (c.ta||'').toLowerCase().includes(q) ||
       (c.debe||'').toLowerCase().includes(q) ||
       (c.montoDeuda||'').toLowerCase().includes(q) ||
-      (c.vence||'').toLowerCase().includes(q)
+      (c.vence||'').toLowerCase().includes(q) ||
+      (Array.isArray(c.checklist) && c.checklist.some(item => String(item.text || '').toLowerCase().includes(q)))
     );
   }
   return cards;
@@ -1642,6 +2062,7 @@ function cardHTML(c, users) {
     ? AVA_COLORS[users.indexOf(assignee) % AVA_COLORS.length]
     : 'var(--surface3)';
   const cover = cardCoverStyle(c);
+  const checklist = checklistStats(c.checklist);
 
   return `
     <div class="kcard" draggable="true" data-id="${c.id}"
@@ -1651,10 +2072,11 @@ function cardHTML(c, users) {
       <div class="kcard-cover" style="${cover}"></div>
       <div class="kcard-body">
         <div class="kcard-top">
-          <div class="kcard-check"></div>
+          <div class="kcard-check${c.estado === 'finalizado' ? ' done' : ''}"></div>
           <div class="kcard-title">${esc(c.nf || c.rs || '(Sin nombre)')}</div>
         </div>
         <div class="kcard-meta">
+          ${checklist.total ? `<span class="kcard-checklist${checklist.done === checklist.total ? ' done' : ''}" title="Checklist ${checklist.done}/${checklist.total}"><span class="kcard-checklist-icon"></span>${checklist.done}/${checklist.total}</span>` : ''}
           <span class="kcard-avatars">
             ${assignee ? `<span class="kcard-ava" style="${avatarStyle(assignee, avaColor)}" title="${esc(assignee.nombre+' '+(assignee.apellido||''))}">${avatarText(assignee)}</span>` : ''}
           </span>
@@ -1802,6 +2224,184 @@ function fmtDate(ts) {
   return d.getDate() + ' ' + MONTHS[d.getMonth()].slice(0,3).toLowerCase();
 }
 
+function pad2(n) {
+  return String(n).padStart(2, '0');
+}
+
+function toISODate(d) {
+  return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+}
+
+function formatDueDate(iso) {
+  const d = dateFromInput(iso);
+  return d ? d.getDate() + '/' + (d.getMonth() + 1) + '/' + d.getFullYear() : '';
+}
+
+function parseDueTextDate(value) {
+  const m = String(value || '').trim().match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+  if (!m) return '';
+  const d = new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
+  if (d.getFullYear() !== Number(m[3]) || d.getMonth() !== Number(m[2]) - 1 || d.getDate() !== Number(m[1])) return '';
+  return toISODate(d);
+}
+
+function ensureDueTimeOptions() {
+  const sel = $('due-time-input');
+  if (!sel || sel.options.length) return;
+  for (let h = 0; h < 24; h++) {
+    for (const m of [0, 30]) {
+      const value = pad2(h) + ':' + pad2(m);
+      sel.appendChild(new Option(value, value, false, value === '12:00'));
+    }
+  }
+}
+
+function openDuePopover(event) {
+  if (event) event.stopPropagation();
+  closeCoverMenu();
+  ensureDueTimeOptions();
+  const saved = $('f-vence').value;
+  const base = dateFromInput(saved) || new Date();
+  dueDraftDate = saved || toISODate(base);
+  $('due-time-input').value = $('f-vence-hora').value || '12:00';
+  duePickerYear = base.getFullYear();
+  duePickerMonth = base.getMonth();
+  $('due-enabled').checked = true;
+  syncDueInputs();
+  renderDueCalendar();
+  const pop = $('due-popover');
+  pop.classList.add('open');
+  positionDuePopover(event ? event.currentTarget : $('due-action-btn'));
+}
+
+function closeDuePopover() {
+  const pop = $('due-popover');
+  if (pop) pop.classList.remove('open');
+}
+
+function positionDuePopover(anchor) {
+  const pop = $('due-popover');
+  if (!pop || !anchor) return;
+  const rect = anchor.getBoundingClientRect();
+  const width = Math.min(306, window.innerWidth - 16);
+  pop.style.width = width + 'px';
+  const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8));
+  const height = Math.min(pop.offsetHeight || 560, window.innerHeight - 20);
+  const top = Math.max(8, Math.min(rect.bottom + 6, window.innerHeight - height - 8));
+  pop.style.left = left + 'px';
+  pop.style.top = top + 'px';
+}
+
+function changeDueMonth(delta) {
+  const d = new Date(duePickerYear, duePickerMonth + delta, 1);
+  duePickerYear = d.getFullYear();
+  duePickerMonth = d.getMonth();
+  renderDueCalendar();
+  positionDuePopover($('due-action-btn'));
+}
+
+function renderDueCalendar() {
+  const grid = $('due-calendar-grid');
+  const label = $('due-month-label');
+  if (!grid || duePickerYear === null || duePickerMonth === null) return;
+  label.textContent = MONTHS[duePickerMonth].toLowerCase() + ' ' + duePickerYear;
+  const first = new Date(duePickerYear, duePickerMonth, 1);
+  const startOffset = (first.getDay() + 6) % 7;
+  const start = new Date(duePickerYear, duePickerMonth, 1 - startOffset);
+  const selected = dateFromInput(dueDraftDate);
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  grid.innerHTML = '';
+  for (let i = 0; i < 42; i++) {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    const iso = toISODate(d);
+    const classes = ['due-day'];
+    if (d.getMonth() !== duePickerMonth) classes.push('muted');
+    if (d.getTime() === today.getTime()) classes.push('today');
+    if (selected && d.getTime() === selected.getTime()) classes.push('selected');
+    grid.insertAdjacentHTML('beforeend',
+      `<button type="button" class="${classes.join(' ')}" onclick="selectDueDate('${iso}')">${d.getDate()}</button>`
+    );
+  }
+}
+
+function selectDueDate(iso) {
+  dueDraftDate = iso;
+  const d = dateFromInput(iso);
+  duePickerYear = d.getFullYear();
+  duePickerMonth = d.getMonth();
+  $('due-enabled').checked = true;
+  syncDueInputs();
+  renderDueCalendar();
+}
+
+function syncDueInputs() {
+  const enabled = $('due-enabled') ? $('due-enabled').checked : true;
+  const dateInput = $('due-date-input');
+  const timeInput = $('due-time-input');
+  if (dateInput) {
+    dateInput.value = dueDraftDate ? formatDueDate(dueDraftDate) : '';
+    dateInput.disabled = !enabled;
+  }
+  if (timeInput) timeInput.disabled = !enabled;
+}
+
+function toggleDueEnabled(on) {
+  syncDueInputs();
+  if (!on) renderDueCalendar();
+}
+
+function onDueDateText(value) {
+  const iso = parseDueTextDate(value);
+  if (!iso) return;
+  dueDraftDate = iso;
+  const d = dateFromInput(iso);
+  duePickerYear = d.getFullYear();
+  duePickerMonth = d.getMonth();
+  $('due-enabled').checked = true;
+  syncDueInputs();
+  renderDueCalendar();
+}
+
+function normalizeDueDateText() {
+  const input = $('due-date-input');
+  if (!input) return;
+  const iso = parseDueTextDate(input.value);
+  if (iso) {
+    selectDueDate(iso);
+  } else {
+    input.value = formatDueDate(dueDraftDate);
+  }
+}
+
+function applyDuePopover() {
+  const enabled = $('due-enabled').checked;
+  $('f-vence').value = enabled ? dueDraftDate : '';
+  $('f-vence-hora').value = enabled ? $('due-time-input').value : '';
+  syncDueButton();
+  closeDuePopover();
+  syncModalPreview();
+}
+
+function removeDueDate() {
+  $('f-vence').value = '';
+  $('f-vence-hora').value = '';
+  dueDraftDate = '';
+  syncDueButton();
+  closeDuePopover();
+  syncModalPreview();
+}
+
+function syncDueButton() {
+  const btn = $('due-action-btn');
+  if (!btn) return;
+  const value = $('f-vence') ? $('f-vence').value : '';
+  if (!value && $('f-vence-hora')) $('f-vence-hora').value = '';
+  btn.textContent = value ? 'Vencimiento: ' + formatDueDate(value) : 'Vencimiento';
+  btn.classList.toggle('has-due', !!value);
+}
+
 /* ─────────────────────────────────────────
    DRAG & DROP
 ───────────────────────────────────────── */
@@ -1848,15 +2448,21 @@ function openNewCard(status = 'iniciada') {
   modalStatus = status;
   modalColor  = 'none';
   modalCoverImage = '';
+  modalChecklist = [];
+  checklistHideDone = false;
+  if ($('checklist-section')) $('checklist-section').dataset.open = 'false';
   $('modal-title').textContent = 'Nueva tarjeta';
   $('btn-del').style.display   = 'none';
   clearForm();
+  syncDueButton();
   setStatus(status);
   pickColor('none');
   $('f-equipo').value = defaultFormTeam();
   syncTeamSelect('f-equipo');
   populateUsers(currentUser ? currentUser.id : null);
   $('activity-comment').value = '';
+  renderChecklist();
+  hideChecklistInput(true);
   setCardDetailsOpen(true);
   syncModalPreview();
   openOverlay('card-overlay');
@@ -1869,6 +2475,9 @@ function openCard(id) {
   modalStatus = c.estado;
   modalColor  = c.color || 'none';
   modalCoverImage = c.coverImage || '';
+  modalChecklist = normalizeChecklist(c.checklist);
+  checklistHideDone = false;
+  if ($('checklist-section')) $('checklist-section').dataset.open = modalChecklist.length ? 'true' : 'false';
   $('modal-title').textContent = c.nf || c.rs || 'Detalle';
   $('btn-del').style.display   = '';
   setStatus(c.estado);
@@ -1882,8 +2491,12 @@ function openCard(id) {
   $('f-debe').value = c.debe || (parseMoney(c.montoDeuda) > 0 ? 'si' : 'no');
   $('f-monto').value = c.montoDeuda || '';
   $('f-vence').value = c.vence || '';
+  $('f-vence-hora').value = c.venceHora || '';
+  syncDueButton();
   populateUsers(c.usuario);
   $('activity-comment').value = '';
+  renderChecklist();
+  hideChecklistInput(true);
   setCardDetailsOpen(false);
   syncModalPreview();
   openOverlay('card-overlay');
@@ -1894,7 +2507,7 @@ function populateUsers(sel) {
   $('f-usuario').innerHTML = '<option value="">Sin asignar</option>' +
     getUsers().filter(u => !team || u.equipo === team).map(u =>
       `<option value="${u.id}"${u.id===sel?' selected':''}>
-        ${esc(u.nombre+' '+(u.apellido||''))} — ${esc(TEAMS[u.equipo]||u.equipo)}
+        ${esc((u.nombre + ' ' + (u.apellido || '')).trim())}
       </option>`
     ).join('');
 }
@@ -1906,9 +2519,11 @@ function onCardTeamChange() {
 }
 
 function clearForm() {
-  ['f-nf','f-rs','f-cuit','f-ca','f-ntel','f-t','f-ta','f-c','f-monto','f-vence'].forEach(id => $(id).value = '');
+  ['f-nf','f-rs','f-cuit','f-ca','f-ntel','f-t','f-ta','f-c','f-monto','f-vence','f-vence-hora'].forEach(id => $(id).value = '');
   if ($('f-cover')) $('f-cover').value = '';
+  if ($('checklist-new-text')) $('checklist-new-text').value = '';
   $('f-debe').value = 'no';
+  syncDueButton();
 }
 
 function setStatus(s) {
@@ -1929,20 +2544,12 @@ function setCardDetailsOpen(open) {
   const details = $('client-details');
   if (!details) return;
   details.open = open;
-  syncDetailsToggle();
 }
 
 function toggleCardDetails() {
   const details = $('client-details');
   if (!details) return;
   details.open = !details.open;
-  syncDetailsToggle();
-}
-
-function syncDetailsToggle() {
-  const btn = $('details-toggle');
-  const details = $('client-details');
-  if (btn && details) btn.textContent = details.open ? 'Ocultar detalles' : 'Mostrar detalles';
 }
 
 function syncModalPreview() {
@@ -1982,7 +2589,34 @@ function renderActivity(card) {
   const actor = users.find(u => card && u.id === card.creadoPor) || currentUser;
   const name = actor ? (actor.nombre + ' ' + (actor.apellido||'')).trim() : 'Usuario';
   const date = card && card.creadoEn ? fmtActivityDate(card.creadoEn) : 'Ahora';
-  const comment = $('f-c') ? $('f-c').value.trim() : '';
+  const draft = $('f-c') ? $('f-c').value.trim() : '';
+  const savedDescription = card ? String(card.c || '').trim() : '';
+  const history = card && Array.isArray(card.descriptionHistory) ? card.descriptionHistory : [];
+  const draftItem = draft && (!card || draft !== savedDescription) ? `
+    <div class="activity-item">
+      <div class="activity-avatar" style="${avatarStyle(currentUser)}">${avatarText(currentUser)}</div>
+      <div>
+        <strong>${esc(currentUser ? (currentUser.nombre + ' ' + (currentUser.apellido||'')).trim() : 'Usuario')}</strong> esta editando la descripcion
+        <div class="activity-date">Ahora</div>
+        <div class="activity-description">${esc(draft).replace(/\n/g,'<br>')}</div>
+      </div>
+    </div>
+  ` : '';
+  const historyItems = history.map(h => {
+    const user = users.find(u => u.id === h.userId) || actor || currentUser;
+    const userName = user ? (user.nombre + ' ' + (user.apellido||'')).trim() : 'Usuario';
+    const text = String(h.description || '').trim();
+    return `
+      <div class="activity-item">
+        <div class="activity-avatar" style="${avatarStyle(user)}">${avatarText(user)}</div>
+        <div>
+          <strong>${esc(userName)}</strong> guardo una descripcion
+          <div class="activity-date">${esc(fmtActivityDate(h.creadoEn))}</div>
+          <div class="activity-description${text ? '' : ' empty'}">${text ? esc(text).replace(/\n/g,'<br>') : 'Descripcion vacia'}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
   list.innerHTML = `
     <div class="activity-item">
       <div class="activity-avatar" style="${avatarStyle(actor)}">${avatarText(actor)}</div>
@@ -1991,7 +2625,8 @@ function renderActivity(card) {
         <div class="activity-date">${esc(date)}</div>
       </div>
     </div>
-    ${comment ? `<div class="activity-item"><div class="activity-avatar" style="${avatarStyle(currentUser)}">${avatarText(currentUser)}</div><div><strong>Comentario</strong><div>${esc(comment).replace(/\n/g,'<br>')}</div></div></div>` : '<div class="activity-empty">Sin comentarios todavia.</div>'}
+    ${draftItem}
+    ${historyItems || (draftItem ? '' : '<div class="activity-empty">Sin descripciones guardadas todavia.</div>')}
   `;
 }
 
@@ -2015,7 +2650,9 @@ async function saveCard() {
     debe:    $('f-debe').value,
     montoDeuda: $('f-monto').value.trim(),
     vence:   $('f-vence').value,
+    venceHora: $('f-vence-hora').value,
     usuario: $('f-usuario').value || null,
+    checklist: normalizeChecklist(modalChecklist),
   };
   try {
     const saved = await api(editingId ? '/api/cards/' + editingId : '/api/cards', {
@@ -2044,7 +2681,7 @@ async function deleteCard() {
   }
 }
 
-function closeModal()  { closeOverlay('card-overlay'); }
+function closeModal()  { closeCoverMenu(); closeDuePopover(); closeOverlay('card-overlay'); }
 function overlayBg(e)  { if (e.target.id === 'card-overlay') closeModal(); }
 
 /* ─────────────────────────────────────────

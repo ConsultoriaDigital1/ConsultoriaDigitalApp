@@ -52,6 +52,18 @@ async function main() {
         card.debe || 'no', card.monto_deuda || '', card.vence || '',
       ]
     );
+
+    if (card.c) {
+      await pool.query(
+        `INSERT INTO card_description_history (id, card_id, user_id, description, creado_en, created_at)
+         SELECT $1, $2, $3, $4, $5::bigint, to_timestamp($5::double precision / 1000.0)
+         WHERE NOT EXISTS (
+           SELECT 1 FROM card_description_history WHERE card_id = $2
+         )
+         ON CONFLICT (id) DO NOTHING`,
+        ['initial-' + card.id, card.id, card.creado_por, card.c, card.creado_en]
+      );
+    }
   }
 
   console.log('Seed listo. Usuarios: admin/Motomipasion1, juan/pass123, ana/pass123');
