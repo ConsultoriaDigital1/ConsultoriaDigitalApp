@@ -5,9 +5,12 @@ CREATE TABLE IF NOT EXISTS users (
   apellido TEXT NOT NULL DEFAULT '',
   password_hash TEXT NOT NULL,
   equipo TEXT NOT NULL CHECK (equipo IN ('marketing', 'desarrollo', 'admin')),
+  avatar_image TEXT NOT NULL DEFAULT '',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_image TEXT NOT NULL DEFAULT '';
 
 CREATE TABLE IF NOT EXISTS cards (
   id TEXT PRIMARY KEY,

@@ -81,6 +81,7 @@ function userDTO(row) {
     nombre: row.nombre,
     apellido: row.apellido,
     equipo: row.equipo,
+    avatarImage: row.avatar_image || '',
   };
 }
 
@@ -141,7 +142,7 @@ async function requireAuth(req, res, next) {
 async function visibleUsers(user) {
   const teams = allowedTeams(user);
   const { rows } = await pool.query(
-    'SELECT id, username, nombre, apellido, equipo FROM users WHERE equipo = ANY($1) ORDER BY nombre, apellido',
+    'SELECT id, username, nombre, apellido, equipo, avatar_image FROM users WHERE equipo = ANY($1) ORDER BY nombre, apellido',
     [teams]
   );
   return rows.map(userDTO);
@@ -196,6 +197,22 @@ function cleanCalendarUrl(value) {
     throw err;
   }
   return url;
+}
+
+function cleanAvatarImage(value) {
+  const image = String(value || '').trim();
+  if (!image) return '';
+  if (image.length > 850000) {
+    const err = new Error('La imagen de perfil es demasiado grande.');
+    err.status = 400;
+    throw err;
+  }
+  if (!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(image)) {
+    const err = new Error('La imagen de perfil debe ser PNG, JPG o WebP.');
+    err.status = 400;
+    throw err;
+  }
+  return image;
 }
 
 function cardValues(body, user, existing = {}) {
@@ -316,19 +333,20 @@ app.patch('/api/profile', requireAuth, async (req, res, next) => {
     const nombre = String(req.body.nombre || '').trim();
     const apellido = String(req.body.apellido || '').trim();
     const password = String(req.body.password || '');
+    const avatarImage = cleanAvatarImage(req.body.avatarImage ?? req.user.avatar_image);
     if (!nombre) return res.status(400).json({ error: 'El nombre no puede estar vacio.' });
 
     if (password) {
       if (password.length < 6) return res.status(400).json({ error: 'Contrasena minimo 6 caracteres.' });
       const passwordHash = await bcrypt.hash(password, 12);
       await pool.query(
-        'UPDATE users SET nombre = $1, apellido = $2, password_hash = $3, updated_at = NOW() WHERE id = $4',
-        [nombre, apellido, passwordHash, req.user.id]
+        'UPDATE users SET nombre = $1, apellido = $2, password_hash = $3, avatar_image = $4, updated_at = NOW() WHERE id = $5',
+        [nombre, apellido, passwordHash, avatarImage, req.user.id]
       );
     } else {
       await pool.query(
-        'UPDATE users SET nombre = $1, apellido = $2, updated_at = NOW() WHERE id = $3',
-        [nombre, apellido, req.user.id]
+        'UPDATE users SET nombre = $1, apellido = $2, avatar_image = $3, updated_at = NOW() WHERE id = $4',
+        [nombre, apellido, avatarImage, req.user.id]
       );
     }
 
