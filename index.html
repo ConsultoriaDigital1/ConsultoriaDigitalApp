@@ -929,6 +929,15 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
   cursor: pointer; transition: background 150ms ease;
 }
 .cal-event:hover { background: #579dff; color: white; }
+.cal-event.evt { background: transparent; border-left: 2px solid #579dff; border-radius: 2px; padding-left: 0.25rem; }
+.cal-event.evt:hover { background: #579dff22; color: inherit; }
+.cal-daynum { display: inline-block; cursor: pointer; border-radius: 50%; }
+.cal-daynum:hover { color: #579dff; }
+.cal-day.today .cal-daynum { cursor: pointer; }
+.ev-color-picker { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-top: 0.25rem; }
+.ev-color-dot { width: 22px; height: 22px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: transform 120ms, border-color 120ms; }
+.ev-color-dot.selected { border-color: white; box-shadow: 0 0 0 2px var(--border2); transform: scale(1.15); }
+.ev-color-dot:hover { transform: scale(1.12); }
 
 /* ═══════════════════════════════════════════
    TALENTOS
@@ -955,6 +964,15 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
   padding: 0.18rem 0.55rem; border-radius: 999px;
   background: var(--surface3); font-size: 0.68rem; font-weight: 700; color: var(--text);
 }
+
+.talent-actions { display: flex; gap: 0.4rem; margin-top: auto; padding-top: 0.3rem; }
+.talent-action-btn {
+  flex: 1; padding: 0.3rem 0.5rem; border-radius: var(--r); border: 1px solid var(--border);
+  background: transparent; color: var(--muted); font-size: 0.68rem; font-weight: 600;
+  cursor: pointer; transition: background 150ms, color 150ms, border-color 150ms;
+}
+.talent-action-btn:hover { background: var(--surface3); color: var(--text); border-color: var(--border2); }
+.talent-action-btn.danger:hover { background: #ff5c5c22; color: #ff5c5c; border-color: #ff5c5c66; }
 
 /* ═══════════════════════════════════════════
    TOAST
@@ -1158,6 +1176,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
             <div class="cbar-sub" id="cal-sub"></div>
           </div>
           <div style="margin-left:auto;display:flex;gap:0.4rem;flex-wrap:wrap;justify-content:flex-end">
+            <button id="cal-add-event-btn" class="btn btn-primary btn-sm" onclick="openEventModal()">+ Evento</button>
             <button class="btn btn-ghost btn-sm" onclick="changeMonth(-1)">‹</button>
             <button class="btn btn-ghost btn-sm" onclick="changeMonth(1)">›</button>
           </div>
@@ -1482,6 +1501,105 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
   </div>
 </div>
 
+<!-- EVENT MODAL -->
+<div id="event-overlay" class="overlay" onclick="eventBg(event)">
+  <div class="modal" style="max-width:460px" onclick="event.stopPropagation()">
+    <div class="modal-head">
+      <span class="modal-head-title" id="event-modal-title">Nuevo evento</span>
+      <button class="modal-close" onclick="closeEventModal()">x</button>
+    </div>
+    <div style="padding:1.2rem 1.4rem">
+      <input type="hidden" id="ev-id" />
+      <div class="form-group">
+        <label class="form-label">Titulo</label>
+        <input id="ev-titulo" class="form-input" type="text" placeholder="Nombre del evento" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Descripcion</label>
+        <textarea id="ev-desc" class="form-input" rows="2" placeholder="Descripcion opcional..." style="resize:vertical;min-height:56px"></textarea>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Fecha</label>
+          <input id="ev-fecha" class="form-input" type="date" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Equipo</label>
+          <select id="ev-equipo" class="form-select">
+            <option value="marketing">Equipo de Marketing</option>
+            <option value="desarrollo">Equipo de Desarrollo</option>
+            <option value="admin">Administracion</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Hora inicio</label>
+          <input id="ev-hora-inicio" class="form-input" type="time" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Hora fin</label>
+          <input id="ev-hora-fin" class="form-input" type="time" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Color</label>
+        <div id="ev-color-picker" class="ev-color-picker"></div>
+      </div>
+      <div id="ev-err" class="form-error" style="display:none"></div>
+    </div>
+    <div class="modal-foot">
+      <button id="ev-delete-btn" class="btn btn-ghost btn-sm" style="color:#ff5c5c;margin-right:auto;display:none" onclick="confirmDeleteEvent()">Eliminar evento</button>
+      <button class="btn btn-ghost btn-sm" onclick="closeEventModal()">Cancelar</button>
+      <button class="btn btn-primary btn-sm" onclick="saveEvent()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT USER MODAL -->
+<div id="edit-user-overlay" class="overlay" onclick="editUserBg(event)">
+  <div class="modal" style="max-width:440px" onclick="event.stopPropagation()">
+    <div class="modal-head">
+      <span class="modal-head-title">Editar usuario</span>
+      <button class="modal-close" onclick="closeEditUserModal()">x</button>
+    </div>
+    <div style="padding:1.2rem 1.4rem">
+      <input type="hidden" id="eu-id" />
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Nombre</label>
+          <input id="eu-nombre" class="form-input" type="text" placeholder="Nombre" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Apellido</label>
+          <input id="eu-apellido" class="form-input" type="text" placeholder="Apellido" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Usuario</label>
+        <input id="eu-username" class="form-input" type="text" placeholder="usuario" autocomplete="username" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Nueva contrasena <span style="color:var(--muted);font-weight:400">(dejar en blanco para no cambiar)</span></label>
+        <input id="eu-pass" class="form-input" type="password" placeholder="Minimo 6 caracteres" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Equipo</label>
+        <select id="eu-equipo" class="form-select">
+          <option value="marketing">Equipo de Marketing</option>
+          <option value="desarrollo">Equipo de Desarrollo</option>
+          <option value="admin">Administracion</option>
+        </select>
+      </div>
+      <div id="eu-err" class="form-error" style="display:none"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost btn-sm" onclick="closeEditUserModal()">Cancelar</button>
+      <button class="btn btn-primary btn-sm" onclick="saveEditUser()">Guardar cambios</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <!-- ═══════════════════════════════════════════
@@ -1532,8 +1650,10 @@ const AVA_COLORS = [
 let usersCache = [];
 let cardsCache = [];
 let calendarsCache = {};
-const getUsers = () => usersCache;
-const getCards = () => cardsCache;
+let eventsCache = [];
+const getUsers  = () => usersCache;
+const getCards  = () => cardsCache;
+const getEvents = () => eventsCache;
 
 function currentCalendarTeam() {
   return activeTeam !== 'all' && canViewTeam(activeTeam) ? activeTeam : (currentUser ? currentUser.equipo : 'marketing');
@@ -1568,10 +1688,11 @@ async function api(path, options = {}) {
 
 async function loadAppData() {
   const data = await api('/api/bootstrap');
-  currentUser = data.user;
-  usersCache = data.users || [];
-  cardsCache = data.cards || [];
+  currentUser    = data.user;
+  usersCache     = data.users     || [];
+  cardsCache     = data.cards     || [];
   calendarsCache = data.calendars || {};
+  eventsCache    = data.events    || [];
   return data;
 }
 
@@ -1657,8 +1778,9 @@ async function doRegister() {
 async function doLogout() {
   await api('/api/auth/logout', { method: 'POST' }).catch(() => {});
   currentUser = null;
-  usersCache = [];
-  cardsCache = [];
+  usersCache  = [];
+  cardsCache  = [];
+  eventsCache = [];
   $('app').style.display = 'none';
   $('login-screen').style.display = '';
   $('li-username').value = ''; $('li-pass').value = '';
@@ -2845,8 +2967,10 @@ function setGoogleCalendarMode(on) {
   document.querySelectorAll('#tab-calendario button[onclick^="changeMonth"]').forEach(btn => {
     btn.style.display = on ? 'none' : '';
   });
+  const addBtn = $('cal-add-event-btn');
+  if (addBtn) addBtn.style.display = on ? 'none' : '';
   $('cal-header').style.display = on ? 'none' : '';
-  $('cal-body').style.display = on ? 'none' : '';
+  $('cal-body').style.display   = on ? 'none' : '';
 }
 
 function calendarCardDate(card) {
@@ -2891,15 +3015,24 @@ function renderCalendar() {
   $('cal-sub').textContent = (TEAMS[team] || team) + ' - ' + MONTHS[calMonth] + ' ' + calYear;
   $('cal-header').innerHTML = DAYS.map(d => `<div class="cal-lbl">${d}</div>`).join('');
 
-  const cardsByDay = {};
+  const itemsByDay = {};
   getCards().filter(c => c.equipo === team).forEach(c => {
     const d = calendarCardDate(c);
     if (!d) return;
     if (d.getFullYear() === calYear && d.getMonth() === calMonth) {
       const day = d.getDate();
-      if (!cardsByDay[day]) cardsByDay[day] = [];
-      cardsByDay[day].push(c);
+      if (!itemsByDay[day]) itemsByDay[day] = [];
+      itemsByDay[day].push({ type: 'card', data: c });
     }
+  });
+  getEvents().filter(e => {
+    if (e.equipo !== team) return false;
+    const p = e.fecha.split('-');
+    return parseInt(p[0],10) === calYear && parseInt(p[1],10) === calMonth + 1;
+  }).forEach(ev => {
+    const day = parseInt(ev.fecha.split('-')[2], 10);
+    if (!itemsByDay[day]) itemsByDay[day] = [];
+    itemsByDay[day].push({ type: 'event', data: ev });
   });
 
   const today    = new Date();
@@ -2910,12 +3043,18 @@ function renderCalendar() {
   let html = '';
   for (let i = 0; i < startDow; i++) html += '<div class="cal-day empty"></div>';
   for (let d = 1; d <= daysInMo; d++) {
-    const isToday = d===today.getDate() && calMonth===today.getMonth() && calYear===today.getFullYear();
-    const evts    = cardsByDay[d] || [];
+    const isToday  = d===today.getDate() && calMonth===today.getMonth() && calYear===today.getFullYear();
+    const isoDate  = `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const items    = itemsByDay[d] || [];
+    const shown    = items.slice(0, 3);
+    const extra    = items.length > 3 ? items.length - 3 : 0;
     html += `<div class="cal-day${isToday?' today':''}">
-      <div class="cal-daynum">${d}</div>
-      ${evts.slice(0,2).map(c=>`<div class="cal-event" onclick="openCard('${c.id}')">${esc(c.nf||c.rs||'—')}</div>`).join('')}
-      ${evts.length>2?`<div class="cal-event" style="background:var(--surface3)">+${evts.length-2} más</div>`:''}
+      <div class="cal-daynum" onclick="openEventModal('${isoDate}')" title="Agregar evento">${d}</div>
+      ${shown.map(item => item.type === 'event'
+        ? `<div class="cal-event evt" style="border-left-color:${EVT_COLORS[item.data.color]||'#579dff'};color:${EVT_COLORS[item.data.color]||'#579dff'}" onclick="openEditEvent('${item.data.id}')">${esc(item.data.titulo)}</div>`
+        : `<div class="cal-event" onclick="openCard('${item.data.id}')">${esc(item.data.nf||item.data.rs||'—')}</div>`
+      ).join('')}
+      ${extra ? `<div class="cal-event" style="background:var(--surface3)">+${extra} más</div>` : ''}
     </div>`;
   }
   $('cal-body').innerHTML = html;
@@ -2946,6 +3085,10 @@ function renderTalentos() {
         <span class="sb-dot ${TEAM_DOT[u.equipo]||'d-all'}" style="display:inline-block"></span>
         ${esc(TEAMS[u.equipo]||u.equipo)}
       </div>
+      ${isAdmin() ? `<div class="talent-actions">
+        <button class="talent-action-btn" onclick="openEditUser('${esc(u.id)}')">Editar</button>
+        <button class="talent-action-btn danger" onclick="confirmDeleteUser('${esc(u.id)}','${esc(u.nombre)}')">Eliminar</button>
+      </div>` : ''}
     </div>`).join('');
 }
 
@@ -2986,6 +3129,171 @@ async function saveUser() {
     toast('Usuario creado', 'success');
   } catch (err) {
     showErr('au-err', err.message);
+  }
+}
+
+function openEditUser(id) {
+  if (!isAdmin()) { toast('Solo administradores pueden editar usuarios', 'error'); return; }
+  const u = getUsers().find(x => x.id === id);
+  if (!u) return;
+  $('eu-id').value      = u.id;
+  $('eu-nombre').value  = u.nombre;
+  $('eu-apellido').value = u.apellido || '';
+  $('eu-username').value = u.username;
+  $('eu-pass').value    = '';
+  $('eu-equipo').value  = u.equipo;
+  syncTeamSelect('eu-equipo');
+  hideErr('eu-err');
+  openOverlay('edit-user-overlay');
+  $('eu-nombre').focus();
+}
+
+function closeEditUserModal() { closeOverlay('edit-user-overlay'); }
+function editUserBg(e) { if (e.target.id === 'edit-user-overlay') closeEditUserModal(); }
+
+async function saveEditUser() {
+  const id       = $('eu-id').value;
+  const nombre   = $('eu-nombre').value.trim();
+  const apellido = $('eu-apellido').value.trim();
+  const username = $('eu-username').value.trim().toLowerCase();
+  const pass     = $('eu-pass').value;
+  const equipo   = $('eu-equipo').value;
+  if (!nombre || !username) { showErr('eu-err', 'Completa todos los campos.'); return; }
+  if (pass && pass.length < 6) { showErr('eu-err', 'Contrasena minimo 6 caracteres.'); return; }
+  try {
+    const body = { username, nombre, apellido, equipo };
+    if (pass) body.password = pass;
+    const data = await api(`/api/users/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
+    const idx = usersCache.findIndex(u => u.id === id);
+    if (idx !== -1) usersCache[idx] = data.user;
+    renderTalentos();
+    renderBoard();
+    closeEditUserModal();
+    toast('Usuario actualizado', 'success');
+  } catch (err) {
+    showErr('eu-err', err.message);
+  }
+}
+
+async function confirmDeleteUser(id, nombre) {
+  if (!confirm(`¿Eliminar al usuario "${nombre}"? Esta accion no se puede deshacer.`)) return;
+  try {
+    await api(`/api/users/${id}`, { method: 'DELETE' });
+    usersCache = usersCache.filter(u => u.id !== id);
+    renderTalentos();
+    renderBoard();
+    toast('Usuario eliminado', 'success');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+/* ─────────────────────────────────────────
+   CALENDAR EVENTS
+───────────────────────────────────────── */
+const EVT_COLORS = {
+  blue:   '#579dff', purple: '#7c3aed', green:  '#4ade80',
+  red:    '#f87168', orange: '#d97706', pink:   '#db2777',
+  teal:   '#0d9488', yellow: '#ca8a04',
+};
+
+let eventModalMode   = 'create';
+let evColorSelected  = 'blue';
+
+function renderEvColorPicker(selected) {
+  evColorSelected = selected || 'blue';
+  $('ev-color-picker').innerHTML = Object.entries(EVT_COLORS).map(([key, bg]) =>
+    `<div class="ev-color-dot${key===evColorSelected?' selected':''}" style="background:${bg}" onclick="selectEvColor('${key}')"></div>`
+  ).join('');
+}
+
+function selectEvColor(key) {
+  evColorSelected = key;
+  renderEvColorPicker(key);
+}
+
+function openEventModal(fecha) {
+  eventModalMode = 'create';
+  $('ev-id').value = '';
+  $('ev-titulo').value = '';
+  $('ev-desc').value = '';
+  $('ev-fecha').value = fecha || toISODate(new Date());
+  $('ev-hora-inicio').value = '';
+  $('ev-hora-fin').value = '';
+  $('ev-equipo').value = activeTeam !== 'all' ? activeTeam : (currentUser.equipo || 'marketing');
+  syncTeamSelect('ev-equipo');
+  renderEvColorPicker('blue');
+  $('event-modal-title').textContent = 'Nuevo evento';
+  $('ev-delete-btn').style.display = 'none';
+  hideErr('ev-err');
+  openOverlay('event-overlay');
+  $('ev-titulo').focus();
+}
+
+function openEditEvent(id) {
+  const ev = getEvents().find(e => e.id === id);
+  if (!ev) return;
+  eventModalMode = 'edit';
+  $('ev-id').value = ev.id;
+  $('ev-titulo').value = ev.titulo;
+  $('ev-desc').value = ev.descripcion || '';
+  $('ev-fecha').value = ev.fecha;
+  $('ev-hora-inicio').value = ev.horaInicio || '';
+  $('ev-hora-fin').value = ev.horaFin || '';
+  $('ev-equipo').value = ev.equipo;
+  syncTeamSelect('ev-equipo');
+  renderEvColorPicker(ev.color || 'blue');
+  $('event-modal-title').textContent = 'Editar evento';
+  $('ev-delete-btn').style.display = '';
+  hideErr('ev-err');
+  openOverlay('event-overlay');
+  $('ev-titulo').focus();
+}
+
+function closeEventModal() { closeOverlay('event-overlay'); }
+function eventBg(e) { if (e.target.id === 'event-overlay') closeEventModal(); }
+
+async function saveEvent() {
+  const titulo      = $('ev-titulo').value.trim();
+  const descripcion = $('ev-desc').value.trim();
+  const fecha       = $('ev-fecha').value;
+  const horaInicio  = $('ev-hora-inicio').value;
+  const horaFin     = $('ev-hora-fin').value;
+  const equipo      = $('ev-equipo').value;
+  if (!titulo)  { showErr('ev-err', 'El titulo es requerido.'); return; }
+  if (!fecha)   { showErr('ev-err', 'La fecha es requerida.');  return; }
+  try {
+    const body = { titulo, descripcion, fecha, horaInicio, horaFin, equipo, color: evColorSelected };
+    if (eventModalMode === 'edit') {
+      const id   = $('ev-id').value;
+      const data = await api(`/api/events/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
+      const idx  = eventsCache.findIndex(e => e.id === id);
+      if (idx !== -1) eventsCache[idx] = data.event; else eventsCache.push(data.event);
+    } else {
+      const data = await api('/api/events', { method: 'POST', body: JSON.stringify(body) });
+      eventsCache.push(data.event);
+    }
+    renderCalendar();
+    closeEventModal();
+    toast(eventModalMode === 'edit' ? 'Evento actualizado' : 'Evento creado', 'success');
+  } catch (err) {
+    showErr('ev-err', err.message);
+  }
+}
+
+async function confirmDeleteEvent() {
+  const id = $('ev-id').value;
+  const ev = getEvents().find(e => e.id === id);
+  if (!ev) return;
+  if (!confirm(`¿Eliminar el evento "${ev.titulo}"?`)) return;
+  try {
+    await api(`/api/events/${id}`, { method: 'DELETE' });
+    eventsCache = eventsCache.filter(e => e.id !== id);
+    renderCalendar();
+    closeEventModal();
+    toast('Evento eliminado', 'success');
+  } catch (err) {
+    toast(err.message, 'error');
   }
 }
 

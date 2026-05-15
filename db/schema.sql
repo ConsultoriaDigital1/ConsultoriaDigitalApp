@@ -72,3 +72,19 @@ CREATE TABLE IF NOT EXISTS team_calendars (
   updated_by TEXT REFERENCES users(id) ON DELETE SET NULL,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS calendar_events (
+  id TEXT PRIMARY KEY,
+  titulo TEXT NOT NULL,
+  descripcion TEXT NOT NULL DEFAULT '',
+  fecha TEXT NOT NULL,
+  hora_inicio TEXT NOT NULL DEFAULT '',
+  hora_fin TEXT NOT NULL DEFAULT '',
+  equipo TEXT NOT NULL CHECK (equipo IN ('marketing', 'desarrollo', 'admin')),
+  color TEXT NOT NULL DEFAULT 'blue',
+  creado_por TEXT REFERENCES users(id) ON DELETE SET NULL,
+  creado_en BIGINT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_calendar_events_equipo ON calendar_events(equipo);
+CREATE INDEX IF NOT EXISTS idx_calendar_events_fecha  ON calendar_events(fecha);

@@ -206,6 +206,19 @@ async function visibleCalendars(user) {
   return Object.fromEntries(teams.map((team) => [team, calendarUrlFromEnv(team)]));
 }
 
+async function visibleEvents(user) {
+  const teams = allowedTeams(user);
+  const { rows } = await pool.query(
+    'SELECT * FROM calendar_events WHERE equipo = ANY($1) ORDER BY fecha, hora_inicio',
+    [teams]
+  );
+  return rows.map(r => ({
+    id: r.id, titulo: r.titulo, descripcion: r.descripcion,
+    fecha: r.fecha, horaInicio: r.hora_inicio, horaFin: r.hora_fin,
+    equipo: r.equipo, color: r.color, creadoPor: r.creado_por, creadoEn: r.creado_en,
+  }));
+}
+
 function cleanUsername(value) {
   return String(value || '').trim().toLowerCase();
 }
@@ -386,6 +399,7 @@ app.get('/api/bootstrap', requireAuth, async (req, res, next) => {
       users: await visibleUsers(req.user),
       cards: await visibleCards(req.user),
       calendars: await visibleCalendars(req.user),
+      events: await visibleEvents(req.user),
       teams: allowedTeams(req.user),
     });
   } catch (err) {
@@ -444,6 +458,105 @@ app.post('/api/users', requireAuth, async (req, res, next) => {
     if (err.code === '23505') return res.status(409).json({ error: 'Ya existe una cuenta con ese usuario.' });
     next(err);
   }
+});
+
+app.patch('/api/users/:id', requireAuth, async (req, res, next) => {
+  try {
+    if (!isAdmin(req.user)) return res.status(403).json({ error: 'Solo administradores pueden editar usuarios.' });
+    const { id } = req.params;
+    const nombre   = String(req.body.nombre   || '').trim();
+    const apellido = String(req.body.apellido || '').trim();
+    const username = cleanUsername(req.body.username);
+    const equipo   = cleanTeam(req.body.equipo);
+    const password = req.body.password ? String(req.body.password) : null;
+    if (!nombre || !username || !equipo) return res.status(400).json({ error: 'Completa todos los campos.' });
+    if (password && password.length < 6) return res.status(400).json({ error: 'Contrasena minimo 6 caracteres.' });
+    const values = [id, nombre, apellido, username, equipo];
+    const sets = ['nombre=$2', 'apellido=$3', 'username=$4', 'equipo=$5', 'updated_at=NOW()'];
+    if (password) { sets.push(`password_hash=$${values.length + 1}`); values.push(await bcrypt.hash(password, 12)); }
+    const { rows } = await pool.query(
+      `UPDATE users SET ${sets.join(', ')} WHERE id=$1 RETURNING id, username, nombre, apellido, equipo, avatar_image`,
+      values
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Usuario no encontrado.' });
+    res.json({ user: userDTO(rows[0]) });
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ error: 'Ya existe una cuenta con ese usuario.' });
+    next(err);
+  }
+});
+
+app.delete('/api/users/:id', requireAuth, async (req, res, next) => {
+  try {
+    if (!isAdmin(req.user)) return res.status(403).json({ error: 'Solo administradores pueden eliminar usuarios.' });
+    const { id } = req.params;
+    if (id === req.user.id) return res.status(400).json({ error: 'No puedes eliminar tu propia cuenta.' });
+    const { rowCount } = await pool.query('DELETE FROM users WHERE id=$1', [id]);
+    if (!rowCount) return res.status(404).json({ error: 'Usuario no encontrado.' });
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+function eventDTO(r) {
+  return {
+    id: r.id, titulo: r.titulo, descripcion: r.descripcion,
+    fecha: r.fecha, horaInicio: r.hora_inicio, horaFin: r.hora_fin,
+    equipo: r.equipo, color: r.color, creadoPor: r.creado_por, creadoEn: r.creado_en,
+  };
+}
+
+app.post('/api/events', requireAuth, async (req, res, next) => {
+  try {
+    const titulo      = String(req.body.titulo      || '').trim();
+    const descripcion = String(req.body.descripcion || '').trim();
+    const fecha       = String(req.body.fecha       || '').trim();
+    const horaInicio  = String(req.body.horaInicio  || '').trim();
+    const horaFin     = String(req.body.horaFin     || '').trim();
+    const equipo      = cleanTeam(req.body.equipo) || req.user.equipo;
+    const color       = String(req.body.color || 'blue').trim();
+    if (!titulo || !fecha) return res.status(400).json({ error: 'Titulo y fecha son requeridos.' });
+    if (!canAccessTeam(req.user, equipo)) return res.status(403).json({ error: 'Sin acceso a ese equipo.' });
+    const { rows } = await pool.query(
+      `INSERT INTO calendar_events (id,titulo,descripcion,fecha,hora_inicio,hora_fin,equipo,color,creado_por,creado_en)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+      [mkId(), titulo, descripcion, fecha, horaInicio, horaFin, equipo, color, req.user.id, Date.now()]
+    );
+    res.status(201).json({ event: eventDTO(rows[0]) });
+  } catch (err) { next(err); }
+});
+
+app.patch('/api/events/:id', requireAuth, async (req, res, next) => {
+  try {
+    const { rows: ex } = await pool.query('SELECT * FROM calendar_events WHERE id=$1', [req.params.id]);
+    if (!ex.length) return res.status(404).json({ error: 'Evento no encontrado.' });
+    if (ex[0].creado_por !== req.user.id && !isAdmin(req.user)) return res.status(403).json({ error: 'Sin permiso para editar este evento.' });
+    const titulo      = String(req.body.titulo      || '').trim();
+    const descripcion = String(req.body.descripcion || '').trim();
+    const fecha       = String(req.body.fecha       || '').trim();
+    const horaInicio  = String(req.body.horaInicio  || '').trim();
+    const horaFin     = String(req.body.horaFin     || '').trim();
+    const equipo      = cleanTeam(req.body.equipo)  || ex[0].equipo;
+    const color       = String(req.body.color || ex[0].color).trim();
+    if (!titulo || !fecha) return res.status(400).json({ error: 'Titulo y fecha son requeridos.' });
+    if (!canAccessTeam(req.user, equipo)) return res.status(403).json({ error: 'Sin acceso a ese equipo.' });
+    const { rows } = await pool.query(
+      `UPDATE calendar_events SET titulo=$2,descripcion=$3,fecha=$4,hora_inicio=$5,hora_fin=$6,equipo=$7,color=$8 WHERE id=$1 RETURNING *`,
+      [req.params.id, titulo, descripcion, fecha, horaInicio, horaFin, equipo, color]
+    );
+    res.json({ event: eventDTO(rows[0]) });
+  } catch (err) { next(err); }
+});
+
+app.delete('/api/events/:id', requireAuth, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query('SELECT creado_por FROM calendar_events WHERE id=$1', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Evento no encontrado.' });
+    if (rows[0].creado_por !== req.user.id && !isAdmin(req.user)) return res.status(403).json({ error: 'Sin permiso para eliminar este evento.' });
+    await pool.query('DELETE FROM calendar_events WHERE id=$1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) { next(err); }
 });
 
 app.post('/api/cards', requireAuth, async (req, res, next) => {
