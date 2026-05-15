@@ -940,8 +940,6 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
             <div class="cbar-sub" id="cal-sub"></div>
           </div>
           <div style="margin-left:auto;display:flex;gap:0.4rem;flex-wrap:wrap;justify-content:flex-end">
-            <button class="btn btn-ghost btn-sm" onclick="configureGoogleCalendar()">Google Calendar</button>
-            <button class="btn btn-ghost btn-sm" id="cal-clear-google" onclick="clearGoogleCalendar()" style="display:none">Quitar Google</button>
             <button class="btn btn-ghost btn-sm" onclick="changeMonth(-1)">‹</button>
             <button class="btn btn-ghost btn-sm" onclick="changeMonth(1)">›</button>
           </div>
@@ -2084,9 +2082,7 @@ async function clearGoogleCalendar() {
 
 function setGoogleCalendarMode(on) {
   const panel = $('google-cal-panel');
-  const clearBtn = $('cal-clear-google');
   if (panel) panel.style.display = on ? '' : 'none';
-  if (clearBtn) clearBtn.style.display = on ? '' : 'none';
   document.querySelectorAll('#tab-calendario button[onclick^="changeMonth"]').forEach(btn => {
     btn.style.display = on ? 'none' : '';
   });

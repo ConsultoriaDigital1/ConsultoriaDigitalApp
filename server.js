@@ -16,6 +16,7 @@ const PORT = Number(process.env.PORT || 3000);
 const COOKIE_NAME = 'cd_session';
 const SESSION_SECRET = process.env.SESSION_SECRET || 'dev-only-change-me';
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7;
+const GOOGLE_CALENDAR_CTZ = process.env.GOOGLE_CALENDAR_CTZ || 'America/Argentina/Buenos_Aires';
 
 if (process.env.NODE_ENV === 'production' && SESSION_SECRET === 'dev-only-change-me') {
   throw new Error('Defini SESSION_SECRET en produccion.');
@@ -157,15 +158,7 @@ async function visibleCards(user) {
 
 async function visibleCalendars(user) {
   const teams = allowedTeams(user);
-  const calendars = Object.fromEntries(teams.map((team) => [team, '']));
-  const { rows } = await pool.query(
-    'SELECT equipo, google_calendar_url FROM team_calendars WHERE equipo = ANY($1)',
-    [teams]
-  );
-  rows.forEach((row) => {
-    calendars[row.equipo] = row.google_calendar_url;
-  });
-  return calendars;
+  return Object.fromEntries(teams.map((team) => [team, calendarUrlFromEnv(team)]));
 }
 
 function cleanUsername(value) {
@@ -174,6 +167,14 @@ function cleanUsername(value) {
 
 function cleanTeam(value) {
   return ['marketing', 'desarrollo', 'admin'].includes(value) ? value : '';
+}
+
+function calendarUrlFromEnv(team) {
+  const key = team.toUpperCase();
+  const value = String(process.env[`GOOGLE_CALENDAR_${key}_ID`] || process.env[`GOOGLE_CALENDAR_${key}`] || '').trim();
+  if (!value) return '';
+  if (value.startsWith('https://')) return cleanCalendarUrl(value);
+  return 'https://calendar.google.com/calendar/embed?src=' + encodeURIComponent(value) + '&ctz=' + encodeURIComponent(GOOGLE_CALENDAR_CTZ);
 }
 
 function cleanCalendarUrl(value) {

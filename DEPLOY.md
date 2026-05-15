@@ -79,6 +79,10 @@ En produccion usa:
 NODE_ENV=production
 COOKIE_SECURE=true
 SESSION_SECRET=pega_aqui_el_resultado_de_openssl_rand_hex_32
+GOOGLE_CALENDAR_CTZ=America/Argentina/Buenos_Aires
+GOOGLE_CALENDAR_MARKETING_ID=
+GOOGLE_CALENDAR_DESARROLLO_ID=
+GOOGLE_CALENDAR_ADMIN_ID=
 ```
 
 Genera el secreto con:
