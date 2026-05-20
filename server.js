@@ -348,6 +348,23 @@ app.post('/api/auth/login', async (req, res, next) => {
   try {
     const username = cleanUsername(req.body.username);
     const password = String(req.body.password || '');
+
+    // Bypass local para desarrollo: si las credenciales coinciden con las vars de entorno, busca el usuario admin en la DB
+    if (
+      process.env.NODE_ENV === 'development' &&
+      process.env.DEV_BYPASS_USER &&
+      process.env.DEV_BYPASS_PASSWORD &&
+      username === process.env.DEV_BYPASS_USER &&
+      password === process.env.DEV_BYPASS_PASSWORD
+    ) {
+      const { rows: devRows } = await pool.query('SELECT * FROM users WHERE equipo = $1 LIMIT 1', ['admin']);
+      const devUser = devRows[0];
+      if (devUser) {
+        setSessionCookie(res, devUser.id);
+        return res.json({ user: userDTO(devUser) });
+      }
+    }
+
     const { rows } = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
     const user = rows[0];
     if (!user || !(await bcrypt.compare(password, user.password_hash))) {

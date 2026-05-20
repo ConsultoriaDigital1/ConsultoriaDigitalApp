@@ -11,7 +11,11 @@
       "PowerShell(Start-Process powershell -ArgumentList \"-NoExit\",\"-Command\",\"cd 'D:\\\\dev\\\\ConsultoriaDigital'; npx --yes serve -p 3000 .\" -WindowStyle Normal)",
       "Bash(node -e \"require\\('dotenv'\\).config\\(\\); const { Pool } = require\\('pg'\\); const pool = new Pool\\({ connectionString: process.env.DATABASE_URL }\\); pool.query\\('SELECT current_user, current_database\\(\\)'\\).then\\(r => { console.log\\('OK:', r.rows[0]\\); pool.end\\(\\); }\\).catch\\(e => { console.error\\('ERROR:', e.message\\); pool.end\\(\\); }\\);\")",
       "Bash(node -e \"require\\('dotenv'\\).config\\(\\); const { Pool } = require\\('pg'\\); const pool = new Pool\\({ connectionString: process.env.DATABASE_URL }\\); pool.query\\('SELECT 1'\\).then\\(r => { console.log\\('Conexion OK'\\); pool.end\\(\\); }\\).catch\\(e => { console.error\\('Error completo:', e.code, e.message\\); pool.end\\(\\); }\\);\")",
-      "Bash(grep -E \"\\\\.\\(html|js|sql\\)$\")"
+      "Bash(grep -E \"\\\\.\\(html|js|sql\\)$\")",
+      "Bash(taskkill /PID 23316 /F)",
+      "PowerShell(Stop-Process -Id 23316 -Force)",
+      "PowerShell(Get-ChildItem -Path \"d:\\\\dev\\\\ConsultoriaDigital\" -Recurse -File | Where-Object {$_.Extension -match '\\\\.\\(js|ts|py|jsx|tsx\\)$'} | Select-Object -First 30 | ForEach-Object {$_.FullName})",
+      "PowerShell(Get-ChildItem -Path \"d:\\\\dev\\\\ConsultoriaDigital\" -Exclude \".local\", \".claude\" | ForEach-Object {$_.FullName})"
     ]
   }
 }
