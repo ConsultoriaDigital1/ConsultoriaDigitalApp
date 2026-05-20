@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>ConsultoriaDigital</title>
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="icon" type="image/png" href="/favicon.png" />
   <style>
 /* ═══════════════════════════════════════════
    DARK TRELLO THEME — ConsultoriaDigital
@@ -2179,6 +2179,7 @@ function cardHTML(c, users) {
     ? AVA_COLORS[users.indexOf(assignee) % AVA_COLORS.length]
     : 'var(--surface3)';
   const checklist = checklistStats(c.checklist);
+  const title = clientName(c);
 
   return `
     <div class="kcard" draggable="true" data-id="${c.id}"
@@ -2188,7 +2189,7 @@ function cardHTML(c, users) {
       <div class="kcard-body">
         <div class="kcard-top">
           <div class="kcard-check${c.estado === 'finalizado' ? ' done' : ''}"></div>
-          <div class="kcard-title">${esc(c.nf || c.rs || '(Sin nombre)')}</div>
+          <div class="kcard-title">${esc(title)}</div>
         </div>
         <div class="kcard-meta">
           ${checklist.total ? `<span class="kcard-checklist${checklist.done === checklist.total ? ' done' : ''}" title="Checklist ${checklist.done}/${checklist.total}"><span class="kcard-checklist-icon"></span>${checklist.done}/${checklist.total}</span>` : ''}
@@ -2251,6 +2252,10 @@ function renderAdminTable(board, cards, users) {
     </div>`;
 }
 
+function clientName(c) {
+  return String(c.nf || '').trim() || String(c.rs || '').trim() || '(Sin nombre)';
+}
+
 function adminRowHTML(c, users) {
   const assignee = users.find(u => u.id === c.usuario);
   const debt = hasDebt(c);
@@ -2264,7 +2269,7 @@ function adminRowHTML(c, users) {
   return `
     <tr class="${rowState}" onclick="openCard('${c.id}')">
       <td>
-        <div class="admin-client">${esc(c.nf || c.rs || '(Sin nombre)')}</div>
+        <div class="admin-client">${esc(clientName(c))}</div>
         ${sub ? `<div class="admin-muted">${esc(sub)}</div>` : ''}
       </td>
       <td>${c.rs ? esc(c.rs) : '<span class="admin-muted">-</span>'}</td>
@@ -2288,7 +2293,7 @@ function adminSort(a, b) {
   if (debtDiff) return debtDiff;
   const dueDiff = dueTime(a) - dueTime(b);
   if (dueDiff) return dueDiff;
-  return (a.nf || a.rs || '').localeCompare(b.nf || b.rs || '', 'es');
+  return clientName(a).localeCompare(clientName(b), 'es');
 }
 
 function hasDebt(c) {
@@ -2593,7 +2598,7 @@ function openCard(id) {
   modalChecklist = normalizeChecklist(c.checklist);
   checklistHideDone = false;
   if ($('checklist-section')) $('checklist-section').dataset.open = modalChecklist.length ? 'true' : 'false';
-  $('modal-title').textContent = c.nf || c.rs || 'Detalle';
+  $('modal-title').textContent = clientName(c);
   $('btn-del').style.display   = '';
   setStatus(c.estado);
   pickColor(c.color || 'none');
