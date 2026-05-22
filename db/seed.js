@@ -42,13 +42,13 @@ async function main() {
     await pool.query(
       `INSERT INTO cards (
         id, nf, rs, cuit, ca, ntel, t, ta, c, color, estado, equipo, usuario,
-        creado_por, creado_en, debe, monto_deuda, vence
+        usuarios, creado_por, creado_en, debe, monto_deuda, vence
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,$15,$16,$17,$18,$19)
       ON CONFLICT (id) DO NOTHING`,
       [
         card.id, card.nf, card.rs, card.cuit, card.ca, card.ntel, card.t, card.ta, card.c,
-        card.color, card.estado, card.equipo, card.usuario, card.creado_por, card.creado_en,
+        card.color, card.estado, card.equipo, card.usuario, JSON.stringify([card.usuario].filter(Boolean)), card.creado_por, card.creado_en,
         card.debe || 'no', card.monto_deuda || '', card.vence || '',
       ]
     );

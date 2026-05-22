@@ -709,6 +709,49 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
   border: 1px solid var(--border2); background: var(--surface2);
   color: var(--text-hi); font-size: 0.62rem; outline: none; width: 100%;
 }
+.members-picker { position: relative; display: flex; align-items: center; gap: 0.32rem; min-height: 32px; }
+.members-assigned { display: flex; align-items: center; gap: 0.24rem; flex-wrap: wrap; min-width: 0; }
+.member-empty { color: var(--muted); font-size: 0.62rem; }
+.member-avatar,
+.member-add-btn {
+  width: 30px; height: 30px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+  border: 1.5px solid var(--surface); color: white; font-size: 0.68rem; font-weight: 900;
+  background-position: center; background-size: cover; background-repeat: no-repeat;
+}
+.member-add-btn {
+  border: none; background: var(--surface3); color: var(--text-hi); cursor: pointer; font-size: 1rem; font-weight: 500;
+}
+.member-add-btn:hover { background: var(--border2); }
+.members-popover {
+  position: absolute; top: 38px; left: 0; z-index: 50; width: min(320px, calc(100vw - 48px));
+  display: none; padding: 0.65rem; border: 1px solid var(--border2); border-radius: 8px;
+  background: #282a2e; box-shadow: var(--shadow); color: var(--text);
+}
+.members-popover.open { display: block; }
+.members-popover-head {
+  display: flex; align-items: center; justify-content: center; position: relative;
+  color: var(--text-hi); font-size: 0.74rem; font-weight: 900; margin-bottom: 0.55rem;
+}
+.members-popover-close {
+  position: absolute; right: 0; top: -3px; width: 24px; height: 24px; border: none; border-radius: 5px;
+  background: transparent; color: var(--muted); cursor: pointer; font-size: 1rem;
+}
+.members-popover-close:hover { background: var(--surface3); color: var(--text-hi); }
+.members-search {
+  width: 100%; border: 1px solid #579dff; border-radius: 5px; background: var(--surface);
+  color: var(--text-hi); padding: 0.45rem 0.55rem; font-size: 0.68rem; outline: none; margin-bottom: 0.65rem;
+}
+.members-list-title {
+  color: var(--muted); font-size: 0.58rem; font-weight: 900; margin: 0.45rem 0 0.28rem;
+}
+.member-row {
+  width: 100%; min-height: 36px; border: none; border-radius: 0; background: transparent; color: var(--text);
+  display: grid; grid-template-columns: 28px minmax(0, 1fr) 24px; align-items: center; gap: 0.42rem;
+  padding: 0.24rem 0.2rem; cursor: pointer; text-align: left; font-size: 0.68rem; font-weight: 700;
+}
+.member-row:hover { background: var(--surface3); }
+.member-row .member-avatar { width: 28px; height: 28px; font-size: 0.62rem; }
+.member-row-remove { color: var(--muted); text-align: center; font-size: 1rem; }
 .card-prop .color-picker { margin-bottom: 0; }
 .cover-row {
   display: grid; grid-template-columns: minmax(0, 1fr) auto;
@@ -761,7 +804,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 }
 .checklist-items { display: flex; flex-direction: column; gap: 0.28rem; margin-bottom: 0.45rem; }
 .checklist-item {
-  display: grid; grid-template-columns: 18px minmax(0, 1fr) 24px; align-items: center;
+  display: grid; grid-template-columns: 18px minmax(0, 1fr) minmax(120px, 160px) 24px; align-items: center;
   gap: 0.35rem; min-height: 28px;
 }
 .checklist-item-check {
@@ -775,6 +818,11 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 .checklist-item-text.done { color: var(--muted); text-decoration: line-through; }
 .checklist-item-text:hover,
 .checklist-item-text:focus { background: rgba(166,197,226,0.06); border-color: var(--border2); }
+.checklist-user-select {
+  width: 100%; min-height: 26px; border: 1px solid var(--border2); border-radius: 5px;
+  background: var(--surface2); color: var(--text-hi); padding: 0.2rem 0.28rem;
+  font-size: 0.6rem; outline: none;
+}
 .checklist-item-del {
   width: 24px; height: 24px; border: none; border-radius: 5px;
   background: transparent; color: var(--muted); cursor: pointer;
@@ -857,6 +905,9 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
   .card-title-row { gap: 0.55rem; }
   .card-title-input { font-size: 0.98rem; min-height: 44px; }
   .card-subtitle, .card-action-row, .card-props, .trello-section, .client-details { margin-left: 0; }
+  .checklist-item { grid-template-columns: 18px minmax(0, 1fr) 24px; }
+  .checklist-user-select { grid-column: 2 / 4; grid-row: 2; }
+  .checklist-item-del { grid-column: 3; grid-row: 1; }
   .card-title-check { display: none; }
   .card-window-actions .card-icon-btn:not(.modal-close):not(.cover-menu-btn) { display: none; }
 }
@@ -1254,8 +1305,19 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
             </select>
           </div>
           <div class="card-prop">
-            <span class="card-prop-label">Miembro asignado</span>
-            <select id="f-usuario" class="card-select" onchange="syncModalPreview()"></select>
+            <span class="card-prop-label">Miembros</span>
+            <div id="members-picker" class="members-picker">
+              <div id="members-assigned" class="members-assigned"></div>
+              <button class="member-add-btn" type="button" onclick="openMembersPopover(event)" title="Agregar miembro">+</button>
+              <div id="members-popover" class="members-popover" onclick="event.stopPropagation()">
+                <div class="members-popover-head">
+                  <span>Miembros</span>
+                  <button class="members-popover-close" type="button" onclick="closeMembersPopover()">x</button>
+                </div>
+                <input id="members-search" class="members-search" type="text" placeholder="Buscar miembros" oninput="onMembersSearch(this.value)" />
+                <div id="members-popover-body"></div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -1726,6 +1788,9 @@ let duePickerMonth = null;
 let dueDraftDate = '';
 let modalChecklist = [];
 let checklistHideDone = false;
+let modalUserIds = [];
+let membersPopoverOpen = false;
+let membersSearch = '';
 let profileAvatarImage = '';
 let calYear, calMonth;
 
@@ -1930,15 +1995,30 @@ function makeChecklistId() {
   return 'ci-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
 }
 
+function normalizeUserIds(value) {
+  let ids = value;
+  if (typeof ids === 'string' && ids.trim().startsWith('[')) {
+    try { ids = JSON.parse(ids); } catch (_err) { ids = []; }
+  }
+  if (!Array.isArray(ids)) ids = ids ? [ids] : [];
+  const seen = new Set();
+  return ids
+    .map(id => String(id || '').trim())
+    .filter(id => id && !seen.has(id) && seen.add(id))
+    .slice(0, 20);
+}
+
 function normalizeChecklist(items) {
   if (!Array.isArray(items)) return [];
   return items.slice(0, 100).map(item => {
     const text = String(item && item.text != null ? item.text : '').trim().slice(0, 500);
     if (!text) return null;
+    const usuario = normalizeUserIds(item && item.usuario)[0] || '';
     return {
       id: String(item && item.id ? item.id : makeChecklistId()).slice(0, 80),
       text,
       done: item && item.done === true,
+      usuario,
     };
   }).filter(Boolean);
 }
@@ -1984,7 +2064,7 @@ function addChecklistItem() {
   const input = $('checklist-new-text');
   const text = input ? input.value.trim() : '';
   if (!text) return;
-  modalChecklist = normalizeChecklist([...modalChecklist, { id: makeChecklistId(), text, done: false }]);
+  modalChecklist = normalizeChecklist([...modalChecklist, { id: makeChecklistId(), text, done: false, usuario: '' }]);
   if (input) input.value = '';
   checklistHideDone = false;
   renderChecklist();
@@ -2017,6 +2097,14 @@ function renameChecklistItem(index, value) {
   renderChecklist();
 }
 
+function assignChecklistItem(index, userId) {
+  if (!modalChecklist[index]) return;
+  const team = $('f-equipo') ? $('f-equipo').value : '';
+  const exists = getUsers().some(u => u.id === userId && (!team || u.equipo === team));
+  modalChecklist[index].usuario = exists ? userId : '';
+  renderChecklist();
+}
+
 function deleteChecklistItem(index) {
   modalChecklist.splice(index, 1);
   if (!modalChecklist.length) checklistHideDone = false;
@@ -2036,6 +2124,16 @@ function deleteChecklist() {
   if (section) section.dataset.open = 'false';
   hideChecklistInput(true);
   renderChecklist();
+}
+
+function checklistUserOptions(selected) {
+  const team = $('f-equipo') ? $('f-equipo').value : '';
+  const users = getUsers().filter(u => !team || u.equipo === team);
+  return '<option value="">Sin asignar</option>' +
+    users.map(u => {
+      const name = (u.nombre + ' ' + (u.apellido || '')).trim();
+      return `<option value="${esc(u.id)}"${u.id === selected ? ' selected' : ''}>${esc(name)}</option>`;
+    }).join('');
 }
 
 function renderChecklist() {
@@ -2069,6 +2167,7 @@ function renderChecklist() {
       <div class="checklist-item">
         <input class="checklist-item-check" type="checkbox" ${item.done ? 'checked' : ''} onchange="toggleChecklistItem(${index}, this.checked)" />
         <input class="checklist-item-text${item.done ? ' done' : ''}" value="${esc(item.text)}" onblur="renameChecklistItem(${index}, this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()} if(event.key==='Escape'){this.value=this.defaultValue;this.blur()}" />
+        <select class="checklist-user-select" onchange="assignChecklistItem(${index}, this.value)">${checklistUserOptions(item.usuario)}</select>
         <button class="checklist-item-del" type="button" onmousedown="event.preventDefault()" onclick="deleteChecklistItem(${index})" title="Eliminar">x</button>
       </div>
     `).join('');
@@ -2173,11 +2272,30 @@ function renderBoard() {
   });
 }
 
+function cardUserIds(c) {
+  const ids = normalizeUserIds(c && c.usuarios);
+  if (c && c.usuario && !ids.includes(c.usuario)) ids.unshift(c.usuario);
+  return ids;
+}
+
+function usersForCard(c, users) {
+  const byId = new Map(users.map(u => [u.id, u]));
+  return cardUserIds(c).map(id => byId.get(id)).filter(Boolean);
+}
+
+function userFullName(u) {
+  return u ? (u.nombre + ' ' + (u.apellido || '')).trim() : '';
+}
+
+function userAvatarHTML(u, cls = 'member-avatar') {
+  return `<span class="${cls}" style="${avatarStyle(u, AVA_COLORS[getUsers().indexOf(u) % AVA_COLORS.length])}" title="${esc(userFullName(u))}">${avatarText(u)}</span>`;
+}
+
 function cardHTML(c, users) {
-  const assignee = users.find(u => u.id === c.usuario);
-  const avaColor = assignee
-    ? AVA_COLORS[users.indexOf(assignee) % AVA_COLORS.length]
-    : 'var(--surface3)';
+  const assignees = usersForCard(c, users);
+  const avatarTitle = assignees.map(userFullName).join(', ');
+  const shownAssignees = assignees.slice(0, 4);
+  const extraAssignees = assignees.length - shownAssignees.length;
   const checklist = checklistStats(c.checklist);
   const title = clientName(c);
 
@@ -2194,7 +2312,8 @@ function cardHTML(c, users) {
         <div class="kcard-meta">
           ${checklist.total ? `<span class="kcard-checklist${checklist.done === checklist.total ? ' done' : ''}" title="Checklist ${checklist.done}/${checklist.total}"><span class="kcard-checklist-icon"></span>${checklist.done}/${checklist.total}</span>` : ''}
           <span class="kcard-avatars">
-            ${assignee ? `<span class="kcard-ava" style="${avatarStyle(assignee, avaColor)}" title="${esc(assignee.nombre+' '+(assignee.apellido||''))}">${avatarText(assignee)}</span>` : ''}
+            ${shownAssignees.map(u => `<span class="kcard-ava" style="${avatarStyle(u, AVA_COLORS[users.indexOf(u) % AVA_COLORS.length])}" title="${esc(userFullName(u))}">${avatarText(u)}</span>`).join('')}
+            ${extraAssignees > 0 ? `<span class="kcard-ava" style="background:var(--surface3);color:var(--text-hi)" title="${esc(avatarTitle)}">+${extraAssignees}</span>` : ''}
           </span>
         </div>
       </div>
@@ -2257,7 +2376,8 @@ function clientName(c) {
 }
 
 function adminRowHTML(c, users) {
-  const assignee = users.find(u => u.id === c.usuario);
+  const assignees = usersForCard(c, users);
+  const assigneeText = assignees.map(userFullName).join(', ');
   const debt = hasDebt(c);
   const due = dueInfo(c);
   const sub = c.ca || c.ta || '';
@@ -2283,7 +2403,7 @@ function adminRowHTML(c, users) {
         </span>
       </td>
       <td><span class="admin-status ${esc(c.estado)}">${esc(statusText(c.estado))}</span></td>
-      <td>${assignee ? `<span class="admin-assignee">${esc((assignee.nombre + ' ' + (assignee.apellido||'')).trim())}</span>` : '<span class="admin-muted">Sin asignar</span>'}</td>
+      <td>${assignees.length ? `<span class="admin-assignee">${esc(assigneeText)}</span>` : '<span class="admin-muted">Sin asignar</span>'}</td>
       <td><button class="btn btn-subtle btn-sm" onclick="event.stopPropagation();openCard('${c.id}')">Editar</button></td>
     </tr>`;
 }
@@ -2568,6 +2688,8 @@ function openNewCard(status = 'iniciada') {
   modalStatus = status;
   modalColor  = 'none';
   modalCoverImage = '';
+  membersPopoverOpen = false;
+  membersSearch = '';
   modalChecklist = [];
   checklistHideDone = false;
   if ($('checklist-section')) $('checklist-section').dataset.open = 'false';
@@ -2579,7 +2701,7 @@ function openNewCard(status = 'iniciada') {
   pickColor('none');
   $('f-equipo').value = defaultFormTeam();
   syncTeamSelect('f-equipo');
-  populateUsers(currentUser ? currentUser.id : null);
+  populateUsers(currentUser ? [currentUser.id] : []);
   $('activity-comment').value = '';
   renderChecklist();
   hideChecklistInput(true);
@@ -2595,6 +2717,8 @@ function openCard(id) {
   modalStatus = c.estado;
   modalColor  = c.color || 'none';
   modalCoverImage = c.coverImage || '';
+  membersPopoverOpen = false;
+  membersSearch = '';
   modalChecklist = normalizeChecklist(c.checklist);
   checklistHideDone = false;
   if ($('checklist-section')) $('checklist-section').dataset.open = modalChecklist.length ? 'true' : 'false';
@@ -2613,7 +2737,7 @@ function openCard(id) {
   $('f-vence').value = c.vence || '';
   $('f-vence-hora').value = c.venceHora || '';
   syncDueButton();
-  populateUsers(c.usuario);
+  populateUsers(cardUserIds(c));
   $('activity-comment').value = '';
   renderChecklist();
   hideChecklistInput(true);
@@ -2624,17 +2748,116 @@ function openCard(id) {
 
 function populateUsers(sel) {
   const team = $('f-equipo') ? $('f-equipo').value : '';
-  $('f-usuario').innerHTML = '<option value="">Sin asignar</option>' +
-    getUsers().filter(u => !team || u.equipo === team).map(u =>
-      `<option value="${u.id}"${u.id===sel?' selected':''}>
-        ${esc((u.nombre + ' ' + (u.apellido || '')).trim())}
-      </option>`
-    ).join('');
+  const teamUsers = getUsers().filter(u => !team || u.equipo === team);
+  const teamUserIds = new Set(teamUsers.map(u => u.id));
+  modalUserIds = normalizeUserIds(sel).filter(id => teamUserIds.has(id));
+  renderMemberPicker();
+}
+
+function selectedCardUserIds() {
+  return normalizeUserIds(modalUserIds);
+}
+
+function teamUsersForCard() {
+  const team = $('f-equipo') ? $('f-equipo').value : '';
+  return getUsers().filter(u => !team || u.equipo === team);
+}
+
+function renderMemberPicker() {
+  const assignedEl = $('members-assigned');
+  const popover = $('members-popover');
+  const body = $('members-popover-body');
+  if (!assignedEl) return;
+  const teamUsers = teamUsersForCard();
+  const byId = new Map(teamUsers.map(u => [u.id, u]));
+  modalUserIds = normalizeUserIds(modalUserIds).filter(id => byId.has(id));
+  const assigned = modalUserIds.map(id => byId.get(id)).filter(Boolean);
+  assignedEl.innerHTML = assigned.length
+    ? assigned.map(u => userAvatarHTML(u)).join('')
+    : '<span class="member-empty">Sin miembros</span>';
+
+  if (popover) popover.classList.toggle('open', membersPopoverOpen);
+  if (!body) return;
+
+  const q = membersSearch.trim().toLowerCase();
+  const available = teamUsers.filter(u =>
+    !modalUserIds.includes(u.id) &&
+    (!q || userFullName(u).toLowerCase().includes(q) || String(u.username || '').toLowerCase().includes(q))
+  );
+  const selectedRows = assigned.length
+    ? assigned.map(u => `
+      <button class="member-row" type="button" onclick="removeCardMember('${esc(u.id)}', event)">
+        ${userAvatarHTML(u)}
+        <span>${esc(userFullName(u))}</span>
+        <span class="member-row-remove">x</span>
+      </button>
+    `).join('')
+    : '<div class="checklist-empty">Sin miembros asignados.</div>';
+  const availableRows = available.length
+    ? available.map(u => `
+      <button class="member-row" type="button" onclick="addCardMember('${esc(u.id)}')">
+        ${userAvatarHTML(u)}
+        <span>${esc(userFullName(u))}</span>
+        <span></span>
+      </button>
+    `).join('')
+    : '<div class="checklist-empty">No hay miembros para agregar.</div>';
+  body.innerHTML = `
+    <div class="members-list-title">Miembros de la tarjeta</div>
+    ${selectedRows}
+    <div class="members-list-title">Agregar miembros</div>
+    ${availableRows}
+  `;
+  const search = $('members-search');
+  if (search && search.value !== membersSearch) search.value = membersSearch;
+}
+
+function openMembersPopover(event) {
+  if (event) event.stopPropagation();
+  membersPopoverOpen = true;
+  membersSearch = '';
+  renderMemberPicker();
+  setTimeout(() => { const input = $('members-search'); if (input) input.focus(); }, 0);
+}
+
+function closeMembersPopover() {
+  membersPopoverOpen = false;
+  renderMemberPicker();
+}
+
+function onMembersSearch(value) {
+  membersSearch = String(value || '');
+  renderMemberPicker();
+  const input = $('members-search');
+  if (input) {
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
+  }
+}
+
+function addCardMember(userId) {
+  if (!modalUserIds.includes(userId) && teamUsersForCard().some(u => u.id === userId)) {
+    modalUserIds.push(userId);
+  }
+  membersSearch = '';
+  renderMemberPicker();
+  syncModalPreview();
+}
+
+function removeCardMember(userId, event) {
+  if (event) event.stopPropagation();
+  modalUserIds = modalUserIds.filter(id => id !== userId);
+  renderMemberPicker();
+  syncModalPreview();
 }
 
 function onCardTeamChange() {
   syncTeamSelect('f-equipo');
-  populateUsers('');
+  membersPopoverOpen = false;
+  membersSearch = '';
+  populateUsers([]);
+  modalChecklist = normalizeChecklist(modalChecklist).map(item => ({ ...item, usuario: '' }));
+  renderChecklist();
   syncModalPreview();
 }
 
@@ -2760,6 +2983,7 @@ async function saveCard() {
   const nf = $('f-nf').value.trim();
   const rs = $('f-rs').value.trim();
   if (!nf && !rs) { toast('Ingresá al menos el Nombre Fiscal o Razón Social', 'error'); return; }
+  const usuarios = selectedCardUserIds();
   const data = {
     estado:  modalStatus, equipo: $('f-equipo').value,
     color:   modalColor,  nf, rs,
@@ -2771,7 +2995,8 @@ async function saveCard() {
     montoDeuda: $('f-monto').value.trim(),
     vence:   $('f-vence').value,
     venceHora: $('f-vence-hora').value,
-    usuario: $('f-usuario').value || null,
+    usuario: usuarios[0] || null,
+    usuarios,
     checklist: normalizeChecklist(modalChecklist),
   };
   try {
@@ -2801,7 +3026,7 @@ async function deleteCard() {
   }
 }
 
-function closeModal()  { closeCoverMenu(); closeDuePopover(); closeOverlay('card-overlay'); }
+function closeModal()  { closeCoverMenu(); closeDuePopover(); closeMembersPopover(); closeOverlay('card-overlay'); }
 function overlayBg(e)  { if (e.target.id === 'card-overlay') closeModal(); }
 
 /* ─────────────────────────────────────────

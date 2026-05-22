@@ -15,7 +15,8 @@
       "Bash(taskkill /PID 23316 /F)",
       "PowerShell(Stop-Process -Id 23316 -Force)",
       "PowerShell(Get-ChildItem -Path \"d:\\\\dev\\\\ConsultoriaDigital\" -Recurse -File | Where-Object {$_.Extension -match '\\\\.\\(js|ts|py|jsx|tsx\\)$'} | Select-Object -First 30 | ForEach-Object {$_.FullName})",
-      "PowerShell(Get-ChildItem -Path \"d:\\\\dev\\\\ConsultoriaDigital\" -Exclude \".local\", \".claude\" | ForEach-Object {$_.FullName})"
+      "PowerShell(Get-ChildItem -Path \"d:\\\\dev\\\\ConsultoriaDigital\" -Exclude \".local\", \".claude\" | ForEach-Object {$_.FullName})",
+      "PowerShell(Get-ChildItem -Path \"D:\\\\dev\\\\ConsultoriaDigital\" -Force | Where-Object { $_.Name -notlike 'node_modules' } | Select-Object Name, Mode)"
     ]
   }
 }

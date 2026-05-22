@@ -86,6 +86,7 @@ function userDTO(row) {
 }
 
 function cardDTO(row, descriptionHistory = []) {
+  const usuarios = cardAssignedIds(row);
   return {
     id: row.id,
     nf: row.nf,
@@ -99,7 +100,8 @@ function cardDTO(row, descriptionHistory = []) {
     color: row.color,
     estado: row.estado,
     equipo: row.equipo,
-    usuario: row.usuario,
+    usuario: row.usuario || usuarios[0] || null,
+    usuarios,
     creadoPor: row.creado_por,
     creadoEn: Number(row.creado_en),
     debe: row.debe,
@@ -227,6 +229,34 @@ function cleanTeam(value) {
   return ['marketing', 'desarrollo', 'admin'].includes(value) ? value : '';
 }
 
+function cleanUserIds(value) {
+  let ids = value;
+  if (typeof ids === 'string') {
+    const trimmed = ids.trim();
+    if (trimmed.startsWith('[')) {
+      try {
+        ids = JSON.parse(trimmed);
+      } catch (_err) {
+        ids = [];
+      }
+    } else {
+      ids = trimmed ? [trimmed] : [];
+    }
+  }
+  if (!Array.isArray(ids)) ids = ids ? [ids] : [];
+  const seen = new Set();
+  return ids
+    .map((id) => String(id || '').trim().slice(0, 80))
+    .filter((id) => id && !seen.has(id) && seen.add(id))
+    .slice(0, 20);
+}
+
+function cardAssignedIds(row = {}) {
+  const ids = cleanUserIds(row.usuarios);
+  if (row.usuario && !ids.includes(row.usuario)) ids.unshift(row.usuario);
+  return ids;
+}
+
 function cleanChecklist(value) {
   let items = value;
   if (typeof items === 'string') {
@@ -241,7 +271,8 @@ function cleanChecklist(value) {
     const text = String(item && item.text != null ? item.text : '').trim().slice(0, 500);
     if (!text) return null;
     const id = String(item && item.id ? item.id : '').trim().slice(0, 80) || mkId();
-    return { id, text, done: item && item.done === true };
+    const usuario = cleanUserIds(item && item.usuario)[0] || null;
+    return { id, text, done: item && item.done === true, usuario };
   }).filter(Boolean);
 }
 
@@ -293,6 +324,12 @@ function cleanAvatarImage(value) {
 function cardValues(body, user, existing = {}) {
   const equipo = cleanTeam(body.equipo || existing.equipo || user.equipo);
   const rawVenceHora = String(body.venceHora ?? existing.vence_hora ?? '');
+  const existingUsuarios = cardAssignedIds(existing);
+  const hasUsuarios = Object.prototype.hasOwnProperty.call(body, 'usuarios');
+  const hasUsuario = Object.prototype.hasOwnProperty.call(body, 'usuario');
+  const usuarios = hasUsuarios
+    ? cleanUserIds(body.usuarios)
+    : (hasUsuario ? cleanUserIds(body.usuario) : existingUsuarios);
   if (!equipo || !canAccessTeam(user, equipo)) {
     const err = new Error('No tenes permiso para ese equipo.');
     err.status = 403;
@@ -310,7 +347,8 @@ function cardValues(body, user, existing = {}) {
     color: String(body.color || 'none'),
     estado: ['iniciada', 'en_proceso', 'finalizado'].includes(body.estado) ? body.estado : 'iniciada',
     equipo,
-    usuario: body.usuario || null,
+    usuario: usuarios[0] || null,
+    usuarios,
     debe: body.debe === 'si' ? 'si' : 'no',
     montoDeuda: String(body.montoDeuda || ''),
     vence: String(body.vence || ''),
@@ -320,20 +358,34 @@ function cardValues(body, user, existing = {}) {
   };
 }
 
-async function validateAssignedUser(user, assignedId, team) {
-  if (!assignedId) return null;
-  const assigned = await getUserById(assignedId);
-  if (!assigned) {
-    const err = new Error('Usuario asignado invalido.');
-    err.status = 400;
-    throw err;
+async function validateAssignedUsers(user, assignedIds, team) {
+  const ids = cleanUserIds(assignedIds);
+  if (!ids.length) return [];
+  const { rows } = await pool.query('SELECT id, equipo FROM users WHERE id = ANY($1)', [ids]);
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  for (const id of ids) {
+    const assigned = byId.get(id);
+    if (!assigned) {
+      const err = new Error('Usuario asignado invalido.');
+      err.status = 400;
+      throw err;
+    }
+    if (!canAccessTeam(user, assigned.equipo) || assigned.equipo !== team) {
+      const err = new Error('El usuario asignado no pertenece a ese equipo.');
+      err.status = 403;
+      throw err;
+    }
   }
-  if (!canAccessTeam(user, assigned.equipo) || assigned.equipo !== team) {
-    const err = new Error('El usuario asignado no pertenece a ese equipo.');
-    err.status = 403;
-    throw err;
-  }
-  return assigned.id;
+  return ids;
+}
+
+async function validateChecklistUsers(user, checklist, team) {
+  const ids = cleanUserIds(checklist.map((item) => item.usuario).filter(Boolean));
+  const validIds = new Set(await validateAssignedUsers(user, ids, team));
+  return checklist.map((item) => ({
+    ...item,
+    usuario: item.usuario && validIds.has(item.usuario) ? item.usuario : null,
+  }));
 }
 
 function validateCardRequired(data) {
@@ -508,6 +560,20 @@ app.delete('/api/users/:id', requireAuth, async (req, res, next) => {
     if (!isAdmin(req.user)) return res.status(403).json({ error: 'Solo administradores pueden eliminar usuarios.' });
     const { id } = req.params;
     if (id === req.user.id) return res.status(400).json({ error: 'No puedes eliminar tu propia cuenta.' });
+    await pool.query(
+      `UPDATE cards
+       SET usuarios = COALESCE(
+             (SELECT jsonb_agg(to_jsonb(x.value)) FROM jsonb_array_elements_text(usuarios) AS x(value) WHERE x.value <> $1),
+             '[]'::jsonb
+           ),
+           checklist = COALESCE(
+             (SELECT jsonb_agg(CASE WHEN item->>'usuario' = $1 THEN item - 'usuario' ELSE item END)
+              FROM jsonb_array_elements(checklist) AS item),
+             '[]'::jsonb
+           )
+       WHERE usuarios ? $1 OR checklist @> $2::jsonb`,
+      [id, JSON.stringify([{ usuario: id }])]
+    );
     const { rowCount } = await pool.query('DELETE FROM users WHERE id=$1', [id]);
     if (!rowCount) return res.status(404).json({ error: 'Usuario no encontrado.' });
     res.json({ ok: true });
@@ -580,7 +646,9 @@ app.post('/api/cards', requireAuth, async (req, res, next) => {
   try {
     const data = cardValues(req.body, req.user);
     validateCardRequired(data);
-    data.usuario = await validateAssignedUser(req.user, data.usuario, data.equipo);
+    data.usuarios = await validateAssignedUsers(req.user, data.usuarios, data.equipo);
+    data.usuario = data.usuarios[0] || null;
+    data.checklist = await validateChecklistUsers(req.user, data.checklist, data.equipo);
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
@@ -589,13 +657,13 @@ app.post('/api/cards', requireAuth, async (req, res, next) => {
       const { rows } = await client.query(
         `INSERT INTO cards (
           id, nf, rs, cuit, ca, ntel, t, ta, c, color, estado, equipo, usuario,
-          creado_por, creado_en, debe, monto_deuda, vence, vence_hora, cover_image, checklist
+          usuarios, creado_por, creado_en, debe, monto_deuda, vence, vence_hora, cover_image, checklist
         )
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21::jsonb)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,$15,$16,$17,$18,$19,$20,$21,$22::jsonb)
         RETURNING *`,
         [
           cardId, data.nf, data.rs, data.cuit, data.ca, data.ntel, data.t, data.ta, data.c,
-          data.color, data.estado, data.equipo, data.usuario, req.user.id, creadoEn,
+          data.color, data.estado, data.equipo, data.usuario, JSON.stringify(data.usuarios), req.user.id, creadoEn,
           data.debe, data.montoDeuda, data.vence, data.venceHora, data.coverImage, JSON.stringify(data.checklist),
         ]
       );
@@ -630,17 +698,19 @@ app.put('/api/cards/:id', requireAuth, async (req, res, next) => {
     }
     const data = cardValues(req.body, req.user, current.rows[0]);
     validateCardRequired(data);
-    data.usuario = await validateAssignedUser(req.user, data.usuario, data.equipo);
+    data.usuarios = await validateAssignedUsers(req.user, data.usuarios, data.equipo);
+    data.usuario = data.usuarios[0] || null;
+    data.checklist = await validateChecklistUsers(req.user, data.checklist, data.equipo);
     const { rows } = await client.query(
       `UPDATE cards SET
         nf=$1, rs=$2, cuit=$3, ca=$4, ntel=$5, t=$6, ta=$7, c=$8, color=$9,
-        estado=$10, equipo=$11, usuario=$12, debe=$13, monto_deuda=$14, vence=$15,
-        vence_hora=$16, cover_image=$17, checklist=$18::jsonb, updated_at=NOW()
-       WHERE id=$19
+        estado=$10, equipo=$11, usuario=$12, usuarios=$13::jsonb, debe=$14, monto_deuda=$15, vence=$16,
+        vence_hora=$17, cover_image=$18, checklist=$19::jsonb, updated_at=NOW()
+       WHERE id=$20
        RETURNING *`,
       [
         data.nf, data.rs, data.cuit, data.ca, data.ntel, data.t, data.ta, data.c, data.color,
-        data.estado, data.equipo, data.usuario, data.debe, data.montoDeuda, data.vence,
+        data.estado, data.equipo, data.usuario, JSON.stringify(data.usuarios), data.debe, data.montoDeuda, data.vence,
         data.venceHora, data.coverImage, JSON.stringify(data.checklist), req.params.id,
       ]
     );

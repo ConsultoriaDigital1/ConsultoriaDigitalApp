@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS cards (
   estado TEXT NOT NULL CHECK (estado IN ('iniciada', 'en_proceso', 'finalizado')),
   equipo TEXT NOT NULL CHECK (equipo IN ('marketing', 'desarrollo', 'admin')),
   usuario TEXT REFERENCES users(id) ON DELETE SET NULL,
+  usuarios JSONB NOT NULL DEFAULT '[]'::jsonb,
   creado_por TEXT REFERENCES users(id) ON DELETE SET NULL,
   creado_en BIGINT NOT NULL,
   debe TEXT NOT NULL DEFAULT 'no',
@@ -40,9 +41,16 @@ CREATE TABLE IF NOT EXISTS cards (
 
 ALTER TABLE cards ADD COLUMN IF NOT EXISTS checklist JSONB NOT NULL DEFAULT '[]'::jsonb;
 ALTER TABLE cards ADD COLUMN IF NOT EXISTS vence_hora TEXT NOT NULL DEFAULT '';
+ALTER TABLE cards ADD COLUMN IF NOT EXISTS usuarios JSONB NOT NULL DEFAULT '[]'::jsonb;
+
+UPDATE cards
+SET usuarios = jsonb_build_array(usuario)
+WHERE usuario IS NOT NULL
+  AND usuarios = '[]'::jsonb;
 
 CREATE INDEX IF NOT EXISTS idx_cards_equipo ON cards(equipo);
 CREATE INDEX IF NOT EXISTS idx_cards_usuario ON cards(usuario);
+CREATE INDEX IF NOT EXISTS idx_cards_usuarios ON cards USING GIN (usuarios);
 CREATE INDEX IF NOT EXISTS idx_cards_estado ON cards(estado);
 
 CREATE TABLE IF NOT EXISTS card_description_history (
