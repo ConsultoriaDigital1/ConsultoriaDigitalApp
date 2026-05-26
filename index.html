@@ -241,7 +241,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 .sb-divider  { border: none; border-top: 1px solid var(--border); margin: 0.38rem 0; }
 
 /* ─── CONTENT ─── */
-.content { flex: 1; overflow: hidden; display: flex; flex-direction: column; min-width: 0; }
+.content { flex: 1; overflow: hidden; display: flex; flex-direction: column; min-width: 0; position: relative; }
 
 .cbar {
   display: flex; align-items: center; gap: 0.65rem;
@@ -463,6 +463,49 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 @media (max-width: 620px) {
   .admin-table-wrap { padding: 0.7rem; }
   .admin-summary { grid-template-columns: 1fr; }
+}
+
+/* ─── ADMIN LOCK OVERLAY ─── */
+.content.admin-locked > .tab-panel {
+  filter: blur(10px) saturate(0.7);
+  pointer-events: none;
+  user-select: none;
+  transition: filter 200ms ease;
+}
+.admin-lock-overlay {
+  position: absolute; inset: 0; z-index: 250;
+  display: none; align-items: center; justify-content: center;
+  padding: 1rem;
+  background: rgba(13, 17, 23, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.admin-lock-overlay.open { display: flex; }
+.admin-lock-card {
+  width: 100%; max-width: 380px;
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-lg);
+  padding: 1.4rem 1.4rem 1.2rem;
+  display: flex; flex-direction: column; gap: 0.7rem;
+}
+.admin-lock-icon {
+  width: 46px; height: 46px; border-radius: 50%;
+  background: rgba(231, 255, 79, 0.12);
+  color: var(--lime);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.4rem; margin-bottom: 0.25rem;
+}
+.admin-lock-title {
+  font-family: var(--font-disp);
+  font-size: 1.05rem; font-weight: 700; color: var(--text-hi);
+}
+.admin-lock-sub {
+  font-size: 0.82rem; color: var(--muted); line-height: 1.45;
+}
+.admin-lock-actions {
+  display: flex; gap: 0.55rem; justify-content: flex-end; margin-top: 0.4rem;
 }
 
 /* ─── COLOR PICKER ─── */
@@ -1248,6 +1291,21 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
         </div>
       </div>
 
+      <!-- ── ADMIN LOCK OVERLAY ── -->
+      <div id="admin-lock-overlay" class="admin-lock-overlay" onclick="event.stopPropagation()">
+        <div class="admin-lock-card">
+          <div class="admin-lock-icon">🔒</div>
+          <div class="admin-lock-title">Acceso restringido</div>
+          <div class="admin-lock-sub">Ingresá tu contraseña para ver el panel de administración.</div>
+          <input id="admin-lock-pass" type="password" class="form-input" placeholder="Contraseña" autocomplete="current-password" onkeydown="onAdminLockKey(event)" />
+          <div id="admin-lock-err" class="form-error" style="display:none"></div>
+          <div class="admin-lock-actions">
+            <button class="btn btn-ghost btn-sm" onclick="cancelAdminUnlock()">Cancelar</button>
+            <button class="btn btn-primary btn-sm" onclick="submitAdminUnlock()">Desbloquear</button>
+          </div>
+        </div>
+      </div>
+
     </main>
   </div>
 </div>
@@ -1767,6 +1825,86 @@ function defaultFormTeam() {
 }
 
 /* ─────────────────────────────────────────
+   ADMIN LOCK
+───────────────────────────────────────── */
+const ADMIN_UNLOCK_TTL_MS = 5 * 60 * 1000;
+let adminUnlocked   = false;
+let adminLockTimer  = null;
+let adminUnlockBusy = false;
+
+function isAdminUnlocked() { return adminUnlocked; }
+
+function lockAdmin() {
+  adminUnlocked = false;
+  if (adminLockTimer) { clearTimeout(adminLockTimer); adminLockTimer = null; }
+  updateAdminLockUI();
+}
+
+function unlockAdmin() {
+  adminUnlocked = true;
+  if (adminLockTimer) clearTimeout(adminLockTimer);
+  adminLockTimer = setTimeout(() => {
+    adminUnlocked = false;
+    adminLockTimer = null;
+    updateAdminLockUI();
+    if (activeTeam === 'admin') toast('Sesión de administración expirada.', 'info');
+  }, ADMIN_UNLOCK_TTL_MS);
+  updateAdminLockUI();
+}
+
+function shouldShowAdminLock() {
+  return isAdmin() && activeTeam === 'admin' && !adminUnlocked;
+}
+
+function updateAdminLockUI() {
+  const content = document.querySelector('.content');
+  const overlay = $('admin-lock-overlay');
+  if (!content || !overlay) return;
+  const show = shouldShowAdminLock();
+  content.classList.toggle('admin-locked', show);
+  overlay.classList.toggle('open', show);
+  if (show) {
+    const inp = $('admin-lock-pass');
+    if (inp) {
+      inp.value = '';
+      setTimeout(() => { try { inp.focus(); } catch(_) {} }, 50);
+    }
+    hideErr('admin-lock-err');
+  }
+}
+
+function onAdminLockKey(e) {
+  if (e.key === 'Enter') { e.preventDefault(); submitAdminUnlock(); }
+  else if (e.key === 'Escape') { e.preventDefault(); cancelAdminUnlock(); }
+}
+
+async function submitAdminUnlock() {
+  if (adminUnlockBusy) return;
+  const inp = $('admin-lock-pass');
+  const pass = inp ? inp.value : '';
+  if (!pass) { showErr('admin-lock-err', 'Ingresá tu contraseña.'); return; }
+  adminUnlockBusy = true;
+  try {
+    await api('/api/auth/verify-admin', {
+      method: 'POST',
+      body: JSON.stringify({ password: pass }),
+    });
+    hideErr('admin-lock-err');
+    if (inp) inp.value = '';
+    unlockAdmin();
+  } catch (err) {
+    showErr('admin-lock-err', err.message || 'Contraseña incorrecta.');
+    if (inp) { inp.value = ''; inp.focus(); }
+  } finally {
+    adminUnlockBusy = false;
+  }
+}
+
+function cancelAdminUnlock() {
+  filterTeam('all');
+}
+
+/* ─────────────────────────────────────────
    SEED
 ───────────────────────────────────────── */
 function seed() {}
@@ -1841,6 +1979,7 @@ async function doLogout() {
   usersCache  = [];
   cardsCache  = [];
   eventsCache = [];
+  lockAdmin();
   $('app').style.display = 'none';
   $('login-screen').style.display = '';
   $('li-username').value = ''; $('li-pass').value = '';
@@ -1874,6 +2013,7 @@ function startApp() {
   buildColorPicker();
   renderBoard();
   renderTalentos();
+  lockAdmin();
 }
 
 function applyAccessUi() {
@@ -2183,12 +2323,14 @@ function renderChecklist() {
    NAVIGATION
 ───────────────────────────────────────── */
 function switchTab(tab) {
+  if (tab !== activeTab && activeTeam === 'admin') lockAdmin();
   activeTab = tab;
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + tab));
   closeDD();
   if (tab === 'calendario') renderCalendar();
   if (tab === 'talentos')   renderTalentos();
+  updateAdminLockUI();
 }
 
 function goClientesHome() {
@@ -2204,12 +2346,14 @@ function onBrandLogoKeydown(event) {
 
 function filterTeam(team) {
   if (!canViewTeam(team)) { toast('No tenés permiso para ese equipo', 'error'); return; }
+  if (team !== activeTeam && activeTeam === 'admin') lockAdmin();
   activeTeam = team;
   document.querySelectorAll('.sb-btn[data-team]').forEach(b => b.classList.toggle('active', b.dataset.team === team));
   $('clientes-sub').textContent = (team === 'admin' ? 'Tabla de control — ' : 'Tablero Kanban — ') + (TEAMS[team] || 'Todos');
   renderBoard();
   if (activeTab === 'calendario') renderCalendar();
   if (activeTab === 'talentos') renderTalentos();
+  updateAdminLockUI();
 }
 
 /* ─────────────────────────────────────────

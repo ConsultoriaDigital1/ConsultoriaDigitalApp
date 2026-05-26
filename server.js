@@ -461,6 +461,30 @@ app.post('/api/auth/logout', (_req, res) => {
   res.json({ ok: true });
 });
 
+app.post('/api/auth/verify-admin', requireAuth, async (req, res, next) => {
+  try {
+    if (req.user.equipo !== 'admin') {
+      return res.status(403).json({ error: 'Solo administradores.' });
+    }
+    const password = String(req.body.password || '');
+    if (!password) return res.status(400).json({ error: 'Contrasena requerida.' });
+
+    if (
+      process.env.NODE_ENV === 'development' &&
+      process.env.DEV_BYPASS_PASSWORD &&
+      password === process.env.DEV_BYPASS_PASSWORD
+    ) {
+      return res.json({ ok: true });
+    }
+
+    const ok = await bcrypt.compare(password, req.user.password_hash);
+    if (!ok) return res.status(401).json({ error: 'Contrasena incorrecta.' });
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
 app.get('/api/bootstrap', requireAuth, async (req, res, next) => {
   try {
     res.json({
