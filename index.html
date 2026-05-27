@@ -465,6 +465,155 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
   .admin-summary { grid-template-columns: 1fr; }
 }
 
+/* ─── ADMIN SUBNAV (4 botones) ─── */
+.admin-subnav {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 0.5rem; margin: 1rem 0 0.85rem;
+  padding: 0.35rem; background: var(--surface);
+  border: 1px solid var(--border2); border-radius: var(--r-md);
+}
+.admin-subnav-btn {
+  padding: 0.7rem 0.6rem;
+  background: transparent; color: var(--muted);
+  border: none; border-radius: var(--r-sm);
+  font-family: var(--font-disp); font-size: 0.82rem;
+  font-weight: 700; letter-spacing: 0.06em;
+  text-transform: uppercase; cursor: pointer;
+  transition: all 150ms ease;
+  display: flex; align-items: center; justify-content: center; gap: 0.45rem;
+}
+.admin-subnav-btn:hover { background: var(--surface2); color: var(--text-hi); }
+.admin-subnav-btn.active {
+  background: var(--lime); color: #1d2125;
+  box-shadow: 0 2px 8px rgba(231,255,79,0.18);
+}
+.admin-subnav-btn .as-ico { font-size: 0.95rem; }
+@media (max-width: 700px) {
+  .admin-subnav { grid-template-columns: repeat(2, 1fr); }
+  .admin-subnav-btn { font-size: 0.74rem; padding: 0.55rem 0.4rem; }
+}
+
+.admin-subpanel { display: none; }
+.admin-subpanel.active { display: block; }
+
+/* Header dentro de cada subpanel */
+.admin-section-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 0.6rem; margin-bottom: 0.7rem;
+}
+.admin-section-title {
+  font-family: var(--font-disp);
+  font-size: 1rem; font-weight: 700; color: var(--text-hi);
+}
+.admin-section-sub {
+  font-size: 0.78rem; color: var(--muted); margin-top: 0.15rem;
+}
+.admin-placeholder {
+  padding: 3rem 1.5rem; text-align: center; color: var(--muted);
+  background: var(--surface); border: 1px dashed var(--border2);
+  border-radius: var(--r-md); font-size: 0.9rem;
+}
+.admin-placeholder strong {
+  display: block; color: var(--text-hi); font-family: var(--font-disp);
+  font-size: 1.1rem; margin-bottom: 0.35rem;
+}
+
+/* Tabla de Clientes (nueva) */
+.clients-table { width: 100%; border-collapse: separate; border-spacing: 0 0.45rem; }
+.clients-table th {
+  text-align: left; padding: 0.55rem 0.85rem;
+  font-size: 0.7rem; font-weight: 700; color: var(--muted);
+  letter-spacing: 0.06em; text-transform: uppercase;
+  background: var(--surface2);
+}
+.clients-table th:first-child { border-radius: var(--r-xs) 0 0 var(--r-xs); }
+.clients-table th:last-child  { border-radius: 0 var(--r-xs) var(--r-xs) 0; text-align: right; }
+.clients-table tbody td {
+  padding: 0.7rem 0.85rem; background: var(--surface);
+  border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+  vertical-align: middle; font-size: 0.85rem;
+}
+.clients-table tbody td:first-child { border-left: 1px solid var(--border); border-radius: var(--r-xs) 0 0 var(--r-xs); }
+.clients-table tbody td:last-child  { border-right: 1px solid var(--border); border-radius: 0 var(--r-xs) var(--r-xs) 0; text-align: right; }
+.clients-table .ct-name { color: var(--text-hi); font-weight: 700; line-height: 1.25; }
+.clients-table .ct-sub  { color: var(--muted); font-size: 0.72rem; }
+.clients-table .ct-money { font-weight: 800; white-space: nowrap; }
+.clients-table .ct-money.debt { color: var(--danger); }
+.clients-table .ct-money.ok   { color: var(--success); }
+.clients-table .ct-actions { display: flex; gap: 0.4rem; justify-content: flex-end; }
+
+.ct-chip {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  padding: 0.2rem 0.55rem; border-radius: 999px;
+  font-size: 0.68rem; font-weight: 800; letter-spacing: 0.05em;
+}
+.ct-chip.impago { background: rgba(248,113,104,0.16); color: var(--danger); }
+.ct-chip.pagado { background: rgba(75,206,151,0.16); color: var(--success); }
+
+/* Modal Cliente — Datos generales */
+.client-modal-section {
+  padding: 0.95rem 1.2rem;
+  border-bottom: 1px solid var(--border);
+}
+.client-modal-section:last-child { border-bottom: none; }
+.client-section-head {
+  display: flex; align-items: center; gap: 0.5rem;
+  cursor: pointer; user-select: none;
+}
+.client-section-head .chev {
+  font-size: 0.7rem; color: var(--muted);
+  transition: transform 180ms ease;
+}
+.client-section-head.open .chev { transform: rotate(90deg); }
+.client-section-head h3 {
+  font-family: var(--font-disp); font-size: 0.95rem;
+  font-weight: 700; color: var(--text-hi);
+}
+.client-section-body { padding-top: 0.85rem; }
+.client-section-body.collapsed { display: none; }
+
+.client-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 0.7rem 1rem; }
+.client-fields.cols-1 { grid-template-columns: 1fr; }
+.cf-row { display: flex; flex-direction: column; gap: 0.25rem; }
+.cf-row label {
+  font-size: 0.68rem; font-weight: 700; color: var(--muted);
+  letter-spacing: 0.05em; text-transform: uppercase;
+}
+.cf-row .cf-value {
+  font-size: 0.88rem; color: var(--text-hi); word-break: break-word;
+}
+.cf-row .cf-value.muted { color: var(--muted); font-style: italic; }
+
+/* Tabla resumen de cuenta dentro del modal cliente */
+.rc-toolbar { display: flex; justify-content: flex-end; margin-bottom: 0.55rem; }
+.rc-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+.rc-table th, .rc-table td {
+  padding: 0.5rem 0.6rem; text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+.rc-table th {
+  font-size: 0.66rem; color: var(--muted);
+  letter-spacing: 0.06em; text-transform: uppercase;
+  background: var(--surface2);
+}
+.rc-table td.num, .rc-table th.num { text-align: right; white-space: nowrap; }
+.rc-table .rc-debe  { color: var(--danger); font-weight: 700; }
+.rc-table .rc-haber { color: var(--success); font-weight: 700; }
+.rc-table .rc-saldo { color: var(--text-hi); font-weight: 800; }
+.rc-empty {
+  padding: 1.3rem; text-align: center; color: var(--muted);
+  font-size: 0.83rem;
+}
+
+/* Estado totales (footer del resumen) */
+.rc-totals {
+  display: flex; justify-content: flex-end; gap: 1rem;
+  margin-top: 0.8rem; padding-top: 0.7rem;
+  border-top: 1px solid var(--border2);
+  font-size: 0.85rem;
+}
+.rc-totals .rc-saldo-final { color: var(--text-hi); font-weight: 800; }
+
 /* ─── ADMIN LOCK OVERLAY ─── */
 .content.admin-locked > .tab-panel {
   filter: blur(10px) saturate(0.7);
@@ -1715,6 +1864,211 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
   </div>
 </div>
 
+<!-- ═══════════════════════════════════════════
+     NUEVO CLIENTE MODAL (admin)
+     ═══════════════════════════════════════════ -->
+<div id="new-client-overlay" class="overlay" onclick="newClientBg(event)">
+  <div class="modal" style="max-width:520px" onclick="event.stopPropagation()">
+    <div class="modal-head">
+      <span class="modal-head-title">Nuevo cliente</span>
+      <button class="modal-close" onclick="closeNewClientModal()">✕</button>
+    </div>
+    <div style="padding:1.2rem 1.4rem">
+      <div class="form-group">
+        <label class="form-label">Nombre fantasía *</label>
+        <input id="nc-nombre" class="form-input" type="text" placeholder="Ej: Distribuidora Sol" />
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Razón social</label>
+          <input id="nc-rs" class="form-input" type="text" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">CUIT</label>
+          <input id="nc-cuit" class="form-input" type="text" placeholder="30-12345678-9" maxlength="13" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Dirección</label>
+        <input id="nc-direccion" class="form-input" type="text" />
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Tel. administración</label>
+          <input id="nc-tel-admin" class="form-input" type="tel" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Tel. dueño</label>
+          <input id="nc-tel-dueno" class="form-input" type="tel" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Mail 1</label>
+          <input id="nc-mail1" class="form-input" type="email" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Mail 2</label>
+          <input id="nc-mail2" class="form-input" type="email" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Próximo vencimiento (opcional)</label>
+        <input id="nc-vence" class="form-input" type="date" />
+      </div>
+      <div id="nc-err" class="form-error" style="display:none"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost btn-sm" onclick="closeNewClientModal()">Cancelar</button>
+      <button class="btn btn-primary btn-sm" onclick="submitNewClient()">Crear cliente</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     VER CLIENTE MODAL (admin)
+     ═══════════════════════════════════════════ -->
+<div id="client-overlay" class="overlay" onclick="clientBg(event)">
+  <div class="modal" style="max-width:720px" onclick="event.stopPropagation()">
+    <div class="modal-head">
+      <div style="flex:1">
+        <div class="modal-head-title" id="cv-title">Cliente</div>
+        <div id="cv-sub" style="font-size:0.78rem;color:var(--muted);margin-top:0.15rem"></div>
+      </div>
+      <button class="btn btn-danger btn-sm" id="cv-delete-btn" onclick="deleteClientFromModal()" style="margin-right:0.4rem">Eliminar</button>
+      <button class="modal-close" onclick="closeClientModal()">✕</button>
+    </div>
+
+    <!-- Sección 1: Datos generales -->
+    <div class="client-modal-section">
+      <div class="client-section-head open" onclick="toggleClientSection('cv-datos')">
+        <span class="chev">▶</span>
+        <h3>Datos generales</h3>
+      </div>
+      <div id="cv-datos" class="client-section-body">
+        <div class="client-fields">
+          <div class="cf-row">
+            <label>Nombre fantasía</label>
+            <div class="cf-value" id="cv-nf">—</div>
+          </div>
+          <div class="cf-row">
+            <label>CUIT</label>
+            <div class="cf-value" id="cv-cuit">—</div>
+          </div>
+          <div class="cf-row" style="grid-column:1/-1">
+            <label>Dirección</label>
+            <div class="cf-value" id="cv-direccion">—</div>
+          </div>
+          <div class="cf-row">
+            <label>Tel. administración</label>
+            <div class="cf-value" id="cv-tel-admin">—</div>
+          </div>
+          <div class="cf-row">
+            <label>Tel. dueño</label>
+            <div class="cf-value" id="cv-tel-dueno">—</div>
+          </div>
+          <div class="cf-row">
+            <label>Mail 1</label>
+            <div class="cf-value" id="cv-mail1">—</div>
+          </div>
+          <div class="cf-row">
+            <label>Mail 2</label>
+            <div class="cf-value" id="cv-mail2">—</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sección 2: Resumen de cuenta (colapsable) -->
+    <div class="client-modal-section">
+      <div class="client-section-head" onclick="toggleClientSection('cv-resumen')">
+        <span class="chev">▶</span>
+        <h3>Resumen de cuenta</h3>
+        <span id="cv-saldo-head" style="margin-left:auto;font-size:0.82rem;color:var(--muted)"></span>
+      </div>
+      <div id="cv-resumen" class="client-section-body collapsed">
+        <div class="rc-toolbar">
+          <button class="btn btn-lime btn-sm" onclick="openMovementModalForCurrent()">+ Cargar movimiento</button>
+        </div>
+        <div id="cv-movements-wrap">
+          <div class="rc-empty">Sin movimientos cargados.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     CARGAR MOVIMIENTO MODAL (admin)
+     ═══════════════════════════════════════════ -->
+<div id="movement-overlay" class="overlay" onclick="movementBg(event)">
+  <div class="modal" style="max-width:520px" onclick="event.stopPropagation()">
+    <div class="modal-head">
+      <span class="modal-head-title">Cargar factura / movimiento</span>
+      <button class="modal-close" onclick="closeMovementModal()">✕</button>
+    </div>
+    <div style="padding:1.2rem 1.4rem">
+      <div id="mv-cliente-info" style="font-size:0.82rem;color:var(--muted);margin-bottom:0.85rem"></div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Fecha *</label>
+          <input id="mv-fecha" class="form-input" type="date" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Medio de pago</label>
+          <select id="mv-medio" class="form-select">
+            <option value="">—</option>
+            <option value="efectivo">Efectivo</option>
+            <option value="transferencia">Transferencia</option>
+            <option value="cheque">Cheque</option>
+            <option value="echeque">E-cheque</option>
+            <option value="tarjeta">Tarjeta</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Banco</label>
+        <input id="mv-banco" class="form-input" type="text" placeholder="Ej: Galicia, Santander..." list="mv-banco-list" />
+        <datalist id="mv-banco-list">
+          <option value="Galicia"></option>
+          <option value="Santander"></option>
+          <option value="BBVA"></option>
+          <option value="Macro"></option>
+          <option value="Nación"></option>
+          <option value="Provincia"></option>
+          <option value="ICBC"></option>
+          <option value="HSBC"></option>
+          <option value="Patagonia"></option>
+          <option value="Credicoop"></option>
+        </datalist>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Detalle / descripción</label>
+        <textarea id="mv-detalle" class="form-textarea" placeholder="Observación del movimiento..."></textarea>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Monto de la factura</label>
+          <input id="mv-monto" class="form-input" type="number" step="0.01" min="0" placeholder="0.00" />
+        </div>
+        <div class="form-group">
+          <label class="form-label" style="color:var(--danger)">Debe</label>
+          <input id="mv-debe" class="form-input" type="number" step="0.01" min="0" placeholder="0.00" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" style="color:var(--success)">Haber</label>
+        <input id="mv-haber" class="form-input" type="number" step="0.01" min="0" placeholder="0.00" />
+      </div>
+      <div id="mv-err" class="form-error" style="display:none"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost btn-sm" onclick="closeMovementModal()">Cancelar</button>
+      <button class="btn btn-primary btn-sm" onclick="submitMovement()">Guardar movimiento</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <!-- ═══════════════════════════════════════════
@@ -1808,6 +2162,10 @@ async function loadAppData() {
   cardsCache     = data.cards     || [];
   calendarsCache = data.calendars || {};
   eventsCache    = data.events    || [];
+  clientsCache   = data.clients   || [];
+  libretaUrl     = data.libretaUrl || '';
+  flujoFondosUrl = data.flujoFondosUrl || '';
+  movementsCache = {};
   return data;
 }
 
@@ -1827,7 +2185,7 @@ function defaultFormTeam() {
 /* ─────────────────────────────────────────
    ADMIN LOCK
 ───────────────────────────────────────── */
-const ADMIN_UNLOCK_TTL_MS = 5 * 60 * 1000;
+const ADMIN_UNLOCK_TTL_MS = 10 * 60 * 1000;
 let adminUnlocked   = false;
 let adminLockTimer  = null;
 let adminUnlockBusy = false;
@@ -1903,6 +2261,435 @@ async function submitAdminUnlock() {
 function cancelAdminUnlock() {
   filterTeam('all');
 }
+
+/* ═════════════════════════════════════════
+   ADMIN — SUBNAV + CLIENTES
+═════════════════════════════════════════ */
+let adminSubTab        = 'clientes';
+let clientsCache       = [];
+let movementsCache     = {};       // { [clientId]: [movements...] }
+let currentClientId    = null;
+let editingClientId    = null;     // id si el modal de cliente está editando; null = creando
+let libretaUrl         = '';
+let flujoFondosUrl     = '';
+
+const MEDIO_PAGO_LABEL = {
+  efectivo: 'Efectivo', transferencia: 'Transferencia',
+  cheque: 'Cheque', echeque: 'E-cheque', tarjeta: 'Tarjeta',
+};
+
+function switchAdminSubTab(tab) {
+  adminSubTab = tab;
+  applyAdminSubTab();
+  if (tab === 'clientes') renderClientesSubTab();
+  if (tab === 'libreta')  applyLibretaUrl();
+  if (tab === 'flujo')    applyFlujoUrl();
+}
+
+function applyAdminSubTab() {
+  document.querySelectorAll('.admin-subnav-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.subtab === adminSubTab);
+  });
+  document.querySelectorAll('.admin-subpanel').forEach(p => {
+    p.classList.toggle('active', p.id === 'admin-sub-' + adminSubTab);
+  });
+}
+
+function formatMoney(n) {
+  const num = Number(n || 0);
+  return num.toLocaleString('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 2 });
+}
+
+function formatDate(s) {
+  if (!s) return '—';
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (!m) return s;
+  return `${m[3]}/${m[2]}/${m[1]}`;
+}
+
+function clientDisplayName(c) {
+  return (c.nombreFantasia || c.razonSocial || '(Sin nombre)').trim();
+}
+
+function renderClientesSubTab() {
+  const cont = $('admin-sub-clientes');
+  if (!cont) return;
+  const list = (clientsCache || []).slice().sort((a, b) =>
+    clientDisplayName(a).localeCompare(clientDisplayName(b), 'es')
+  );
+
+  cont.innerHTML = `
+    <div class="admin-section-head">
+      <div>
+        <div class="admin-section-title">Clientes</div>
+        <div class="admin-section-sub">${list.length} cliente${list.length === 1 ? '' : 's'} registrado${list.length === 1 ? '' : 's'}.</div>
+      </div>
+      <button class="btn btn-lime btn-sm" onclick="openNewClientModal()">+ Nuevo cliente</button>
+    </div>
+    ${list.length === 0 ? `
+      <div class="admin-placeholder">
+        <strong>Sin clientes todavía</strong>
+        Tocá <em>"+ Nuevo cliente"</em> para empezar a cargar.
+      </div>
+    ` : `
+      <div style="overflow-x:auto">
+        <table class="clients-table">
+          <thead>
+            <tr>
+              <th>Cliente</th>
+              <th>RS</th>
+              <th>CUIT</th>
+              <th>Debe</th>
+              <th>Vence</th>
+              <th>Estado</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${list.map(clientRowHTML).join('')}
+          </tbody>
+        </table>
+      </div>
+    `}
+  `;
+}
+
+function clientRowHTML(c) {
+  const saldo = Number(c.saldo || 0);
+  const impago = saldo > 0;
+  const moneyCls = impago ? 'debt' : 'ok';
+  return `
+    <tr>
+      <td>
+        <div class="ct-name">${esc(clientDisplayName(c))}</div>
+        ${c.cuit ? `<div class="ct-sub">${esc(c.cuit)}</div>` : ''}
+      </td>
+      <td>${c.razonSocial ? esc(c.razonSocial) : '<span class="ct-sub">—</span>'}</td>
+      <td>${c.cuit ? esc(c.cuit) : '<span class="ct-sub">—</span>'}</td>
+      <td><span class="ct-money ${moneyCls}">${formatMoney(saldo)}</span></td>
+      <td>${formatDate(c.vence)}</td>
+      <td>
+        <span class="ct-chip ${impago ? 'impago' : 'pagado'}">
+          ${impago ? 'IMPAGO' : 'PAGADO'}
+        </span>
+      </td>
+      <td>
+        <div class="ct-actions">
+          <button class="btn btn-subtle btn-sm" onclick="openClientModal('${c.id}')">👁 Ver</button>
+          <button class="btn btn-primary btn-sm" onclick="openMovementModal('${c.id}')">＋ Movimiento</button>
+        </div>
+      </td>
+    </tr>`;
+}
+
+/* ── Nuevo cliente ── */
+function openNewClientModal() {
+  ['nc-nombre','nc-rs','nc-cuit','nc-direccion','nc-tel-admin','nc-tel-dueno','nc-mail1','nc-mail2','nc-vence']
+    .forEach(id => { const el = $(id); if (el) el.value = ''; });
+  hideErr('nc-err');
+  openOverlay('new-client-overlay');
+  setTimeout(() => { const i = $('nc-nombre'); if (i) i.focus(); }, 60);
+}
+function closeNewClientModal() { closeOverlay('new-client-overlay'); }
+function newClientBg(e) { if (e.target.id === 'new-client-overlay') closeNewClientModal(); }
+
+async function submitNewClient() {
+  const body = {
+    nombreFantasia: $('nc-nombre').value.trim(),
+    razonSocial:    $('nc-rs').value.trim(),
+    cuit:           $('nc-cuit').value.trim(),
+    direccion:      $('nc-direccion').value.trim(),
+    telAdmin:       $('nc-tel-admin').value.trim(),
+    telDueno:       $('nc-tel-dueno').value.trim(),
+    mail1:          $('nc-mail1').value.trim(),
+    mail2:          $('nc-mail2').value.trim(),
+    vence:          $('nc-vence').value || '',
+  };
+  if (!body.nombreFantasia) {
+    showErr('nc-err', 'El nombre fantasía es obligatorio.');
+    return;
+  }
+  try {
+    const data = await api('/api/admin/clients', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+    clientsCache.push(data.client);
+    closeNewClientModal();
+    renderClientesSubTab();
+    toast('Cliente creado.', 'success');
+  } catch (err) {
+    showErr('nc-err', err.message || 'No se pudo crear el cliente.');
+  }
+}
+
+/* ── Recargar clients desde el server ── */
+async function reloadClients() {
+  if (!isAdmin()) return;
+  try {
+    const data = await api('/api/admin/clients');
+    clientsCache = data.clients || [];
+    if (activeTeam === 'admin' && adminSubTab === 'clientes') renderClientesSubTab();
+  } catch (_err) { /* ignore */ }
+}
+
+/* ── Ver Cliente ── */
+function openClientModal(clientId) {
+  const c = clientsCache.find(x => x.id === clientId);
+  if (!c) { toast('Cliente no encontrado.', 'error'); return; }
+  currentClientId = clientId;
+  renderClientModal(c);
+  // resetear estado colapsable
+  const datos   = $('cv-datos');
+  const resumen = $('cv-resumen');
+  if (datos)   { datos.classList.remove('collapsed'); }
+  if (resumen) { resumen.classList.add('collapsed'); }
+  document.querySelectorAll('#client-overlay .client-section-head').forEach((h, i) => {
+    h.classList.toggle('open', i === 0);
+  });
+  openOverlay('client-overlay');
+  // pre-cargamos movimientos en background
+  loadMovementsForClient(clientId).catch(() => {});
+}
+function closeClientModal() {
+  closeOverlay('client-overlay');
+  currentClientId = null;
+}
+function clientBg(e) { if (e.target.id === 'client-overlay') closeClientModal(); }
+
+function toggleClientSection(bodyId) {
+  const body = $(bodyId);
+  if (!body) return;
+  const head = body.previousElementSibling;
+  const willOpen = body.classList.contains('collapsed');
+  body.classList.toggle('collapsed', !willOpen);
+  if (head) head.classList.toggle('open', willOpen);
+  if (bodyId === 'cv-resumen' && willOpen && currentClientId) {
+    loadMovementsForClient(currentClientId);
+  }
+}
+
+function renderClientModal(c) {
+  $('cv-title').textContent = clientDisplayName(c);
+  $('cv-sub').textContent   = c.razonSocial ? c.razonSocial : '';
+  const fld = (id, v) => {
+    const el = $(id);
+    if (!el) return;
+    if (v && String(v).trim()) {
+      el.textContent = v;
+      el.classList.remove('muted');
+    } else {
+      el.textContent = '—';
+      el.classList.add('muted');
+    }
+  };
+  fld('cv-nf',         c.nombreFantasia);
+  fld('cv-cuit',       c.cuit);
+  fld('cv-direccion',  c.direccion);
+  fld('cv-tel-admin',  c.telAdmin);
+  fld('cv-tel-dueno',  c.telDueno);
+  fld('cv-mail1',      c.mail1);
+  fld('cv-mail2',      c.mail2);
+
+  const saldoHead = $('cv-saldo-head');
+  const saldo = Number(c.saldo || 0);
+  if (saldoHead) {
+    saldoHead.innerHTML = `Saldo: <strong style="color:${saldo > 0 ? 'var(--danger)' : 'var(--success)'}">${formatMoney(saldo)}</strong>
+      &nbsp;·&nbsp; <span class="ct-chip ${saldo > 0 ? 'impago' : 'pagado'}">${saldo > 0 ? 'IMPAGO' : 'PAGADO'}</span>`;
+  }
+  // Si ya tenemos movimientos cacheados, renderizar al toque
+  const cached = movementsCache[c.id];
+  if (cached) renderClientMovements(cached);
+  else renderClientMovementsLoading();
+}
+
+function renderClientMovementsLoading() {
+  const wrap = $('cv-movements-wrap');
+  if (wrap) wrap.innerHTML = '<div class="rc-empty">Cargando movimientos...</div>';
+}
+
+function renderClientMovements(movements) {
+  const wrap = $('cv-movements-wrap');
+  if (!wrap) return;
+  if (!movements || movements.length === 0) {
+    wrap.innerHTML = '<div class="rc-empty">Sin movimientos cargados.</div>';
+    return;
+  }
+  const ordered = movements.slice().sort((a, b) => {
+    if (a.fecha !== b.fecha) return a.fecha < b.fecha ? -1 : 1;
+    return (a.creadoEn || 0) - (b.creadoEn || 0);
+  });
+  let saldo = 0;
+  const rows = ordered.map(m => {
+    saldo += Number(m.debe || 0) - Number(m.haber || 0);
+    const impago = saldo > 0;
+    return `
+      <tr>
+        <td>${formatDate(m.fecha)}</td>
+        <td>${formatMoney(m.montoFactura)}</td>
+        <td class="num rc-debe">${m.debe ? formatMoney(m.debe) : '—'}</td>
+        <td class="num rc-haber">${m.haber ? formatMoney(m.haber) : '—'}</td>
+        <td class="num rc-saldo">${formatMoney(saldo)}</td>
+        <td><span class="ct-chip ${impago ? 'impago' : 'pagado'}">${impago ? 'IMPAGO' : 'PAGADO'}</span></td>
+      </tr>
+      ${m.detalle || m.medioPago || m.banco ? `
+        <tr>
+          <td colspan="6" style="color:var(--muted);font-size:0.74rem;padding-top:0;padding-bottom:0.6rem">
+            ${m.medioPago ? `<strong>${esc(MEDIO_PAGO_LABEL[m.medioPago] || m.medioPago)}</strong>` : ''}
+            ${m.banco ? ` · ${esc(m.banco)}` : ''}
+            ${m.detalle ? ` · ${esc(m.detalle)}` : ''}
+          </td>
+        </tr>` : ''}
+    `;
+  }).join('');
+
+  wrap.innerHTML = `
+    <table class="rc-table">
+      <thead>
+        <tr>
+          <th>Fecha</th>
+          <th>Monto factura</th>
+          <th class="num">Debe</th>
+          <th class="num">Haber</th>
+          <th class="num">Saldo</th>
+          <th>Estado</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div class="rc-totals">
+      Saldo final: <span class="rc-saldo-final" style="color:${saldo > 0 ? 'var(--danger)' : 'var(--success)'}">${formatMoney(saldo)}</span>
+    </div>
+  `;
+}
+
+async function loadMovementsForClient(clientId) {
+  if (!clientId) return;
+  try {
+    const data = await api('/api/admin/clients/' + encodeURIComponent(clientId) + '/movements');
+    movementsCache[clientId] = data.movements || [];
+    // Actualizar saldo en el cache de clientes
+    const idx = clientsCache.findIndex(c => c.id === clientId);
+    if (idx > -1 && data.client) clientsCache[idx] = data.client;
+    if (currentClientId === clientId) {
+      renderClientMovements(movementsCache[clientId]);
+      // actualizar header de saldo
+      const c = data.client || clientsCache[idx];
+      if (c) {
+        const saldoHead = $('cv-saldo-head');
+        const saldo = Number(c.saldo || 0);
+        if (saldoHead) {
+          saldoHead.innerHTML = `Saldo: <strong style="color:${saldo > 0 ? 'var(--danger)' : 'var(--success)'}">${formatMoney(saldo)}</strong>
+            &nbsp;·&nbsp; <span class="ct-chip ${saldo > 0 ? 'impago' : 'pagado'}">${saldo > 0 ? 'IMPAGO' : 'PAGADO'}</span>`;
+        }
+      }
+    }
+    if (activeTeam === 'admin' && adminSubTab === 'clientes') renderClientesSubTab();
+  } catch (err) {
+    const wrap = $('cv-movements-wrap');
+    if (wrap) wrap.innerHTML = `<div class="rc-empty">Error: ${esc(err.message || 'no se pudo cargar')}</div>`;
+  }
+}
+
+async function deleteClientFromModal() {
+  if (!currentClientId) return;
+  const c = clientsCache.find(x => x.id === currentClientId);
+  if (!c) return;
+  if (!confirm(`¿Eliminar el cliente "${clientDisplayName(c)}"? Se borrarán también todos sus movimientos.`)) return;
+  try {
+    await api('/api/admin/clients/' + encodeURIComponent(currentClientId), { method: 'DELETE' });
+    clientsCache = clientsCache.filter(x => x.id !== currentClientId);
+    delete movementsCache[currentClientId];
+    closeClientModal();
+    renderClientesSubTab();
+    toast('Cliente eliminado.', 'success');
+  } catch (err) {
+    toast(err.message || 'No se pudo eliminar.', 'error');
+  }
+}
+
+/* ── Cargar movimiento ── */
+function openMovementModal(clientId) {
+  const c = clientsCache.find(x => x.id === clientId);
+  if (!c) { toast('Cliente no encontrado.', 'error'); return; }
+  currentClientId = clientId;
+  $('mv-cliente-info').innerHTML = `Movimiento para <strong style="color:var(--text-hi)">${esc(clientDisplayName(c))}</strong>${c.cuit ? ` · ${esc(c.cuit)}` : ''}`;
+  // valores por defecto
+  const today = new Date().toISOString().slice(0, 10);
+  $('mv-fecha').value  = today;
+  $('mv-medio').value  = '';
+  $('mv-banco').value  = '';
+  $('mv-detalle').value = '';
+  $('mv-monto').value  = '';
+  $('mv-debe').value   = '';
+  $('mv-haber').value  = '';
+  hideErr('mv-err');
+  openOverlay('movement-overlay');
+  setTimeout(() => { const f = $('mv-fecha'); if (f) f.focus(); }, 60);
+}
+
+function openMovementModalForCurrent() {
+  if (currentClientId) openMovementModal(currentClientId);
+}
+
+function closeMovementModal() { closeOverlay('movement-overlay'); }
+function movementBg(e) { if (e.target.id === 'movement-overlay') closeMovementModal(); }
+
+async function submitMovement() {
+  if (!currentClientId) { closeMovementModal(); return; }
+  const body = {
+    fecha:        $('mv-fecha').value,
+    medioPago:    $('mv-medio').value,
+    banco:        $('mv-banco').value.trim(),
+    detalle:      $('mv-detalle').value.trim(),
+    montoFactura: $('mv-monto').value,
+    debe:         $('mv-debe').value,
+    haber:        $('mv-haber').value,
+  };
+  if (!body.fecha) { showErr('mv-err', 'La fecha es obligatoria.'); return; }
+  const debe  = Number(body.debe || 0);
+  const haber = Number(body.haber || 0);
+  if ((!debe || debe <= 0) && (!haber || haber <= 0)) {
+    showErr('mv-err', 'Ingresá al menos un monto en Debe o Haber.');
+    return;
+  }
+  try {
+    await api('/api/admin/clients/' + encodeURIComponent(currentClientId) + '/movements', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+    closeMovementModal();
+    // Refrescamos movimientos del cliente (esto también actualiza saldo en cache y tabla)
+    await loadMovementsForClient(currentClientId);
+    toast('Movimiento cargado.', 'success');
+  } catch (err) {
+    showErr('mv-err', err.message || 'No se pudo guardar el movimiento.');
+  }
+}
+
+/* ── Libreta / Flujo: sheets embebidas via env var ── */
+function applyEmbedUrl(url, iframeId, emptyId, linkId) {
+  const ifr   = $(iframeId);
+  const empty = $(emptyId);
+  const link  = $(linkId);
+  const u = String(url || '').trim();
+  if (ifr) {
+    if (u) {
+      if (ifr.src !== u) ifr.src = u;
+      ifr.style.display = '';
+    } else {
+      ifr.src = 'about:blank';
+      ifr.style.display = 'none';
+    }
+  }
+  if (empty) empty.style.display = u ? 'none' : '';
+  if (link) {
+    if (u) { link.href = u; link.style.display = ''; }
+    else { link.removeAttribute('href'); link.style.display = 'none'; }
+  }
+}
+function applyLibretaUrl() { applyEmbedUrl(libretaUrl,     'libreta-iframe', 'libreta-empty', 'libreta-open'); }
+function applyFlujoUrl()   { applyEmbedUrl(flujoFondosUrl, 'flujo-iframe',   'flujo-empty',   'flujo-open');  }
 
 /* ─────────────────────────────────────────
    SEED
@@ -2323,7 +3110,6 @@ function renderChecklist() {
    NAVIGATION
 ───────────────────────────────────────── */
 function switchTab(tab) {
-  if (tab !== activeTab && activeTeam === 'admin') lockAdmin();
   activeTab = tab;
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + tab));
@@ -2346,7 +3132,6 @@ function onBrandLogoKeydown(event) {
 
 function filterTeam(team) {
   if (!canViewTeam(team)) { toast('No tenés permiso para ese equipo', 'error'); return; }
-  if (team !== activeTeam && activeTeam === 'admin') lockAdmin();
   activeTeam = team;
   document.querySelectorAll('.sb-btn[data-team]').forEach(b => b.classList.toggle('active', b.dataset.team === team));
   $('clientes-sub').textContent = (team === 'admin' ? 'Tabla de control — ' : 'Tablero Kanban — ') + (TEAMS[team] || 'Todos');
@@ -2464,11 +3249,11 @@ function cardHTML(c, users) {
     </div>`;
 }
 
-function renderAdminTable(board, cards, users) {
-  const sorted = cards.slice().sort(adminSort);
+function renderAdminTable(board, cards, _users) {
+  // Métricas globales de cards admin (dashboard inicial que se mantiene)
   const debtCount = cards.filter(hasDebt).length;
-  const overdue = cards.filter(c => dueInfo(c).key === 'overdue').length;
-  const soon = cards.filter(c => {
+  const overdue   = cards.filter(c => dueInfo(c).key === 'overdue').length;
+  const soon      = cards.filter(c => {
     const d = dueInfo(c);
     return d.key === 'today' || d.key === 'soon';
   }).length;
@@ -2476,7 +3261,7 @@ function renderAdminTable(board, cards, users) {
   board.innerHTML = `
     <div class="admin-summary">
       <div class="admin-metric">
-        <div class="admin-metric-label">Clientes</div>
+        <div class="admin-metric-label">Tarjetas admin</div>
         <div class="admin-metric-value">${cards.length}</div>
       </div>
       <div class="admin-metric">
@@ -2492,27 +3277,62 @@ function renderAdminTable(board, cards, users) {
         <div class="admin-metric-value">${soon}</div>
       </div>
     </div>
-    <div class="admin-table-panel">
-      ${sorted.length === 0 ? '<div class="admin-empty">Sin clientes para administracion.</div>' : `
-        <table class="admin-table">
-          <thead>
-            <tr>
-              <th>Cliente</th>
-              <th>Razon social</th>
-              <th>CUIT</th>
-              <th>Debe</th>
-              <th>Monto</th>
-              <th>Vence</th>
-              <th>Estado</th>
-              <th>Responsable</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            ${sorted.map(c => adminRowHTML(c, users)).join('')}
-          </tbody>
-        </table>`}
-    </div>`;
+
+    <nav class="admin-subnav" role="tablist">
+      <button class="admin-subnav-btn" data-subtab="clientes"  onclick="switchAdminSubTab('clientes')">
+        <span class="as-ico">👥</span> Clientes
+      </button>
+      <button class="admin-subnav-btn" data-subtab="libreta"   onclick="switchAdminSubTab('libreta')">
+        <span class="as-ico">📓</span> Libreta
+      </button>
+      <button class="admin-subnav-btn" data-subtab="flujo"     onclick="switchAdminSubTab('flujo')">
+        <span class="as-ico">💸</span> Flujo de fondos
+      </button>
+      <button class="admin-subnav-btn" data-subtab="cobranzas" onclick="switchAdminSubTab('cobranzas')">
+        <span class="as-ico">🧾</span> Cobranzas
+      </button>
+    </nav>
+
+    <div id="admin-sub-clientes"  class="admin-subpanel"></div>
+    <div id="admin-sub-libreta"   class="admin-subpanel">
+      <div class="admin-section-head">
+        <div>
+          <div class="admin-section-title">Libreta</div>
+          <div class="admin-section-sub">Hoja de cálculo embebida.</div>
+        </div>
+        <a id="libreta-open" class="btn btn-ghost btn-sm" href="#" target="_blank" rel="noopener" style="display:none">Abrir en pestaña nueva ↗</a>
+      </div>
+      <div id="libreta-empty" class="admin-placeholder" style="display:none">
+        <strong>Libreta no configurada</strong>
+        Definí <code>LIBRETA_URL</code> en el archivo <code>.env</code> y reiniciá el server.
+      </div>
+      <iframe id="libreta-iframe" src="about:blank" referrerpolicy="no-referrer" loading="lazy" style="width:100%;height:70vh;border:1px solid var(--border2);border-radius:var(--r-md);background:var(--bg2)"></iframe>
+    </div>
+    <div id="admin-sub-flujo" class="admin-subpanel">
+      <div class="admin-section-head">
+        <div>
+          <div class="admin-section-title">Flujo de fondos</div>
+          <div class="admin-section-sub">Hoja de cálculo embebida.</div>
+        </div>
+        <a id="flujo-open" class="btn btn-ghost btn-sm" href="#" target="_blank" rel="noopener" style="display:none">Abrir en pestaña nueva ↗</a>
+      </div>
+      <div id="flujo-empty" class="admin-placeholder" style="display:none">
+        <strong>Flujo de fondos no configurado</strong>
+        Definí <code>FLUJO_FONDOS_URL</code> en el archivo <code>.env</code> y reiniciá el server.
+      </div>
+      <iframe id="flujo-iframe" src="about:blank" referrerpolicy="no-referrer" loading="lazy" style="width:100%;height:70vh;border:1px solid var(--border2);border-radius:var(--r-md);background:var(--bg2)"></iframe>
+    </div>
+    <div id="admin-sub-cobranzas" class="admin-subpanel">
+      <div class="admin-placeholder">
+        <strong>Cobranzas</strong>
+        Próximamente: gestión de cobros y vencimientos.
+      </div>
+    </div>
+  `;
+
+  // Marcar tab activo y renderizar contenido del sub-tab actual
+  applyAdminSubTab();
+  renderClientesSubTab();
 }
 
 function clientName(c) {

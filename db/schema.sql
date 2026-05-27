@@ -96,3 +96,43 @@ CREATE TABLE IF NOT EXISTS calendar_events (
 
 CREATE INDEX IF NOT EXISTS idx_calendar_events_equipo ON calendar_events(equipo);
 CREATE INDEX IF NOT EXISTS idx_calendar_events_fecha  ON calendar_events(fecha);
+
+-- ──────────────────────────────────────────────
+-- ADMIN: Clientes y movimientos de cuenta
+-- ──────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS clients (
+  id              TEXT PRIMARY KEY,
+  nombre_fantasia TEXT NOT NULL DEFAULT '',
+  razon_social    TEXT NOT NULL DEFAULT '',
+  cuit            TEXT NOT NULL DEFAULT '',
+  direccion       TEXT NOT NULL DEFAULT '',
+  tel_admin       TEXT NOT NULL DEFAULT '',
+  tel_dueno       TEXT NOT NULL DEFAULT '',
+  mail1           TEXT NOT NULL DEFAULT '',
+  mail2           TEXT NOT NULL DEFAULT '',
+  vence           TEXT NOT NULL DEFAULT '',
+  card_id         TEXT REFERENCES cards(id) ON DELETE SET NULL,
+  creado_por      TEXT REFERENCES users(id) ON DELETE SET NULL,
+  creado_en       BIGINT NOT NULL,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_clients_cuit ON clients(cuit);
+
+CREATE TABLE IF NOT EXISTS client_movements (
+  id            TEXT PRIMARY KEY,
+  client_id     TEXT NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  fecha         TEXT NOT NULL,
+  medio_pago    TEXT NOT NULL DEFAULT '',
+  banco         TEXT NOT NULL DEFAULT '',
+  detalle       TEXT NOT NULL DEFAULT '',
+  monto_factura NUMERIC(14,2) NOT NULL DEFAULT 0,
+  debe          NUMERIC(14,2) NOT NULL DEFAULT 0,
+  haber         NUMERIC(14,2) NOT NULL DEFAULT 0,
+  creado_por    TEXT REFERENCES users(id) ON DELETE SET NULL,
+  creado_en     BIGINT NOT NULL,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_client_movements_client ON client_movements(client_id, fecha, creado_en);

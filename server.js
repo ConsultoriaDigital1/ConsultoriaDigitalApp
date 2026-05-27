@@ -184,6 +184,95 @@ async function requireAuth(req, res, next) {
   }
 }
 
+function requireAdmin(req, res, next) {
+  requireAuth(req, res, (err) => {
+    if (err) return next(err);
+    if (!req.user || req.user.equipo !== 'admin') {
+      return res.status(403).json({ error: 'Solo administradores.' });
+    }
+    next();
+  });
+}
+
+// ── DTOs y helpers para clients/movements ──
+function clientDTO(row, balance = null) {
+  const saldo = balance != null ? Number(balance.saldo || 0) : 0;
+  return {
+    id: row.id,
+    nombreFantasia: row.nombre_fantasia || '',
+    razonSocial:    row.razon_social || '',
+    cuit:           row.cuit || '',
+    direccion:      row.direccion || '',
+    telAdmin:       row.tel_admin || '',
+    telDueno:       row.tel_dueno || '',
+    mail1:          row.mail1 || '',
+    mail2:          row.mail2 || '',
+    vence:          row.vence || '',
+    cardId:         row.card_id || null,
+    creadoPor:      row.creado_por || null,
+    creadoEn:       Number(row.creado_en) || 0,
+    saldo,
+    estado:         saldo > 0 ? 'IMPAGO' : 'PAGADO',
+  };
+}
+
+function movementDTO(row, saldoAcumulado = null) {
+  return {
+    id: row.id,
+    clientId:     row.client_id,
+    fecha:        row.fecha || '',
+    medioPago:    row.medio_pago || '',
+    banco:        row.banco || '',
+    detalle:      row.detalle || '',
+    montoFactura: Number(row.monto_factura || 0),
+    debe:         Number(row.debe || 0),
+    haber:        Number(row.haber || 0),
+    creadoPor:    row.creado_por || null,
+    creadoEn:     Number(row.creado_en) || 0,
+    saldoAcumulado: saldoAcumulado != null ? Number(saldoAcumulado) : null,
+  };
+}
+
+async function clientBalances() {
+  const { rows } = await pool.query(
+    `SELECT client_id, COALESCE(SUM(debe),0) - COALESCE(SUM(haber),0) AS saldo
+     FROM client_movements
+     GROUP BY client_id`
+  );
+  const map = {};
+  rows.forEach((r) => { map[r.client_id] = { saldo: Number(r.saldo) }; });
+  return map;
+}
+
+async function listClients() {
+  const { rows } = await pool.query(
+    'SELECT * FROM clients ORDER BY LOWER(nombre_fantasia), LOWER(razon_social)'
+  );
+  const balances = await clientBalances();
+  return rows.map((r) => clientDTO(r, balances[r.id] || { saldo: 0 }));
+}
+
+async function getClientById(id) {
+  const { rows } = await pool.query('SELECT * FROM clients WHERE id = $1', [id]);
+  return rows[0] || null;
+}
+
+const ALLOWED_MEDIO_PAGO = new Set(['efectivo', 'transferencia', 'cheque', 'echeque', 'tarjeta', '']);
+
+function cleanMoney(value) {
+  if (value == null || value === '') return 0;
+  const num = Number(String(value).replace(',', '.'));
+  if (!Number.isFinite(num) || num < 0) return 0;
+  return Math.round(num * 100) / 100;
+}
+
+function cleanDate(value) {
+  const s = String(value || '').trim();
+  if (!s) return '';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return '';
+  return s;
+}
+
 async function visibleUsers(user) {
   const teams = allowedTeams(user);
   const { rows } = await pool.query(
@@ -487,6 +576,7 @@ app.post('/api/auth/verify-admin', requireAuth, async (req, res, next) => {
 
 app.get('/api/bootstrap', requireAuth, async (req, res, next) => {
   try {
+    const isAdmin = req.user.equipo === 'admin';
     res.json({
       user: userDTO(req.user),
       users: await visibleUsers(req.user),
@@ -494,10 +584,172 @@ app.get('/api/bootstrap', requireAuth, async (req, res, next) => {
       calendars: await visibleCalendars(req.user),
       events: await visibleEvents(req.user),
       teams: allowedTeams(req.user),
+      clients: isAdmin ? await listClients() : [],
+      libretaUrl:      isAdmin ? (process.env.LIBRETA_URL || '')       : '',
+      flujoFondosUrl:  isAdmin ? (process.env.FLUJO_FONDOS_URL || '')  : '',
     });
   } catch (err) {
     next(err);
   }
+});
+
+// ════════════════════════════════════════════
+// ADMIN — CLIENTES
+// ════════════════════════════════════════════
+app.get('/api/admin/clients', requireAdmin, async (_req, res, next) => {
+  try {
+    res.json({ clients: await listClients() });
+  } catch (err) { next(err); }
+});
+
+app.post('/api/admin/clients', requireAdmin, async (req, res, next) => {
+  try {
+    const b = req.body || {};
+    const nombre = String(b.nombreFantasia || '').trim();
+    if (!nombre) return res.status(400).json({ error: 'El nombre de fantasia es obligatorio.' });
+
+    const id = mkId();
+    const creadoEn = Date.now();
+    const { rows } = await pool.query(
+      `INSERT INTO clients (
+         id, nombre_fantasia, razon_social, cuit, direccion,
+         tel_admin, tel_dueno, mail1, mail2, vence,
+         creado_por, creado_en
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+       RETURNING *`,
+      [
+        id,
+        nombre,
+        String(b.razonSocial || '').trim(),
+        String(b.cuit || '').trim(),
+        String(b.direccion || '').trim(),
+        String(b.telAdmin || '').trim(),
+        String(b.telDueno || '').trim(),
+        String(b.mail1 || '').trim(),
+        String(b.mail2 || '').trim(),
+        cleanDate(b.vence),
+        req.user.id,
+        creadoEn,
+      ]
+    );
+    res.status(201).json({ client: clientDTO(rows[0], { saldo: 0 }) });
+  } catch (err) { next(err); }
+});
+
+app.patch('/api/admin/clients/:id', requireAdmin, async (req, res, next) => {
+  try {
+    const existing = await getClientById(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Cliente no encontrado.' });
+    const b = req.body || {};
+    const { rows } = await pool.query(
+      `UPDATE clients SET
+         nombre_fantasia = $2,
+         razon_social    = $3,
+         cuit            = $4,
+         direccion       = $5,
+         tel_admin       = $6,
+         tel_dueno       = $7,
+         mail1           = $8,
+         mail2           = $9,
+         vence           = $10,
+         updated_at      = NOW()
+       WHERE id = $1
+       RETURNING *`,
+      [
+        req.params.id,
+        String(b.nombreFantasia || '').trim() || existing.nombre_fantasia,
+        String(b.razonSocial || '').trim(),
+        String(b.cuit || '').trim(),
+        String(b.direccion || '').trim(),
+        String(b.telAdmin || '').trim(),
+        String(b.telDueno || '').trim(),
+        String(b.mail1 || '').trim(),
+        String(b.mail2 || '').trim(),
+        cleanDate(b.vence),
+      ]
+    );
+    const balances = await clientBalances();
+    res.json({ client: clientDTO(rows[0], balances[rows[0].id] || { saldo: 0 }) });
+  } catch (err) { next(err); }
+});
+
+app.delete('/api/admin/clients/:id', requireAdmin, async (req, res, next) => {
+  try {
+    const r = await pool.query('DELETE FROM clients WHERE id = $1', [req.params.id]);
+    if (!r.rowCount) return res.status(404).json({ error: 'Cliente no encontrado.' });
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
+app.get('/api/admin/clients/:id/movements', requireAdmin, async (req, res, next) => {
+  try {
+    const client = await getClientById(req.params.id);
+    if (!client) return res.status(404).json({ error: 'Cliente no encontrado.' });
+    const { rows } = await pool.query(
+      `SELECT * FROM client_movements
+       WHERE client_id = $1
+       ORDER BY fecha ASC, creado_en ASC`,
+      [req.params.id]
+    );
+    let saldo = 0;
+    const movements = rows.map((r) => {
+      saldo += Number(r.debe || 0) - Number(r.haber || 0);
+      return movementDTO(r, saldo);
+    });
+    res.json({
+      client: clientDTO(client, { saldo }),
+      movements,
+    });
+  } catch (err) { next(err); }
+});
+
+app.post('/api/admin/clients/:id/movements', requireAdmin, async (req, res, next) => {
+  try {
+    const client = await getClientById(req.params.id);
+    if (!client) return res.status(404).json({ error: 'Cliente no encontrado.' });
+    const b = req.body || {};
+    const fecha = cleanDate(b.fecha);
+    if (!fecha) return res.status(400).json({ error: 'Fecha invalida (YYYY-MM-DD).' });
+
+    const medioPago = String(b.medioPago || '').toLowerCase().trim();
+    if (!ALLOWED_MEDIO_PAGO.has(medioPago)) {
+      return res.status(400).json({ error: 'Medio de pago invalido.' });
+    }
+
+    const debe = cleanMoney(b.debe);
+    const haber = cleanMoney(b.haber);
+    const monto = cleanMoney(b.montoFactura);
+    if (debe === 0 && haber === 0) {
+      return res.status(400).json({ error: 'Ingresa al menos un monto en Debe o Haber.' });
+    }
+
+    const id = mkId();
+    const creadoEn = Date.now();
+    await pool.query(
+      `INSERT INTO client_movements (
+         id, client_id, fecha, medio_pago, banco, detalle,
+         monto_factura, debe, haber, creado_por, creado_en
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+      [
+        id, req.params.id, fecha, medioPago,
+        String(b.banco || '').trim(),
+        String(b.detalle || '').trim(),
+        monto, debe, haber, req.user.id, creadoEn,
+      ]
+    );
+    res.status(201).json({ ok: true, id });
+  } catch (err) { next(err); }
+});
+
+app.delete('/api/admin/clients/:id/movements/:movId', requireAdmin, async (req, res, next) => {
+  try {
+    const r = await pool.query(
+      'DELETE FROM client_movements WHERE id = $1 AND client_id = $2',
+      [req.params.movId, req.params.id]
+    );
+    if (!r.rowCount) return res.status(404).json({ error: 'Movimiento no encontrado.' });
+    res.json({ ok: true });
+  } catch (err) { next(err); }
 });
 
 app.patch('/api/profile', requireAuth, async (req, res, next) => {
