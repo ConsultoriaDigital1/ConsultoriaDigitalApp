@@ -542,6 +542,18 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 .clients-table .ct-money.ok   { color: var(--success); }
 .clients-table .ct-actions { display: flex; gap: 0.4rem; justify-content: flex-end; flex-wrap: wrap; }
 
+/* Fila clickeable estilo "card" */
+.clients-table tbody tr.row-click { cursor: pointer; transition: transform 120ms ease; }
+.clients-table tbody tr.row-click:hover td {
+  background: var(--surface2);
+  border-color: rgba(231,255,79,0.18);
+}
+.clients-table tbody tr.row-click:hover .ct-name {
+  color: var(--lime);
+  transition: color 120ms ease;
+}
+.clients-table tbody tr.row-click:active td { background: var(--surface3); }
+
 /* Botones de acciones del cliente */
 .btn-factura {
   background: rgba(255, 173, 51, 0.14);
@@ -760,6 +772,12 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
   display: none; align-items: center; justify-content: center; padding: 1rem;
 }
 .overlay.open { display: flex; }
+
+@keyframes modalIn {
+  from { opacity: 0; transform: translateY(8px) scale(0.985); }
+  to   { opacity: 1; transform: translateY(0)   scale(1); }
+}
+.overlay.open > .modal { animation: modalIn 180ms cubic-bezier(.4,.0,.2,1); }
 
 .modal {
   background: var(--surface); border-radius: var(--r-xl);
@@ -2252,6 +2270,7 @@ let clientsView        = 'active';  // 'active' | 'trash'
 let movementsCache     = {};       // { [clientId]: [movements...] }
 let currentClientId    = null;
 let editingClientId    = null;     // id si el modal de cliente está editando; null = creando
+let returnToViewAfterEdit = false; // si true, al cerrar el modal Editar reabre el modal Ver
 let libretaUrl         = '';
 let flujoFondosUrl     = '';
 
@@ -2367,7 +2386,7 @@ function clientRowHTML(c) {
   const impago = saldo > 0;
   const moneyCls = impago ? 'debt' : 'ok';
   return `
-    <tr>
+    <tr class="row-click" onclick="openClientModal('${c.id}')" title="Click para ver detalle">
       <td>
         <div class="ct-name">${esc(clientDisplayName(c))}</div>
         ${c.cuit ? `<div class="ct-sub">${esc(c.cuit)}</div>` : ''}
@@ -2381,9 +2400,8 @@ function clientRowHTML(c) {
           ${impago ? 'IMPAGO' : 'PAGADO'}
         </span>
       </td>
-      <td>
+      <td onclick="event.stopPropagation()">
         <div class="ct-actions">
-          <button class="btn btn-subtle btn-sm" onclick="openClientModal('${c.id}')" title="Ver detalle del cliente">👁 Ver</button>
           <button class="btn btn-factura btn-sm" onclick="openMovementModal('${c.id}','factura')" title="Cargar una nueva factura">📄 Cargar factura</button>
           <button class="btn btn-pago btn-sm" onclick="openMovementModal('${c.id}','pago')" title="Registrar un pago recibido">💵 Cargar pago</button>
         </div>
@@ -2455,18 +2473,46 @@ function openEditClientModal(id) {
   if (!targetId) return;
   const c = clientsCache.find(x => x.id === targetId);
   if (!c) { toast('Cliente no encontrado.', 'error'); return; }
-  editingClientId = targetId;
-  fillClientForm(c);
-  $('nc-modal-title').textContent = 'Editar cliente';
-  $('nc-submit-btn').textContent  = 'Guardar cambios';
-  hideErr('nc-err');
-  openOverlay('new-client-overlay');
-  setTimeout(() => { const i = $('nc-nombre'); if (i) i.focus(); }, 60);
+
+  // Si el modal Ver está abierto sobre el mismo cliente, lo cerramos primero
+  // (luego, al cerrar el Editar, lo reabrimos para volver al detalle con datos frescos)
+  const viewOpen = $('client-overlay').classList.contains('open');
+  returnToViewAfterEdit = viewOpen && currentClientId === targetId;
+
+  const launch = () => {
+    editingClientId = targetId;
+    fillClientForm(c);
+    $('nc-modal-title').textContent = 'Editar cliente';
+    $('nc-submit-btn').textContent  = 'Guardar cambios';
+    hideErr('nc-err');
+    openOverlay('new-client-overlay');
+    setTimeout(() => { const i = $('nc-nombre'); if (i) i.focus(); }, 60);
+  };
+
+  if (viewOpen) {
+    closeOverlay('client-overlay');
+    setTimeout(launch, 140);   // breve gap visual para que se sienta una transición
+  } else {
+    launch();
+  }
 }
 
 function closeNewClientModal() {
+  const shouldReturn = returnToViewAfterEdit && currentClientId;
   closeOverlay('new-client-overlay');
   editingClientId = null;
+  returnToViewAfterEdit = false;
+
+  // Si veníamos del modal Ver, lo reabrimos con datos frescos
+  if (shouldReturn) {
+    const c = clientsCache.find(x => x.id === currentClientId);
+    setTimeout(() => {
+      if (c) {
+        renderClientModal(c);
+        openOverlay('client-overlay');
+      }
+    }, 140);
+  }
 }
 function newClientBg(e) { if (e.target.id === 'new-client-overlay') closeNewClientModal(); }
 
