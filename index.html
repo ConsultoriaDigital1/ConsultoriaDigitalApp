@@ -540,7 +540,43 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 .clients-table .ct-money { font-weight: 800; white-space: nowrap; }
 .clients-table .ct-money.debt { color: var(--danger); }
 .clients-table .ct-money.ok   { color: var(--success); }
-.clients-table .ct-actions { display: flex; gap: 0.4rem; justify-content: flex-end; }
+.clients-table .ct-actions { display: flex; gap: 0.4rem; justify-content: flex-end; flex-wrap: wrap; }
+
+/* Botones de acciones del cliente */
+.btn-factura {
+  background: rgba(255, 173, 51, 0.14);
+  color: #f5cd47;
+  border: 1px solid rgba(255, 173, 51, 0.3);
+  transition: all 150ms ease;
+}
+.btn-factura:hover {
+  background: #f5cd47; color: #1d2125;
+  border-color: #f5cd47;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(245, 205, 71, 0.25);
+}
+.btn-pago {
+  background: linear-gradient(135deg, #4bce97 0%, #2da678 100%);
+  color: #08231a;
+  border: 1px solid transparent;
+  font-weight: 800;
+  position: relative;
+  transition: all 150ms ease;
+  box-shadow: 0 2px 8px rgba(75, 206, 151, 0.25);
+}
+.btn-pago::before {
+  content: ''; position: absolute; inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(135deg, rgba(255,255,255,0.2), transparent 60%);
+  opacity: 0; transition: opacity 150ms ease;
+  pointer-events: none;
+}
+.btn-pago:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(75, 206, 151, 0.4);
+}
+.btn-pago:hover::before { opacity: 1; }
+.btn-pago:active { transform: translateY(0); }
 
 .ct-chip {
   display: inline-flex; align-items: center; gap: 0.3rem;
@@ -550,26 +586,58 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 .ct-chip.impago { background: rgba(248,113,104,0.16); color: var(--danger); }
 .ct-chip.pagado { background: rgba(75,206,151,0.16); color: var(--success); }
 
+/* Modal Cliente — ancho */
+.client-modal-wide {
+  max-width: min(1100px, 95vw) !important;
+  width: 100%;
+}
+
 /* Modal Cliente — Datos generales */
 .client-modal-section {
-  padding: 0.95rem 1.2rem;
+  padding: 0.95rem 1.4rem;
   border-bottom: 1px solid var(--border);
 }
 .client-modal-section:last-child { border-bottom: none; }
+
+/* Header de sección clickeable (estilo botón/card) */
 .client-section-head {
-  display: flex; align-items: center; gap: 0.5rem;
+  display: flex; align-items: center; gap: 0.7rem;
   cursor: pointer; user-select: none;
+  padding: 0.65rem 0.9rem;
+  margin: 0 -0.4rem;
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: var(--r-md);
+  transition: all 150ms ease;
+}
+.client-section-head:hover {
+  background: var(--surface3);
+  border-color: rgba(231, 255, 79, 0.25);
 }
 .client-section-head .chev {
-  font-size: 0.7rem; color: var(--muted);
-  transition: transform 180ms ease;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  background: rgba(231, 255, 79, 0.15);
+  color: var(--lime);
+  font-size: 0.65rem;
+  transition: transform 220ms cubic-bezier(.5,1.4,.5,1);
 }
 .client-section-head.open .chev { transform: rotate(90deg); }
 .client-section-head h3 {
   font-family: var(--font-disp); font-size: 0.95rem;
-  font-weight: 700; color: var(--text-hi);
+  font-weight: 800; color: var(--text-hi);
+  letter-spacing: 0.02em;
+  display: flex; align-items: center; gap: 0.45rem;
 }
-.client-section-body { padding-top: 0.85rem; }
+.client-section-head h3::before {
+  content: '';
+  display: inline-block;
+  width: 3px; height: 16px;
+  background: var(--lime);
+  border-radius: 2px;
+}
+.client-section-body { padding-top: 1rem; }
 .client-section-body.collapsed { display: none; }
 
 .client-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 0.7rem 1rem; }
@@ -613,49 +681,6 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
   font-size: 0.85rem;
 }
 .rc-totals .rc-saldo-final { color: var(--text-hi); font-weight: 800; }
-
-/* ─── ADMIN LOCK OVERLAY ─── */
-.content.admin-locked > .tab-panel {
-  filter: blur(10px) saturate(0.7);
-  pointer-events: none;
-  user-select: none;
-  transition: filter 200ms ease;
-}
-.admin-lock-overlay {
-  position: absolute; inset: 0; z-index: 250;
-  display: none; align-items: center; justify-content: center;
-  padding: 1rem;
-  background: rgba(13, 17, 23, 0.55);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-}
-.admin-lock-overlay.open { display: flex; }
-.admin-lock-card {
-  width: 100%; max-width: 380px;
-  background: var(--surface);
-  border: 1px solid var(--border2);
-  border-radius: var(--r-lg);
-  box-shadow: var(--shadow-lg);
-  padding: 1.4rem 1.4rem 1.2rem;
-  display: flex; flex-direction: column; gap: 0.7rem;
-}
-.admin-lock-icon {
-  width: 46px; height: 46px; border-radius: 50%;
-  background: rgba(231, 255, 79, 0.12);
-  color: var(--lime);
-  display: flex; align-items: center; justify-content: center;
-  font-size: 1.4rem; margin-bottom: 0.25rem;
-}
-.admin-lock-title {
-  font-family: var(--font-disp);
-  font-size: 1.05rem; font-weight: 700; color: var(--text-hi);
-}
-.admin-lock-sub {
-  font-size: 0.82rem; color: var(--muted); line-height: 1.45;
-}
-.admin-lock-actions {
-  display: flex; gap: 0.55rem; justify-content: flex-end; margin-top: 0.4rem;
-}
 
 /* ─── COLOR PICKER ─── */
 .color-picker { display: flex; gap: 0.38rem; flex-wrap: wrap; margin-bottom: 0.9rem; }
@@ -1399,7 +1424,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
             <div class="cbar-title">Gestión de Clientes</div>
             <div class="cbar-sub" id="clientes-sub">Tablero Kanban — Todos los equipos</div>
           </div>
-          <button class="btn btn-subtle btn-sm" style="margin-left:auto" onclick="openNewCard()">
+          <button id="btn-new-card" class="btn btn-subtle btn-sm" style="margin-left:auto" onclick="openNewCard()">
             + Nueva tarjeta
           </button>
         </div>
@@ -1437,21 +1462,6 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
         </div>
         <div class="talentos-wrap">
           <div class="talent-grid" id="talent-grid"></div>
-        </div>
-      </div>
-
-      <!-- ── ADMIN LOCK OVERLAY ── -->
-      <div id="admin-lock-overlay" class="admin-lock-overlay" onclick="event.stopPropagation()">
-        <div class="admin-lock-card">
-          <div class="admin-lock-icon">🔒</div>
-          <div class="admin-lock-title">Acceso restringido</div>
-          <div class="admin-lock-sub">Ingresá tu contraseña para ver el panel de administración.</div>
-          <input id="admin-lock-pass" type="password" class="form-input" placeholder="Contraseña" autocomplete="current-password" onkeydown="onAdminLockKey(event)" />
-          <div id="admin-lock-err" class="form-error" style="display:none"></div>
-          <div class="admin-lock-actions">
-            <button class="btn btn-ghost btn-sm" onclick="cancelAdminUnlock()">Cancelar</button>
-            <button class="btn btn-primary btn-sm" onclick="submitAdminUnlock()">Desbloquear</button>
-          </div>
         </div>
       </div>
 
@@ -1929,7 +1939,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
      VER CLIENTE MODAL (admin)
      ═══════════════════════════════════════════ -->
 <div id="client-overlay" class="overlay" onclick="clientBg(event)">
-  <div class="modal" style="max-width:720px" onclick="event.stopPropagation()">
+  <div class="modal client-modal-wide" onclick="event.stopPropagation()">
     <div class="modal-head">
       <div style="flex:1">
         <div class="modal-head-title" id="cv-title">Cliente</div>
@@ -1988,7 +1998,8 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
       </div>
       <div id="cv-resumen" class="client-section-body collapsed">
         <div class="rc-toolbar">
-          <button class="btn btn-lime btn-sm" onclick="openMovementModalForCurrent()">+ Cargar movimiento</button>
+          <button class="btn btn-factura btn-sm" onclick="openMovementModalForCurrent('factura')" style="margin-right:0.4rem">📄 Cargar factura</button>
+          <button class="btn btn-pago btn-sm" onclick="openMovementModalForCurrent('pago')">💵 Cargar pago</button>
         </div>
         <div id="cv-movements-wrap">
           <div class="rc-empty">Sin movimientos cargados.</div>
@@ -1999,12 +2010,12 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 </div>
 
 <!-- ═══════════════════════════════════════════
-     CARGAR MOVIMIENTO MODAL (admin)
+     FACTURA / PAGO MODAL (admin)
      ═══════════════════════════════════════════ -->
 <div id="movement-overlay" class="overlay" onclick="movementBg(event)">
   <div class="modal" style="max-width:520px" onclick="event.stopPropagation()">
     <div class="modal-head">
-      <span class="modal-head-title">Cargar factura / movimiento</span>
+      <span class="modal-head-title" id="mv-title">Cargar factura</span>
       <button class="modal-close" onclick="closeMovementModal()">✕</button>
     </div>
     <div style="padding:1.2rem 1.4rem">
@@ -2014,7 +2025,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
           <label class="form-label">Fecha *</label>
           <input id="mv-fecha" class="form-input" type="date" />
         </div>
-        <div class="form-group">
+        <div class="form-group mv-only-pago" data-mv-mode="pago">
           <label class="form-label">Medio de pago</label>
           <select id="mv-medio" class="form-select">
             <option value="">—</option>
@@ -2026,7 +2037,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
           </select>
         </div>
       </div>
-      <div class="form-group">
+      <div class="form-group mv-only-pago" data-mv-mode="pago">
         <label class="form-label">Banco</label>
         <input id="mv-banco" class="form-input" type="text" placeholder="Ej: Galicia, Santander..." list="mv-banco-list" />
         <datalist id="mv-banco-list">
@@ -2044,27 +2055,21 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
       </div>
       <div class="form-group">
         <label class="form-label">Detalle / descripción</label>
-        <textarea id="mv-detalle" class="form-textarea" placeholder="Observación del movimiento..."></textarea>
+        <textarea id="mv-detalle" class="form-textarea" placeholder="Observación..."></textarea>
       </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label class="form-label">Monto de la factura</label>
-          <input id="mv-monto" class="form-input" type="number" step="0.01" min="0" placeholder="0.00" />
-        </div>
-        <div class="form-group">
-          <label class="form-label" style="color:var(--danger)">Debe</label>
-          <input id="mv-debe" class="form-input" type="number" step="0.01" min="0" placeholder="0.00" />
-        </div>
+      <div class="form-group mv-only-factura" data-mv-mode="factura">
+        <label class="form-label" id="mv-monto-label" style="color:#f5cd47">Monto de la factura *</label>
+        <input id="mv-monto" class="form-input" type="number" step="0.01" min="0" placeholder="0.00" />
       </div>
-      <div class="form-group">
-        <label class="form-label" style="color:var(--success)">Haber</label>
+      <div class="form-group mv-only-pago" data-mv-mode="pago">
+        <label class="form-label" style="color:var(--success)">Monto del pago *</label>
         <input id="mv-haber" class="form-input" type="number" step="0.01" min="0" placeholder="0.00" />
       </div>
       <div id="mv-err" class="form-error" style="display:none"></div>
     </div>
     <div class="modal-foot">
       <button class="btn btn-ghost btn-sm" onclick="closeMovementModal()">Cancelar</button>
-      <button class="btn btn-primary btn-sm" onclick="submitMovement()">Guardar movimiento</button>
+      <button class="btn btn-primary btn-sm" id="mv-submit-btn" onclick="submitMovement()">Guardar</button>
     </div>
   </div>
 </div>
@@ -2182,86 +2187,6 @@ function defaultFormTeam() {
   return activeTeam !== 'all' && canViewTeam(activeTeam) ? activeTeam : currentUser.equipo;
 }
 
-/* ─────────────────────────────────────────
-   ADMIN LOCK
-───────────────────────────────────────── */
-const ADMIN_UNLOCK_TTL_MS = 10 * 60 * 1000;
-let adminUnlocked   = false;
-let adminLockTimer  = null;
-let adminUnlockBusy = false;
-
-function isAdminUnlocked() { return adminUnlocked; }
-
-function lockAdmin() {
-  adminUnlocked = false;
-  if (adminLockTimer) { clearTimeout(adminLockTimer); adminLockTimer = null; }
-  updateAdminLockUI();
-}
-
-function unlockAdmin() {
-  adminUnlocked = true;
-  if (adminLockTimer) clearTimeout(adminLockTimer);
-  adminLockTimer = setTimeout(() => {
-    adminUnlocked = false;
-    adminLockTimer = null;
-    updateAdminLockUI();
-    if (activeTeam === 'admin') toast('Sesión de administración expirada.', 'info');
-  }, ADMIN_UNLOCK_TTL_MS);
-  updateAdminLockUI();
-}
-
-function shouldShowAdminLock() {
-  return isAdmin() && activeTeam === 'admin' && !adminUnlocked;
-}
-
-function updateAdminLockUI() {
-  const content = document.querySelector('.content');
-  const overlay = $('admin-lock-overlay');
-  if (!content || !overlay) return;
-  const show = shouldShowAdminLock();
-  content.classList.toggle('admin-locked', show);
-  overlay.classList.toggle('open', show);
-  if (show) {
-    const inp = $('admin-lock-pass');
-    if (inp) {
-      inp.value = '';
-      setTimeout(() => { try { inp.focus(); } catch(_) {} }, 50);
-    }
-    hideErr('admin-lock-err');
-  }
-}
-
-function onAdminLockKey(e) {
-  if (e.key === 'Enter') { e.preventDefault(); submitAdminUnlock(); }
-  else if (e.key === 'Escape') { e.preventDefault(); cancelAdminUnlock(); }
-}
-
-async function submitAdminUnlock() {
-  if (adminUnlockBusy) return;
-  const inp = $('admin-lock-pass');
-  const pass = inp ? inp.value : '';
-  if (!pass) { showErr('admin-lock-err', 'Ingresá tu contraseña.'); return; }
-  adminUnlockBusy = true;
-  try {
-    await api('/api/auth/verify-admin', {
-      method: 'POST',
-      body: JSON.stringify({ password: pass }),
-    });
-    hideErr('admin-lock-err');
-    if (inp) inp.value = '';
-    unlockAdmin();
-  } catch (err) {
-    showErr('admin-lock-err', err.message || 'Contraseña incorrecta.');
-    if (inp) { inp.value = ''; inp.focus(); }
-  } finally {
-    adminUnlockBusy = false;
-  }
-}
-
-function cancelAdminUnlock() {
-  filterTeam('all');
-}
-
 /* ═════════════════════════════════════════
    ADMIN — SUBNAV + CLIENTES
 ═════════════════════════════════════════ */
@@ -2375,8 +2300,9 @@ function clientRowHTML(c) {
       </td>
       <td>
         <div class="ct-actions">
-          <button class="btn btn-subtle btn-sm" onclick="openClientModal('${c.id}')">👁 Ver</button>
-          <button class="btn btn-primary btn-sm" onclick="openMovementModal('${c.id}')">＋ Movimiento</button>
+          <button class="btn btn-subtle btn-sm" onclick="openClientModal('${c.id}')" title="Ver detalle del cliente">👁 Ver</button>
+          <button class="btn btn-factura btn-sm" onclick="openMovementModal('${c.id}','factura')" title="Cargar una nueva factura">📄 Cargar factura</button>
+          <button class="btn btn-pago btn-sm" onclick="openMovementModal('${c.id}','pago')" title="Registrar un pago recibido">💵 Cargar pago</button>
         </div>
       </td>
     </tr>`;
@@ -2521,7 +2447,8 @@ function renderClientMovements(movements) {
   });
   let saldo = 0;
   const rows = ordered.map(m => {
-    saldo += Number(m.debe || 0) - Number(m.haber || 0);
+    // Saldo acumulado = factura - haber
+    saldo += Number(m.montoFactura || 0) - Number(m.haber || 0);
     const impago = saldo > 0;
     return `
       <tr>
@@ -2608,28 +2535,48 @@ async function deleteClientFromModal() {
   }
 }
 
-/* ── Cargar movimiento ── */
-function openMovementModal(clientId) {
+/* ── Factura / Pago ── */
+let movementMode = 'factura'; // 'factura' | 'pago'
+
+function openMovementModal(clientId, mode = 'factura') {
   const c = clientsCache.find(x => x.id === clientId);
   if (!c) { toast('Cliente no encontrado.', 'error'); return; }
   currentClientId = clientId;
-  $('mv-cliente-info').innerHTML = `Movimiento para <strong style="color:var(--text-hi)">${esc(clientDisplayName(c))}</strong>${c.cuit ? ` · ${esc(c.cuit)}` : ''}`;
-  // valores por defecto
+  movementMode = mode === 'pago' ? 'pago' : 'factura';
+
+  $('mv-cliente-info').innerHTML =
+    (movementMode === 'pago' ? 'Registrar pago de ' : 'Cargar factura para ') +
+    `<strong style="color:var(--text-hi)">${esc(clientDisplayName(c))}</strong>` +
+    (c.cuit ? ` · ${esc(c.cuit)}` : '');
+
+  // Título y botón
+  $('mv-title').textContent = movementMode === 'pago' ? 'Cargar pago' : 'Cargar factura';
+  $('mv-submit-btn').textContent = movementMode === 'pago' ? 'Guardar pago' : 'Guardar factura';
+  $('mv-submit-btn').className = 'btn btn-sm ' + (movementMode === 'pago' ? 'btn-pago' : 'btn-factura');
+
+  // Mostrar/ocultar campos según modo
+  document.querySelectorAll('.mv-only-factura').forEach(el => el.style.display = movementMode === 'factura' ? '' : 'none');
+  document.querySelectorAll('.mv-only-pago').forEach(el => el.style.display = movementMode === 'pago' ? '' : 'none');
+
+  // Resetear valores
   const today = new Date().toISOString().slice(0, 10);
-  $('mv-fecha').value  = today;
-  $('mv-medio').value  = '';
-  $('mv-banco').value  = '';
+  $('mv-fecha').value   = today;
+  $('mv-medio').value   = '';
+  $('mv-banco').value   = '';
   $('mv-detalle').value = '';
-  $('mv-monto').value  = '';
-  $('mv-debe').value   = '';
-  $('mv-haber').value  = '';
+  $('mv-monto').value   = '';
+  $('mv-haber').value   = '';
   hideErr('mv-err');
+
   openOverlay('movement-overlay');
-  setTimeout(() => { const f = $('mv-fecha'); if (f) f.focus(); }, 60);
+  setTimeout(() => {
+    const focusEl = movementMode === 'pago' ? $('mv-haber') : $('mv-monto');
+    if (focusEl) focusEl.focus();
+  }, 60);
 }
 
-function openMovementModalForCurrent() {
-  if (currentClientId) openMovementModal(currentClientId);
+function openMovementModalForCurrent(mode = 'factura') {
+  if (currentClientId) openMovementModal(currentClientId, mode);
 }
 
 function closeMovementModal() { closeOverlay('movement-overlay'); }
@@ -2637,33 +2584,45 @@ function movementBg(e) { if (e.target.id === 'movement-overlay') closeMovementMo
 
 async function submitMovement() {
   if (!currentClientId) { closeMovementModal(); return; }
-  const body = {
-    fecha:        $('mv-fecha').value,
-    medioPago:    $('mv-medio').value,
-    banco:        $('mv-banco').value.trim(),
-    detalle:      $('mv-detalle').value.trim(),
-    montoFactura: $('mv-monto').value,
-    debe:         $('mv-debe').value,
-    haber:        $('mv-haber').value,
-  };
-  if (!body.fecha) { showErr('mv-err', 'La fecha es obligatoria.'); return; }
-  const debe  = Number(body.debe || 0);
-  const haber = Number(body.haber || 0);
-  if ((!debe || debe <= 0) && (!haber || haber <= 0)) {
-    showErr('mv-err', 'Ingresá al menos un monto en Debe o Haber.');
-    return;
+  if (!$('mv-fecha').value) { showErr('mv-err', 'La fecha es obligatoria.'); return; }
+
+  let body;
+  if (movementMode === 'factura') {
+    const monto = Number($('mv-monto').value || 0);
+    if (monto <= 0) { showErr('mv-err', 'Ingresá el monto de la factura.'); return; }
+    body = {
+      fecha:        $('mv-fecha').value,
+      medioPago:    '',
+      banco:        '',
+      detalle:      $('mv-detalle').value.trim(),
+      montoFactura: monto,
+      debe:         monto,   // por consistencia con el modelo viejo
+      haber:        0,
+    };
+  } else {
+    const haber = Number($('mv-haber').value || 0);
+    if (haber <= 0) { showErr('mv-err', 'Ingresá el monto del pago.'); return; }
+    body = {
+      fecha:        $('mv-fecha').value,
+      medioPago:    $('mv-medio').value,
+      banco:        $('mv-banco').value.trim(),
+      detalle:      $('mv-detalle').value.trim(),
+      montoFactura: 0,
+      debe:         0,
+      haber:        haber,
+    };
   }
+
   try {
     await api('/api/admin/clients/' + encodeURIComponent(currentClientId) + '/movements', {
       method: 'POST',
       body: JSON.stringify(body),
     });
     closeMovementModal();
-    // Refrescamos movimientos del cliente (esto también actualiza saldo en cache y tabla)
     await loadMovementsForClient(currentClientId);
-    toast('Movimiento cargado.', 'success');
+    toast(movementMode === 'pago' ? 'Pago registrado.' : 'Factura cargada.', 'success');
   } catch (err) {
-    showErr('mv-err', err.message || 'No se pudo guardar el movimiento.');
+    showErr('mv-err', err.message || 'No se pudo guardar.');
   }
 }
 
@@ -2766,7 +2725,6 @@ async function doLogout() {
   usersCache  = [];
   cardsCache  = [];
   eventsCache = [];
-  lockAdmin();
   $('app').style.display = 'none';
   $('login-screen').style.display = '';
   $('li-username').value = ''; $('li-pass').value = '';
@@ -2798,9 +2756,10 @@ function startApp() {
   calYear  = now.getFullYear();
   calMonth = now.getMonth();
   buildColorPicker();
+  const newCardBtn = $('btn-new-card');
+  if (newCardBtn) newCardBtn.style.display = activeTeam === 'admin' ? 'none' : '';
   renderBoard();
   renderTalentos();
-  lockAdmin();
 }
 
 function applyAccessUi() {
@@ -3116,7 +3075,6 @@ function switchTab(tab) {
   closeDD();
   if (tab === 'calendario') renderCalendar();
   if (tab === 'talentos')   renderTalentos();
-  updateAdminLockUI();
 }
 
 function goClientesHome() {
@@ -3135,10 +3093,11 @@ function filterTeam(team) {
   activeTeam = team;
   document.querySelectorAll('.sb-btn[data-team]').forEach(b => b.classList.toggle('active', b.dataset.team === team));
   $('clientes-sub').textContent = (team === 'admin' ? 'Tabla de control — ' : 'Tablero Kanban — ') + (TEAMS[team] || 'Todos');
+  const newCardBtn = $('btn-new-card');
+  if (newCardBtn) newCardBtn.style.display = team === 'admin' ? 'none' : '';
   renderBoard();
   if (activeTab === 'calendario') renderCalendar();
   if (activeTab === 'talentos') renderTalentos();
-  updateAdminLockUI();
 }
 
 /* ─────────────────────────────────────────

@@ -234,8 +234,9 @@ function movementDTO(row, saldoAcumulado = null) {
 }
 
 async function clientBalances() {
+  // Saldo = total facturado - total pagado (haber)
   const { rows } = await pool.query(
-    `SELECT client_id, COALESCE(SUM(debe),0) - COALESCE(SUM(haber),0) AS saldo
+    `SELECT client_id, COALESCE(SUM(monto_factura),0) - COALESCE(SUM(haber),0) AS saldo
      FROM client_movements
      GROUP BY client_id`
   );
@@ -550,30 +551,6 @@ app.post('/api/auth/logout', (_req, res) => {
   res.json({ ok: true });
 });
 
-app.post('/api/auth/verify-admin', requireAuth, async (req, res, next) => {
-  try {
-    if (req.user.equipo !== 'admin') {
-      return res.status(403).json({ error: 'Solo administradores.' });
-    }
-    const password = String(req.body.password || '');
-    if (!password) return res.status(400).json({ error: 'Contrasena requerida.' });
-
-    if (
-      process.env.NODE_ENV === 'development' &&
-      process.env.DEV_BYPASS_PASSWORD &&
-      password === process.env.DEV_BYPASS_PASSWORD
-    ) {
-      return res.json({ ok: true });
-    }
-
-    const ok = await bcrypt.compare(password, req.user.password_hash);
-    if (!ok) return res.status(401).json({ error: 'Contrasena incorrecta.' });
-    res.json({ ok: true });
-  } catch (err) {
-    next(err);
-  }
-});
-
 app.get('/api/bootstrap', requireAuth, async (req, res, next) => {
   try {
     const isAdmin = req.user.equipo === 'admin';
@@ -693,7 +670,8 @@ app.get('/api/admin/clients/:id/movements', requireAdmin, async (req, res, next)
     );
     let saldo = 0;
     const movements = rows.map((r) => {
-      saldo += Number(r.debe || 0) - Number(r.haber || 0);
+      // Saldo acumulado = factura - haber
+      saldo += Number(r.monto_factura || 0) - Number(r.haber || 0);
       return movementDTO(r, saldo);
     });
     res.json({
