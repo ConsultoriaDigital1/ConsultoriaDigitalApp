@@ -43,6 +43,10 @@ ALTER TABLE cards ADD COLUMN IF NOT EXISTS checklist JSONB NOT NULL DEFAULT '[]'
 ALTER TABLE cards ADD COLUMN IF NOT EXISTS vence_hora TEXT NOT NULL DEFAULT '';
 ALTER TABLE cards ADD COLUMN IF NOT EXISTS usuarios JSONB NOT NULL DEFAULT '[]'::jsonb;
 
+-- Soft-delete: papelera de tarjetas
+ALTER TABLE cards ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+CREATE INDEX IF NOT EXISTS idx_cards_deleted_at ON cards(deleted_at);
+
 -- Daily check (YYYY-MM-DD en zona horaria America/Argentina/Cordoba). Se reinicia naturalmente cada dia.
 ALTER TABLE cards ADD COLUMN IF NOT EXISTS daily_check_date TEXT NOT NULL DEFAULT '';
 
@@ -74,6 +78,9 @@ CREATE TABLE IF NOT EXISTS card_description_history (
   creado_en BIGINT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Tipo de actividad: 'descripcion' (default historico), 'comentario', 'vencimiento'
+ALTER TABLE card_description_history ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'descripcion';
 
 CREATE INDEX IF NOT EXISTS idx_card_description_history_card
   ON card_description_history(card_id, creado_en DESC);

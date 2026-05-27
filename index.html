@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>ConsultoriaDigital</title>
   <link rel="icon" type="image/png" href="/favicon.png" />
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js" defer></script>
   <style>
 /* ═══════════════════════════════════════════
    DARK TRELLO THEME — ConsultoriaDigital
@@ -300,7 +301,6 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
   min-height: 40px;
   transition: background 150ms ease;
 }
-.col-cards.drag-over { background: rgba(87,157,255,0.06); }
 
 /* ─── KANBAN CARD ─── */
 .kcard {
@@ -312,25 +312,26 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
   min-height: 36px;
 }
 .kcard:hover { background: var(--surface3); border-color: var(--border2); }
-.kcard.dragging {
-  opacity: 0.35;
-  /* sin rotacion ni escala — menos visualmente ruidoso */
+
+/* ── SortableJS: placeholder (donde caera la card) ── */
+.kcard.kcard-ghost {
+  opacity: 1;
+  background: rgba(87,157,255,0.08);
+  border: 1.5px dashed rgba(87,157,255,0.55);
 }
-.kcard.drop-before::before,
-.kcard.drop-after::after {
-  content: '';
-  position: absolute; left: 6px; right: 6px;
-  height: 2px;
-  background: var(--lime);
-  border-radius: 1px;
-  pointer-events: none;
-}
-.kcard.drop-before::before { top: -3px; }
-.kcard.drop-after::after   { bottom: -3px; }
-.col-cards.drop-empty {
-  outline: 1.5px dashed rgba(231,255,79,0.55);
-  outline-offset: -2px;
-  border-radius: var(--r-sm);
+.kcard.kcard-ghost > * { visibility: hidden; }
+
+/* ── SortableJS: card "elegida" (la que el usuario tomo) ── */
+.kcard.kcard-chosen { cursor: grabbing; }
+
+/* ── SortableJS: preview que sigue al cursor ── */
+.kcard.kcard-drag {
+  cursor: grabbing;
+  background: var(--surface3);
+  border: 1px solid var(--border2);
+  box-shadow: 0 12px 28px -8px rgba(0,0,0,0.55), 0 2px 6px rgba(0,0,0,0.25);
+  transform: rotate(2deg);
+  opacity: 0.98;
 }
 
 .kcard-body {
@@ -1555,12 +1556,18 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
       <div id="tab-clientes" class="tab-panel active">
         <div class="cbar">
           <div>
-            <div class="cbar-title">Gestión de Clientes</div>
+            <div class="cbar-title" id="clientes-title">Gestión de Clientes</div>
             <div class="cbar-sub" id="clientes-sub">Tablero Kanban — Todos los equipos</div>
           </div>
-          <button id="btn-new-card" class="btn btn-subtle btn-sm" style="margin-left:auto" onclick="openNewCard()">
-            + Nueva tarjeta
-          </button>
+          <div style="margin-left:auto;display:flex;gap:0.4rem;flex-wrap:wrap;justify-content:flex-end">
+            <button id="btn-cards-trash" class="btn btn-trash btn-sm" onclick="switchCardsView('trash')" title="Ver tarjetas en la papelera">
+              🗑️ Papelera <span id="cards-trash-count" class="trash-count" style="display:none"></span>
+            </button>
+            <button id="btn-cards-active" class="btn btn-ghost btn-sm" onclick="switchCardsView('active')" style="display:none" title="Volver al tablero">← Volver al tablero</button>
+            <button id="btn-new-card" class="btn btn-subtle btn-sm" onclick="openNewCard()">
+              + Nueva tarjeta
+            </button>
+          </div>
         </div>
         <div class="kanban-wrap" id="kanban-board"></div>
       </div>
@@ -1758,7 +1765,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
     </div>
 
     <div class="modal-foot card-modal-foot">
-      <button id="btn-del" class="btn btn-danger btn-sm" onclick="deleteCard()" style="display:none;margin-right:auto">Eliminar</button>
+      <button id="btn-del" class="btn btn-danger btn-sm" onclick="deleteCard()" style="display:none;margin-right:auto" title="Mueve la tarjeta a la papelera">🗑️ Mover a papelera</button>
       <button class="btn btn-ghost btn-sm" onclick="closeModal()">Cancelar</button>
       <button class="btn btn-primary btn-sm" onclick="saveCard()">Guardar</button>
     </div>
@@ -2258,6 +2265,8 @@ const AVA_COLORS = [
 ───────────────────────────────────────── */
 let usersCache = [];
 let cardsCache = [];
+let cardsTrashCache = [];
+let cardsView = 'active';  // 'active' | 'trash'
 let calendarsCache = {};
 let eventsCache = [];
 const getUsers  = () => usersCache;
@@ -2300,6 +2309,7 @@ async function loadAppData() {
   currentUser    = data.user;
   usersCache     = data.users     || [];
   cardsCache     = data.cards     || [];
+  cardsTrashCache = data.cardsTrash || [];
   calendarsCache = data.calendars || {};
   eventsCache    = data.events    || [];
   clientsCache      = data.clients      || [];
@@ -2502,7 +2512,6 @@ function trashRowHTML(c) {
         <div class="ct-actions">
           <div class="ct-deleted-at">${deletedTxt}</div>
           <button class="btn btn-restore btn-sm" onclick="restoreClient('${c.id}')" title="Restaurar a Clientes">♻️ Restaurar</button>
-          <button class="btn btn-danger btn-sm" onclick="purgeClient('${c.id}')" title="Eliminar definitivamente">🗑️ Eliminar def.</button>
         </div>
       </td>
     </tr>`;
@@ -2652,20 +2661,6 @@ async function restoreClient(id) {
   }
 }
 
-async function purgeClient(id) {
-  const c = clientsTrashCache.find(x => x.id === id);
-  const nombre = c ? clientDisplayName(c) : 'este cliente';
-  if (!confirm(`⚠️ ELIMINAR DEFINITIVAMENTE "${nombre}"?\n\nSe borrarán también todos sus movimientos. Esta acción no se puede deshacer.`)) return;
-  try {
-    await api('/api/admin/clients/' + encodeURIComponent(id) + '/purge', { method: 'DELETE' });
-    clientsTrashCache = clientsTrashCache.filter(x => x.id !== id);
-    delete movementsCache[id];
-    renderClientesSubTab();
-    toast('Cliente eliminado definitivamente.', 'success');
-  } catch (err) {
-    toast(err.message || 'No se pudo eliminar.', 'error');
-  }
-}
 
 /* ── Ver Cliente ── */
 function openClientModal(clientId) {
@@ -2971,7 +2966,6 @@ let currentUser = null;
 let activeTeam  = 'all';
 let activeTab   = 'clientes';
 let searchQ     = '';
-let dragId      = null;
 let editingId   = null;
 let modalStatus = 'iniciada';
 let modalColor  = 'none';
@@ -3033,6 +3027,8 @@ async function doLogout() {
   currentUser = null;
   usersCache  = [];
   cardsCache  = [];
+  cardsTrashCache = [];
+  cardsView = 'active';
   eventsCache = [];
   $('app').style.display = 'none';
   $('login-screen').style.display = '';
@@ -3433,8 +3429,14 @@ function filteredCards() {
 
 function renderBoard() {
   const board = $('kanban-board');
-  const cards = filteredCards();
   const users = getUsers();
+  syncCardsViewToolbar();
+  if (cardsView === 'trash' && activeTeam !== 'admin') {
+    board.className = 'admin-table-wrap';
+    renderCardsTrash(board, users);
+    return;
+  }
+  const cards = filteredCards();
   board.className = activeTeam === 'admin' ? 'admin-table-wrap' : 'kanban-wrap';
   board.innerHTML = '';
   if (activeTeam === 'admin') {
@@ -3453,10 +3455,7 @@ function renderBoard() {
           <button class="col-menu-btn" onclick="openNewCard('${status}')" title="Agregar">+</button>
         </div>
       </div>
-      <div class="col-cards" id="col-${status}"
-           ondragover="onDragOver(event,'${status}')"
-           ondrop="onDrop(event,'${status}')"
-           ondragleave="onDragLeave(event,'${status}')">
+      <div class="col-cards" id="col-${status}" data-status="${status}">
         ${colCards.length === 0
           ? '<div class="empty-col">Sin tarjetas</div>'
           : colCards.map(c => cardHTML(c, users)).join('')}
@@ -3467,6 +3466,7 @@ function renderBoard() {
       </button>`;
     board.appendChild(col);
   });
+  initKanbanSortables();
 }
 
 function cardUserIds(c) {
@@ -3554,10 +3554,8 @@ function cardHTML(c, users) {
     </span>` : '';
 
   return `
-    <div class="kcard" draggable="true" data-id="${c.id}"
-         onclick="openCard('${c.id}')"
-         ondragstart="onDragStart(event,'${c.id}')"
-         ondragend="onDragEnd()">
+    <div class="kcard" data-id="${c.id}"
+         onclick="openCard('${c.id}')">
       <div class="kcard-body">
         <div class="kcard-top">
           <div class="kcard-check${dailyDone ? ' done' : ''}"
@@ -3940,140 +3938,106 @@ function syncDueButton() {
 }
 
 /* ─────────────────────────────────────────
-   DRAG & DROP
+   DRAG & DROP (SortableJS — smooth reorder)
 ───────────────────────────────────────── */
-function onDragStart(e, id) {
-  dragId = id;
-  e.dataTransfer.effectAllowed = 'move';
-  try { e.dataTransfer.setData('text/plain', id); } catch (_) {}
-  requestAnimationFrame(() => {
-    const el = document.querySelector(`[data-id="${id}"]`);
-    if (el) el.classList.add('dragging');
-  });
-}
-function onDragEnd() {
-  document.querySelectorAll('.kcard.dragging,.kcard.drop-before,.kcard.drop-after').forEach(el => {
-    el.classList.remove('dragging','drop-before','drop-after');
-  });
-  document.querySelectorAll('.col-cards.drop-empty,.col-cards.drag-over').forEach(el => {
-    el.classList.remove('drop-empty','drag-over');
-  });
-  lastDropHint = { col: null, idx: -1 };
-}
+let kanbanSortables = [];
 
-// Calcula el indice donde caeria la card dentro de col-cards segun el mouseY
-function computeDropIndex(colEl, clientY) {
-  const items = Array.from(colEl.querySelectorAll('.kcard:not(.dragging)'));
-  if (!items.length) return 0;
-  for (let i = 0; i < items.length; i++) {
-    const r = items[i].getBoundingClientRect();
-    const mid = r.top + r.height / 2;
-    if (clientY < mid) return i;
-  }
-  return items.length;
-}
-
-function clearDropHints(colEl) {
-  colEl.classList.remove('drop-empty');
-  colEl.querySelectorAll('.kcard.drop-before,.kcard.drop-after').forEach(el => {
-    el.classList.remove('drop-before','drop-after');
+function initKanbanSortables() {
+  if (typeof Sortable === 'undefined') return;
+  // Limpiar instancias previas
+  kanbanSortables.forEach(s => { try { s.destroy(); } catch (_) {} });
+  kanbanSortables = [];
+  document.querySelectorAll('.col-cards[data-status]').forEach(colEl => {
+    kanbanSortables.push(Sortable.create(colEl, {
+      group: 'kanban-cards',
+      animation: 160,
+      easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+      ghostClass: 'kcard-ghost',
+      chosenClass: 'kcard-chosen',
+      dragClass: 'kcard-drag',
+      forceFallback: true,        // ghost custom y mismo comportamiento en todos los navegadores
+      fallbackOnBody: true,
+      fallbackTolerance: 4,
+      filter: '.kcard-check, .empty-col',
+      preventOnFilter: false,
+      onEnd: onSortableEnd,
+    }));
   });
 }
 
-let lastDropHint = { col: null, idx: -1 };
+async function onSortableEnd(evt) {
+  const item   = evt.item;
+  const cardId = item && item.dataset ? item.dataset.id : null;
+  if (!cardId) return;
 
-function applyDropHint(colEl, items, idx) {
-  // Limpiar SOLO la card que tenia hint, no todo
-  document.querySelectorAll('.kcard.drop-before,.kcard.drop-after').forEach(el => {
-    el.classList.remove('drop-before','drop-after');
-  });
-  document.querySelectorAll('.col-cards.drop-empty').forEach(el => el.classList.remove('drop-empty'));
-  if (!items.length) { colEl.classList.add('drop-empty'); return; }
-  if (idx >= items.length) items[items.length - 1].classList.add('drop-after');
-  else                     items[idx].classList.add('drop-before');
-}
+  const card = cardsCache.find(c => c.id === cardId);
+  if (!card) return;
 
-function onDragOver(e, status) {
-  e.preventDefault();
-  const colEl = $('col-' + status);
-  if (!colEl.classList.contains('drag-over')) colEl.classList.add('drag-over');
-  const items = Array.from(colEl.querySelectorAll('.kcard:not(.dragging)'));
-  const idx   = items.length ? computeDropIndex(colEl, e.clientY) : 0;
-  if (lastDropHint.col === status && lastDropHint.idx === idx) return; // sin cambios → no toco DOM
-  lastDropHint = { col: status, idx };
-  applyDropHint(colEl, items, idx);
-}
+  const toColEl   = evt.to;
+  const newStatus = toColEl ? toColEl.dataset.status : card.estado;
+  if (!newStatus) return;
 
-function onDragLeave(e, status) {
-  const colEl = $('col-' + status);
-  if (!colEl.contains(e.relatedTarget)) {
-    colEl.classList.remove('drag-over');
-    clearDropHints(colEl);
-    lastDropHint = { col: null, idx: -1 };
-  }
-}
-
-async function onDrop(e, status) {
-  e.preventDefault();
-  const colEl = $('col-' + status);
-  colEl.classList.remove('drag-over');
-  clearDropHints(colEl);
-  if (!dragId) return;
-
-  const card = cardsCache.find(c => c.id === dragId);
-  if (!card) { dragId = null; return; }
-
-  // Calcular indice donde queremos insertar (basado en el orden actual filtrado a esta columna)
-  const sameCol = card.estado === status;
-  const dropIdx = computeDropIndex(colEl, e.clientY);
-
-  const changedEstado = !sameCol;
-
-  // 1) Si cambio de columna: persistir el cambio de estado primero
-  if (changedEstado) {
+  // 1) Si cambio de columna: persistir el nuevo estado
+  if (card.estado !== newStatus) {
     try {
-      const saved = await api('/api/cards/' + dragId, {
+      const saved = await api('/api/cards/' + cardId, {
         method: 'PUT',
-        body: JSON.stringify({ ...card, estado: status }),
+        body: JSON.stringify({ ...card, estado: newStatus }),
       });
       replaceCard(saved.card);
-      toast('→ ' + STATUS_LABEL[status], 'success');
+      toast('→ ' + STATUS_LABEL[newStatus], 'success');
     } catch (err) {
       toast(err.message, 'error');
-      dragId = null;
+      renderBoard();
       return;
     }
   }
 
-  // 2) Construir el nuevo orden de la columna destino y persistirlo
+  // 2) Reconstruir el orden de la columna a partir del DOM (refleja exactamente lo que el usuario ve)
   const equipo = card.equipo;
-  const colCards = filteredCards()
-    .filter(c => c.equipo === equipo && c.estado === status && c.id !== dragId)
-    .sort(byPosition);
-
-  const newOrder = colCards.slice();
-  newOrder.splice(Math.min(dropIdx, newOrder.length), 0, { ...card, estado: status });
+  const orderedIds = Array.from(toColEl.querySelectorAll('.kcard[data-id]')).map(el => el.dataset.id);
+  const cardsById  = new Map(cardsCache.map(c => [c.id, c]));
+  const newOrder = orderedIds
+    .map(id => cardsById.get(id))
+    .filter(c => c && c.equipo === equipo);
 
   // Actualizar cache localmente con nuevas positions (1..n)
+  // (No re-renderizamos: Sortable ya dejo el DOM en su lugar — re-render rompe la animacion)
   newOrder.forEach((c, i) => {
     const idx = cardsCache.findIndex(x => x.id === c.id);
-    if (idx > -1) cardsCache[idx] = { ...cardsCache[idx], estado: status, position: i + 1 };
+    if (idx > -1) cardsCache[idx] = { ...cardsCache[idx], estado: newStatus, position: i + 1 };
   });
-  renderBoard();
+  // Actualizar los contadores y vista "Sin tarjetas" sin re-render completo
+  syncColumnCounts();
 
   try {
     await api('/api/cards/reorder', {
       method: 'PUT',
       body: JSON.stringify({
-        equipo, estado: status,
+        equipo, estado: newStatus,
         ids: newOrder.map(c => c.id),
       }),
     });
   } catch (err) {
     toast(err.message || 'No se pudo guardar el orden', 'error');
+    renderBoard(); // rollback visual desde cache
   }
+}
 
-  dragId = null;
+function syncColumnCounts() {
+  STATUSES.forEach(status => {
+    const colEl = $('col-' + status);
+    if (!colEl) return;
+    const cards = colEl.querySelectorAll('.kcard[data-id]');
+    const head = colEl.parentElement && colEl.parentElement.querySelector('.col-badge');
+    if (head) head.textContent = cards.length;
+    const empty = colEl.querySelector('.empty-col');
+    if (cards.length === 0 && !empty) {
+      colEl.insertAdjacentHTML('beforeend', '<div class="empty-col">Sin tarjetas</div>');
+    } else if (cards.length > 0 && empty) {
+      empty.remove();
+    }
+  });
 }
 
 function byPosition(a, b) {
@@ -4352,13 +4316,25 @@ function renderActivity(card) {
     const user = users.find(u => u.id === h.userId) || actor || currentUser;
     const userName = user ? (user.nombre + ' ' + (user.apellido||'')).trim() : 'Usuario';
     const text = String(h.description || '').trim();
+    const kind = h.kind || 'descripcion';
+    let verb, emptyText;
+    if (kind === 'vencimiento') {
+      verb = text ? 'establecio el vencimiento' : 'quito el vencimiento';
+      emptyText = 'Sin vencimiento';
+    } else if (kind === 'comentario') {
+      verb = 'agrego un comentario';
+      emptyText = 'Comentario vacio';
+    } else {
+      verb = 'guardo una descripcion';
+      emptyText = 'Descripcion vacia';
+    }
     return `
       <div class="activity-item">
         <div class="activity-avatar" style="${avatarStyle(user)}">${avatarText(user)}</div>
         <div>
-          <strong>${esc(userName)}</strong> guardo una descripcion
+          <strong>${esc(userName)}</strong> ${verb}
           <div class="activity-date">${esc(fmtActivityDate(h.creadoEn))}</div>
-          <div class="activity-description${text ? '' : ' empty'}">${text ? esc(text).replace(/\n/g,'<br>') : 'Descripcion vacia'}</div>
+          <div class="activity-description${text ? '' : ' empty'}">${text ? esc(text).replace(/\n/g,'<br>') : emptyText}</div>
         </div>
       </div>
     `;
@@ -4417,15 +4393,120 @@ async function saveCard() {
 }
 
 async function deleteCard() {
-  if (!editingId || !confirm('¿Eliminar esta tarjeta?')) return;
+  if (!editingId || !confirm('¿Mover esta tarjeta a la papelera?\n\nVas a poder restaurarla desde la papelera más adelante.')) return;
   try {
     await api('/api/cards/' + editingId, { method: 'DELETE' });
+    const removed = cardsCache.find(c => c.id === editingId);
     cardsCache = cardsCache.filter(c => c.id !== editingId);
+    if (removed) {
+      cardsTrashCache.unshift({ ...removed, deletedAt: new Date().toISOString() });
+    }
     closeModal();
     renderBoard();
-    toast('Tarjeta eliminada', 'error');
+    toast('Tarjeta movida a la papelera', 'success');
   } catch (err) {
     toast(err.message, 'error');
+  }
+}
+
+function switchCardsView(view) {
+  cardsView = view === 'trash' ? 'trash' : 'active';
+  renderBoard();
+}
+
+function syncCardsViewToolbar() {
+  const inTrash = cardsView === 'trash' && activeTeam !== 'admin';
+  const newBtn   = $('btn-new-card');
+  const trashBtn = $('btn-cards-trash');
+  const backBtn  = $('btn-cards-active');
+  const titleEl  = $('clientes-title');
+  const countEl  = $('cards-trash-count');
+  const subEl    = $('clientes-sub');
+  if (newBtn)   newBtn.style.display   = (inTrash || activeTeam === 'admin') ? 'none' : '';
+  if (trashBtn) trashBtn.style.display = (inTrash || activeTeam === 'admin') ? 'none' : '';
+  if (backBtn)  backBtn.style.display  = inTrash ? '' : 'none';
+  if (titleEl)  titleEl.textContent    = inTrash ? 'Papelera de tarjetas' : 'Gestión de Clientes';
+  const visibleTrash = (cardsTrashCache || []).filter(c => activeTeam === 'all' || c.equipo === activeTeam);
+  if (countEl) {
+    if (visibleTrash.length > 0) {
+      countEl.textContent = visibleTrash.length;
+      countEl.style.display = '';
+    } else {
+      countEl.style.display = 'none';
+    }
+  }
+  if (inTrash && subEl) {
+    subEl.textContent = visibleTrash.length
+      ? `${visibleTrash.length} tarjeta${visibleTrash.length === 1 ? '' : 's'} en la papelera.`
+      : 'La papelera está vacía.';
+  }
+}
+
+function renderCardsTrash(board, users) {
+  const list = (cardsTrashCache || []).filter(c => activeTeam === 'all' || c.equipo === activeTeam);
+  if (!list.length) {
+    board.innerHTML = `
+      <div class="admin-empty" style="padding:2rem;text-align:center;color:var(--muted)">
+        <div style="font-size:2rem;margin-bottom:0.4rem">🗑️</div>
+        <strong>Papelera vacía</strong>
+        <div style="font-size:0.85rem;margin-top:0.3rem">No hay tarjetas eliminadas.</div>
+      </div>`;
+    return;
+  }
+  const byId = new Map(users.map(u => [u.id, u]));
+  board.innerHTML = `
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Tarjeta</th>
+          <th>Equipo</th>
+          <th>Estado</th>
+          <th>Eliminada</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        ${list.map(c => {
+          const title = (c.nf || c.rs || 'Sin nombre');
+          const owner = byId.get(c.usuario);
+          const ownerLabel = owner ? userFullName(owner) : '—';
+          const deletedTxt = c.deletedAt
+            ? (() => {
+                const d = new Date(c.deletedAt);
+                return pad2(d.getDate()) + '/' + pad2(d.getMonth() + 1) + '/' + d.getFullYear() +
+                       ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+              })()
+            : '—';
+          return `
+            <tr style="opacity:0.85">
+              <td>
+                <div class="ct-name" style="text-decoration:line-through;text-decoration-color:rgba(248,113,104,0.5)">${esc(title)}</div>
+                ${c.cuit ? `<div class="ct-sub">${esc(c.cuit)}</div>` : ''}
+                <div class="ct-sub">${esc(ownerLabel)}</div>
+              </td>
+              <td>${esc(TEAMS[c.equipo] || c.equipo || '—')}</td>
+              <td>${esc(statusText(c.estado))}</td>
+              <td>${deletedTxt}</td>
+              <td>
+                <button class="btn btn-restore btn-sm" onclick="restoreCardFromTrash('${c.id}')" title="Restaurar al tablero">♻️ Restaurar</button>
+              </td>
+            </tr>`;
+        }).join('')}
+      </tbody>
+    </table>`;
+}
+
+async function restoreCardFromTrash(id) {
+  try {
+    const data = await api('/api/cards/' + encodeURIComponent(id) + '/restore', { method: 'POST' });
+    cardsTrashCache = cardsTrashCache.filter(c => c.id !== id);
+    if (data.card) {
+      replaceCard(data.card);
+    }
+    renderBoard();
+    toast('Tarjeta restaurada', 'success');
+  } catch (err) {
+    toast(err.message || 'No se pudo restaurar.', 'error');
   }
 }
 

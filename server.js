@@ -112,6 +112,7 @@ function cardDTO(row, descriptionHistory = []) {
     checklist: cleanChecklist(row.checklist),
     dailyCheckDate: row.daily_check_date || '',
     position: row.position == null ? null : Number(row.position),
+    deletedAt: row.deleted_at ? row.deleted_at.toISOString() : null,
     descriptionHistory,
   };
 }
@@ -122,6 +123,7 @@ function descriptionHistoryDTO(row) {
     cardId: row.card_id,
     userId: row.user_id,
     description: row.description,
+    kind: row.kind || 'descripcion',
     creadoEn: Number(row.creado_en),
   };
 }
@@ -132,7 +134,7 @@ async function descriptionHistoryByCardIds(cardIds, db = pool) {
   if (!ids.length) return historyByCard;
 
   const { rows } = await db.query(
-    `SELECT id, card_id, user_id, description, creado_en
+    `SELECT id, card_id, user_id, description, kind, creado_en
      FROM card_description_history
      WHERE card_id = ANY($1)
      ORDER BY creado_en DESC, created_at DESC`,
@@ -146,14 +148,25 @@ async function descriptionHistoryByCardIds(cardIds, db = pool) {
   return historyByCard;
 }
 
-async function insertDescriptionHistory(db, cardId, userId, description, creadoEn = Date.now()) {
+async function insertDescriptionHistory(db, cardId, userId, description, creadoEn = Date.now(), kind = 'descripcion') {
   const { rows } = await db.query(
-    `INSERT INTO card_description_history (id, card_id, user_id, description, creado_en)
-     VALUES ($1, $2, $3, $4, $5)
-     RETURNING id, card_id, user_id, description, creado_en`,
-    [mkId(), cardId, userId, String(description || ''), creadoEn]
+    `INSERT INTO card_description_history (id, card_id, user_id, description, kind, creado_en)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     RETURNING id, card_id, user_id, description, kind, creado_en`,
+    [mkId(), cardId, userId, String(description || ''), kind, creadoEn]
   );
   return descriptionHistoryDTO(rows[0]);
+}
+
+function fmtVenceForActivity(vence, venceHora) {
+  const v = String(vence || '').trim();
+  if (!v) return '';
+  const h = String(venceHora || '').trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) {
+    const [yyyy, mm, dd] = v.split('-');
+    return `${dd}/${mm}/${yyyy}${h ? ' ' + h : ''}`;
+  }
+  return h ? `${v} ${h}` : v;
 }
 
 function isAdmin(user) {
@@ -299,8 +312,20 @@ async function visibleCards(user) {
   const teams = allowedTeams(user);
   const { rows } = await pool.query(
     `SELECT * FROM cards
-     WHERE equipo = ANY($1)
+     WHERE equipo = ANY($1) AND deleted_at IS NULL
      ORDER BY position ASC NULLS LAST, creado_en DESC`,
+    [teams]
+  );
+  const historyByCard = await descriptionHistoryByCardIds(rows.map((row) => row.id));
+  return rows.map((row) => cardDTO(row, historyByCard.get(row.id) || []));
+}
+
+async function trashedCards(user) {
+  const teams = allowedTeams(user);
+  const { rows } = await pool.query(
+    `SELECT * FROM cards
+     WHERE equipo = ANY($1) AND deleted_at IS NOT NULL
+     ORDER BY deleted_at DESC`,
     [teams]
   );
   const historyByCard = await descriptionHistoryByCardIds(rows.map((row) => row.id));
@@ -572,6 +597,7 @@ app.get('/api/bootstrap', requireAuth, async (req, res, next) => {
       user: userDTO(req.user),
       users: await visibleUsers(req.user),
       cards: await visibleCards(req.user),
+      cardsTrash: await trashedCards(req.user),
       calendars: await visibleCalendars(req.user),
       events: await visibleEvents(req.user),
       teams: allowedTeams(req.user),
@@ -671,7 +697,7 @@ app.patch('/api/admin/clients/:id', requireAdmin, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// Soft-delete (mueve a papelera). El borrado fisico se hace via /purge
+// Soft-delete (mueve a papelera). El borrado fisico esta deshabilitado.
 app.delete('/api/admin/clients/:id', requireAdmin, async (req, res, next) => {
   try {
     const r = await pool.query(
@@ -699,13 +725,9 @@ app.post('/api/admin/clients/:id/restore', requireAdmin, async (req, res, next) 
   } catch (err) { next(err); }
 });
 
-// Eliminacion definitiva (purge) — borra cliente + sus movimientos en cascada
-app.delete('/api/admin/clients/:id/purge', requireAdmin, async (req, res, next) => {
-  try {
-    const r = await pool.query('DELETE FROM clients WHERE id = $1', [req.params.id]);
-    if (!r.rowCount) return res.status(404).json({ error: 'Cliente no encontrado.' });
-    res.json({ ok: true });
-  } catch (err) { next(err); }
+// Eliminacion definitiva deshabilitada: los clientes solo se mandan a papelera y se pueden restaurar.
+app.delete('/api/admin/clients/:id/purge', requireAdmin, (_req, res) => {
+  res.status(405).json({ error: 'La eliminacion definitiva esta deshabilitada. Restaurar desde la papelera.' });
 });
 
 app.get('/api/admin/clients/:id/movements', requireAdmin, async (req, res, next) => {
@@ -971,9 +993,17 @@ app.post('/api/cards', requireAuth, async (req, res, next) => {
           data.debe, data.montoDeuda, data.vence, data.venceHora, data.coverImage, JSON.stringify(data.checklist),
         ]
       );
-      const history = data.c.trim()
-        ? [await insertDescriptionHistory(client, cardId, req.user.id, data.c, creadoEn)]
-        : [];
+      const history = [];
+      if (data.c.trim()) {
+        history.push(await insertDescriptionHistory(client, cardId, req.user.id, data.c, creadoEn, 'descripcion'));
+      }
+      if (data.vence) {
+        history.push(await insertDescriptionHistory(
+          client, cardId, req.user.id,
+          fmtVenceForActivity(data.vence, data.venceHora),
+          creadoEn, 'vencimiento'
+        ));
+      }
       await client.query('COMMIT');
       res.status(201).json({ card: cardDTO(rows[0], history) });
     } catch (err) {
@@ -1049,7 +1079,16 @@ app.put('/api/cards/:id', requireAuth, async (req, res, next) => {
       ]
     );
     if (String(data.c) !== String(current.rows[0].c || '')) {
-      await insertDescriptionHistory(client, req.params.id, req.user.id, data.c);
+      await insertDescriptionHistory(client, req.params.id, req.user.id, data.c, Date.now(), 'descripcion');
+    }
+    const prevVence = String(current.rows[0].vence || '');
+    const prevVenceHora = String(current.rows[0].vence_hora || '');
+    if (String(data.vence) !== prevVence || String(data.venceHora) !== prevVenceHora) {
+      await insertDescriptionHistory(
+        client, req.params.id, req.user.id,
+        fmtVenceForActivity(data.vence, data.venceHora),
+        Date.now(), 'vencimiento'
+      );
     }
     const historyByCard = await descriptionHistoryByCardIds([req.params.id], client);
     await client.query('COMMIT');
@@ -1123,15 +1162,63 @@ app.put('/api/calendars/:team', requireAuth, async (req, res, next) => {
   }
 });
 
+// Soft-delete (papelera). El borrado fisico esta deshabilitado.
 app.delete('/api/cards/:id', requireAuth, async (req, res, next) => {
   try {
-    const current = await pool.query('SELECT equipo FROM cards WHERE id = $1', [req.params.id]);
+    const current = await pool.query('SELECT equipo, deleted_at FROM cards WHERE id = $1', [req.params.id]);
     if (!current.rows[0]) return res.status(404).json({ error: 'Tarjeta no encontrada.' });
     if (!canAccessTeam(req.user, current.rows[0].equipo)) return res.status(403).json({ error: 'Sin permiso.' });
-    await pool.query('DELETE FROM cards WHERE id = $1', [req.params.id]);
+    if (current.rows[0].deleted_at) return res.status(400).json({ error: 'La tarjeta ya esta en la papelera.' });
+    await pool.query(
+      `UPDATE cards SET deleted_at = NOW(), updated_at = NOW() WHERE id = $1`,
+      [req.params.id]
+    );
     res.json({ ok: true });
   } catch (err) {
     next(err);
+  }
+});
+
+// Listar papelera de tarjetas (segun equipos visibles del usuario)
+app.get('/api/cards/trash', requireAuth, async (req, res, next) => {
+  try {
+    res.json({ cards: await trashedCards(req.user) });
+  } catch (err) { next(err); }
+});
+
+// Restaurar tarjeta desde papelera
+app.post('/api/cards/:id/restore', requireAuth, async (req, res, next) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const current = await client.query(
+      'SELECT * FROM cards WHERE id = $1 FOR UPDATE',
+      [req.params.id]
+    );
+    if (!current.rows[0]) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Tarjeta no encontrada.' });
+    }
+    if (!canAccessTeam(req.user, current.rows[0].equipo)) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ error: 'Sin permiso.' });
+    }
+    if (!current.rows[0].deleted_at) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'La tarjeta no esta en la papelera.' });
+    }
+    const { rows } = await client.query(
+      `UPDATE cards SET deleted_at = NULL, updated_at = NOW() WHERE id = $1 RETURNING *`,
+      [req.params.id]
+    );
+    const historyByCard = await descriptionHistoryByCardIds([req.params.id], client);
+    await client.query('COMMIT');
+    res.json({ card: cardDTO(rows[0], historyByCard.get(req.params.id) || []) });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    next(err);
+  } finally {
+    client.release();
   }
 });
 
