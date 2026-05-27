@@ -987,6 +987,36 @@ app.post('/api/cards', requireAuth, async (req, res, next) => {
   }
 });
 
+// Reordenar cards dentro de una columna (DEBE estar antes de /api/cards/:id)
+app.put('/api/cards/reorder', requireAuth, async (req, res, next) => {
+  const client = await pool.connect();
+  try {
+    const equipo = cleanTeam(req.body.equipo);
+    const estado = String(req.body.estado || '');
+    const ids    = Array.isArray(req.body.ids) ? req.body.ids.map(String) : [];
+    if (!equipo) return res.status(400).json({ error: 'Equipo invalido.' });
+    if (!['iniciada','en_proceso','finalizado'].includes(estado)) return res.status(400).json({ error: 'Estado invalido.' });
+    if (!canAccessTeam(req.user, equipo)) return res.status(403).json({ error: 'Sin permiso.' });
+    if (!ids.length) return res.json({ ok: true });
+
+    await client.query('BEGIN');
+    for (let i = 0; i < ids.length; i++) {
+      await client.query(
+        `UPDATE cards SET position = $1, updated_at = NOW()
+         WHERE id = $2 AND equipo = $3 AND estado = $4`,
+        [i + 1, ids[i], equipo, estado]
+      );
+    }
+    await client.query('COMMIT');
+    res.json({ ok: true });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    next(err);
+  } finally {
+    client.release();
+  }
+});
+
 app.put('/api/cards/:id', requireAuth, async (req, res, next) => {
   const client = await pool.connect();
   try {
@@ -1062,37 +1092,6 @@ app.post('/api/cards/:id/daily-check', requireAuth, async (req, res, next) => {
     );
     res.json({ id: req.params.id, dailyCheckDate: newVal, today });
   } catch (err) { next(err); }
-});
-
-// Reordenar cards dentro de una columna (mismo equipo + estado)
-app.put('/api/cards/reorder', requireAuth, async (req, res, next) => {
-  const client = await pool.connect();
-  try {
-    const equipo = cleanTeam(req.body.equipo);
-    const estado = String(req.body.estado || '');
-    const ids    = Array.isArray(req.body.ids) ? req.body.ids.map(String) : [];
-    if (!equipo) return res.status(400).json({ error: 'Equipo invalido.' });
-    if (!['iniciada','en_proceso','finalizado'].includes(estado)) return res.status(400).json({ error: 'Estado invalido.' });
-    if (!canAccessTeam(req.user, equipo)) return res.status(403).json({ error: 'Sin permiso.' });
-    if (!ids.length) return res.json({ ok: true });
-
-    await client.query('BEGIN');
-    // Solo actualizamos cards que cumplen equipo+estado y estan en ids — evita pisar cards de otros
-    for (let i = 0; i < ids.length; i++) {
-      await client.query(
-        `UPDATE cards SET position = $1, updated_at = NOW()
-         WHERE id = $2 AND equipo = $3 AND estado = $4`,
-        [i + 1, ids[i], equipo, estado]
-      );
-    }
-    await client.query('COMMIT');
-    res.json({ ok: true });
-  } catch (err) {
-    await client.query('ROLLBACK').catch(() => {});
-    next(err);
-  } finally {
-    client.release();
-  }
 });
 
 app.put('/api/calendars/:team', requireAuth, async (req, res, next) => {
