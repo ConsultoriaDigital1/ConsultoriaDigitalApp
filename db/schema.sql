@@ -120,6 +120,10 @@ CREATE TABLE IF NOT EXISTS clients (
 
 CREATE INDEX IF NOT EXISTS idx_clients_cuit ON clients(cuit);
 
+-- Soft-delete: papelera de clientes
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+CREATE INDEX IF NOT EXISTS idx_clients_deleted_at ON clients(deleted_at);
+
 CREATE TABLE IF NOT EXISTS client_movements (
   id            TEXT PRIMARY KEY,
   client_id     TEXT NOT NULL REFERENCES clients(id) ON DELETE CASCADE,

@@ -211,6 +211,7 @@ function clientDTO(row, balance = null) {
     cardId:         row.card_id || null,
     creadoPor:      row.creado_por || null,
     creadoEn:       Number(row.creado_en) || 0,
+    deletedAt:      row.deleted_at ? row.deleted_at.toISOString() : null,
     saldo,
     estado:         saldo > 0 ? 'IMPAGO' : 'PAGADO',
   };
@@ -245,9 +246,18 @@ async function clientBalances() {
   return map;
 }
 
-async function listClients() {
+async function listClients(includeDeleted = false) {
+  const where = includeDeleted ? '' : 'WHERE deleted_at IS NULL';
   const { rows } = await pool.query(
-    'SELECT * FROM clients ORDER BY LOWER(nombre_fantasia), LOWER(razon_social)'
+    `SELECT * FROM clients ${where} ORDER BY LOWER(nombre_fantasia), LOWER(razon_social)`
+  );
+  const balances = await clientBalances();
+  return rows.map((r) => clientDTO(r, balances[r.id] || { saldo: 0 }));
+}
+
+async function listTrashedClients() {
+  const { rows } = await pool.query(
+    `SELECT * FROM clients WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC`
   );
   const balances = await clientBalances();
   return rows.map((r) => clientDTO(r, balances[r.id] || { saldo: 0 }));
@@ -561,7 +571,8 @@ app.get('/api/bootstrap', requireAuth, async (req, res, next) => {
       calendars: await visibleCalendars(req.user),
       events: await visibleEvents(req.user),
       teams: allowedTeams(req.user),
-      clients: isAdmin ? await listClients() : [],
+      clients:         isAdmin ? await listClients()        : [],
+      clientsTrash:    isAdmin ? await listTrashedClients() : [],
       libretaUrl:      isAdmin ? (process.env.LIBRETA_URL || '')       : '',
       flujoFondosUrl:  isAdmin ? (process.env.FLUJO_FONDOS_URL || '')  : '',
     });
@@ -576,6 +587,12 @@ app.get('/api/bootstrap', requireAuth, async (req, res, next) => {
 app.get('/api/admin/clients', requireAdmin, async (_req, res, next) => {
   try {
     res.json({ clients: await listClients() });
+  } catch (err) { next(err); }
+});
+
+app.get('/api/admin/clients/trash', requireAdmin, async (_req, res, next) => {
+  try {
+    res.json({ clients: await listTrashedClients() });
   } catch (err) { next(err); }
 });
 
@@ -650,7 +667,36 @@ app.patch('/api/admin/clients/:id', requireAdmin, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// Soft-delete (mueve a papelera). El borrado fisico se hace via /purge
 app.delete('/api/admin/clients/:id', requireAdmin, async (req, res, next) => {
+  try {
+    const r = await pool.query(
+      `UPDATE clients SET deleted_at = NOW(), updated_at = NOW()
+       WHERE id = $1 AND deleted_at IS NULL`,
+      [req.params.id]
+    );
+    if (!r.rowCount) return res.status(404).json({ error: 'Cliente no encontrado o ya estaba en la papelera.' });
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
+// Restaurar cliente de la papelera
+app.post('/api/admin/clients/:id/restore', requireAdmin, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `UPDATE clients SET deleted_at = NULL, updated_at = NOW()
+       WHERE id = $1 AND deleted_at IS NOT NULL
+       RETURNING *`,
+      [req.params.id]
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'Cliente no esta en la papelera.' });
+    const balances = await clientBalances();
+    res.json({ client: clientDTO(rows[0], balances[rows[0].id] || { saldo: 0 }) });
+  } catch (err) { next(err); }
+});
+
+// Eliminacion definitiva (purge) — borra cliente + sus movimientos en cascada
+app.delete('/api/admin/clients/:id/purge', requireAdmin, async (req, res, next) => {
   try {
     const r = await pool.query('DELETE FROM clients WHERE id = $1', [req.params.id]);
     if (!r.rowCount) return res.status(404).json({ error: 'Cliente no encontrado.' });

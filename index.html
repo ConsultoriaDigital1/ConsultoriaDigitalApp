@@ -578,6 +578,59 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 .btn-pago:hover::before { opacity: 1; }
 .btn-pago:active { transform: translateY(0); }
 
+/* Editar cliente */
+.btn-edit {
+  background: rgba(87, 157, 255, 0.12);
+  color: #579dff;
+  border: 1px solid rgba(87, 157, 255, 0.3);
+  transition: all 150ms ease;
+}
+.btn-edit:hover {
+  background: #579dff;
+  color: #051528;
+  border-color: #579dff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(87, 157, 255, 0.25);
+}
+
+/* Papelera + Restaurar */
+.btn-trash {
+  background: rgba(166, 197, 226, 0.08);
+  color: var(--text);
+  border: 1px solid var(--border2);
+  transition: all 150ms ease;
+  display: inline-flex; align-items: center; gap: 0.35rem;
+}
+.btn-trash:hover {
+  background: rgba(248, 113, 104, 0.12);
+  border-color: rgba(248, 113, 104, 0.35);
+  color: var(--danger);
+}
+.btn-trash .trash-count {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 18px; height: 18px; padding: 0 5px;
+  background: var(--danger); color: #fff;
+  border-radius: 999px; font-size: 0.7rem; font-weight: 800;
+  margin-left: 0.2rem;
+}
+.btn-restore {
+  background: linear-gradient(135deg, #579dff 0%, #3b7fdc 100%);
+  color: #051528; font-weight: 800;
+  border: 1px solid transparent;
+  transition: all 150ms ease;
+  box-shadow: 0 2px 8px rgba(87, 157, 255, 0.25);
+}
+.btn-restore:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 5px 14px rgba(87, 157, 255, 0.4);
+}
+.ct-deleted-at {
+  font-size: 0.72rem;
+  color: var(--muted);
+  margin-right: 0.3rem;
+  white-space: nowrap;
+}
+
 .ct-chip {
   display: inline-flex; align-items: center; gap: 0.3rem;
   padding: 0.2rem 0.55rem; border-radius: 999px;
@@ -1880,7 +1933,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 <div id="new-client-overlay" class="overlay" onclick="newClientBg(event)">
   <div class="modal" style="max-width:520px" onclick="event.stopPropagation()">
     <div class="modal-head">
-      <span class="modal-head-title">Nuevo cliente</span>
+      <span class="modal-head-title" id="nc-modal-title">Nuevo cliente</span>
       <button class="modal-close" onclick="closeNewClientModal()">✕</button>
     </div>
     <div style="padding:1.2rem 1.4rem">
@@ -1930,7 +1983,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
     </div>
     <div class="modal-foot">
       <button class="btn btn-ghost btn-sm" onclick="closeNewClientModal()">Cancelar</button>
-      <button class="btn btn-primary btn-sm" onclick="submitNewClient()">Crear cliente</button>
+      <button class="btn btn-primary btn-sm" id="nc-submit-btn" onclick="submitNewClient()">Crear cliente</button>
     </div>
   </div>
 </div>
@@ -1945,7 +1998,8 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
         <div class="modal-head-title" id="cv-title">Cliente</div>
         <div id="cv-sub" style="font-size:0.78rem;color:var(--muted);margin-top:0.15rem"></div>
       </div>
-      <button class="btn btn-danger btn-sm" id="cv-delete-btn" onclick="deleteClientFromModal()" style="margin-right:0.4rem">Eliminar</button>
+      <button class="btn btn-edit btn-sm" onclick="openEditClientModal()" style="margin-right:0.4rem" title="Editar datos del cliente">✏️ Editar</button>
+      <button class="btn btn-danger btn-sm" id="cv-delete-btn" onclick="deleteClientFromModal()" style="margin-right:0.4rem" title="Mueve el cliente a la papelera">🗑️ Mover a papelera</button>
       <button class="modal-close" onclick="closeClientModal()">✕</button>
     </div>
 
@@ -2167,10 +2221,11 @@ async function loadAppData() {
   cardsCache     = data.cards     || [];
   calendarsCache = data.calendars || {};
   eventsCache    = data.events    || [];
-  clientsCache   = data.clients   || [];
-  libretaUrl     = data.libretaUrl || '';
-  flujoFondosUrl = data.flujoFondosUrl || '';
-  movementsCache = {};
+  clientsCache      = data.clients      || [];
+  clientsTrashCache = data.clientsTrash || [];
+  libretaUrl        = data.libretaUrl || '';
+  flujoFondosUrl    = data.flujoFondosUrl || '';
+  movementsCache    = {};
   return data;
 }
 
@@ -2192,6 +2247,8 @@ function defaultFormTeam() {
 ═════════════════════════════════════════ */
 let adminSubTab        = 'clientes';
 let clientsCache       = [];
+let clientsTrashCache  = [];
+let clientsView        = 'active';  // 'active' | 'trash'
 let movementsCache     = {};       // { [clientId]: [movements...] }
 let currentClientId    = null;
 let editingClientId    = null;     // id si el modal de cliente está editando; null = creando
@@ -2239,22 +2296,43 @@ function clientDisplayName(c) {
 function renderClientesSubTab() {
   const cont = $('admin-sub-clientes');
   if (!cont) return;
-  const list = (clientsCache || []).slice().sort((a, b) =>
+  const inTrash = clientsView === 'trash';
+  const source  = inTrash ? clientsTrashCache : clientsCache;
+  const list = (source || []).slice().sort((a, b) =>
     clientDisplayName(a).localeCompare(clientDisplayName(b), 'es')
   );
+  const trashCount = (clientsTrashCache || []).length;
 
   cont.innerHTML = `
     <div class="admin-section-head">
       <div>
-        <div class="admin-section-title">Clientes</div>
-        <div class="admin-section-sub">${list.length} cliente${list.length === 1 ? '' : 's'} registrado${list.length === 1 ? '' : 's'}.</div>
+        <div class="admin-section-title">${inTrash ? 'Papelera de clientes' : 'Clientes'}</div>
+        <div class="admin-section-sub">
+          ${inTrash
+            ? `${list.length} cliente${list.length === 1 ? '' : 's'} en la papelera.`
+            : `${list.length} cliente${list.length === 1 ? '' : 's'} activo${list.length === 1 ? '' : 's'}.`}
+        </div>
       </div>
-      <button class="btn btn-lime btn-sm" onclick="openNewClientModal()">+ Nuevo cliente</button>
+      <div style="display:flex;gap:0.5rem">
+        ${inTrash ? `
+          <button class="btn btn-ghost btn-sm" onclick="switchClientsView('active')">← Volver a Clientes</button>
+        ` : `
+          <button class="btn btn-lime btn-sm" onclick="openNewClientModal()">+ Nuevo cliente</button>
+          <button class="btn btn-trash btn-sm" onclick="switchClientsView('trash')" title="Ver clientes eliminados">
+            🗑️ Papelera ${trashCount > 0 ? `<span class="trash-count">${trashCount}</span>` : ''}
+          </button>
+        `}
+      </div>
     </div>
     ${list.length === 0 ? `
       <div class="admin-placeholder">
-        <strong>Sin clientes todavía</strong>
-        Tocá <em>"+ Nuevo cliente"</em> para empezar a cargar.
+        ${inTrash ? `
+          <strong>Papelera vacía</strong>
+          No hay clientes eliminados.
+        ` : `
+          <strong>Sin clientes todavía</strong>
+          Tocá <em>"+ Nuevo cliente"</em> para empezar a cargar.
+        `}
       </div>
     ` : `
       <div style="overflow-x:auto">
@@ -2267,16 +2345,21 @@ function renderClientesSubTab() {
               <th>Debe</th>
               <th>Vence</th>
               <th>Estado</th>
-              <th>Acciones</th>
+              <th>${inTrash ? 'Eliminado' : 'Acciones'}</th>
             </tr>
           </thead>
           <tbody>
-            ${list.map(clientRowHTML).join('')}
+            ${list.map(inTrash ? trashRowHTML : clientRowHTML).join('')}
           </tbody>
         </table>
       </div>
     `}
   `;
+}
+
+function switchClientsView(view) {
+  clientsView = view === 'trash' ? 'trash' : 'active';
+  renderClientesSubTab();
 }
 
 function clientRowHTML(c) {
@@ -2308,15 +2391,83 @@ function clientRowHTML(c) {
     </tr>`;
 }
 
-/* ── Nuevo cliente ── */
+function trashRowHTML(c) {
+  const saldo = Number(c.saldo || 0);
+  const impago = saldo > 0;
+  const moneyCls = impago ? 'debt' : 'ok';
+  const deletedTxt = c.deletedAt
+    ? (() => {
+        const d = new Date(c.deletedAt);
+        return pad2(d.getDate()) + '/' + pad2(d.getMonth() + 1) + '/' + d.getFullYear() +
+               ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+      })()
+    : '—';
+  return `
+    <tr style="opacity:0.85">
+      <td>
+        <div class="ct-name" style="text-decoration:line-through;text-decoration-color:rgba(248,113,104,0.5)">${esc(clientDisplayName(c))}</div>
+        ${c.cuit ? `<div class="ct-sub">${esc(c.cuit)}</div>` : ''}
+      </td>
+      <td>${c.razonSocial ? esc(c.razonSocial) : '<span class="ct-sub">—</span>'}</td>
+      <td>${c.cuit ? esc(c.cuit) : '<span class="ct-sub">—</span>'}</td>
+      <td><span class="ct-money ${moneyCls}">${formatMoney(saldo)}</span></td>
+      <td>${formatDate(c.vence)}</td>
+      <td>
+        <span class="ct-chip ${impago ? 'impago' : 'pagado'}">
+          ${impago ? 'IMPAGO' : 'PAGADO'}
+        </span>
+      </td>
+      <td>
+        <div class="ct-actions">
+          <div class="ct-deleted-at">${deletedTxt}</div>
+          <button class="btn btn-restore btn-sm" onclick="restoreClient('${c.id}')" title="Restaurar a Clientes">♻️ Restaurar</button>
+          <button class="btn btn-danger btn-sm" onclick="purgeClient('${c.id}')" title="Eliminar definitivamente">🗑️ Eliminar def.</button>
+        </div>
+      </td>
+    </tr>`;
+}
+
+/* ── Nuevo / Editar cliente (mismo modal, dos modos) ── */
+function fillClientForm(c) {
+  $('nc-nombre').value     = c ? (c.nombreFantasia || '') : '';
+  $('nc-rs').value         = c ? (c.razonSocial    || '') : '';
+  $('nc-cuit').value       = c ? (c.cuit           || '') : '';
+  $('nc-direccion').value  = c ? (c.direccion      || '') : '';
+  $('nc-tel-admin').value  = c ? (c.telAdmin       || '') : '';
+  $('nc-tel-dueno').value  = c ? (c.telDueno       || '') : '';
+  $('nc-mail1').value      = c ? (c.mail1          || '') : '';
+  $('nc-mail2').value      = c ? (c.mail2          || '') : '';
+  $('nc-vence').value      = c ? (c.vence          || '') : '';
+}
+
 function openNewClientModal() {
-  ['nc-nombre','nc-rs','nc-cuit','nc-direccion','nc-tel-admin','nc-tel-dueno','nc-mail1','nc-mail2','nc-vence']
-    .forEach(id => { const el = $(id); if (el) el.value = ''; });
+  editingClientId = null;
+  fillClientForm(null);
+  $('nc-modal-title').textContent = 'Nuevo cliente';
+  $('nc-submit-btn').textContent  = 'Crear cliente';
   hideErr('nc-err');
   openOverlay('new-client-overlay');
   setTimeout(() => { const i = $('nc-nombre'); if (i) i.focus(); }, 60);
 }
-function closeNewClientModal() { closeOverlay('new-client-overlay'); }
+
+function openEditClientModal(id) {
+  const targetId = id || currentClientId;
+  if (!targetId) return;
+  const c = clientsCache.find(x => x.id === targetId);
+  if (!c) { toast('Cliente no encontrado.', 'error'); return; }
+  editingClientId = targetId;
+  fillClientForm(c);
+  $('nc-modal-title').textContent = 'Editar cliente';
+  $('nc-submit-btn').textContent  = 'Guardar cambios';
+  hideErr('nc-err');
+  openOverlay('new-client-overlay');
+  setTimeout(() => { const i = $('nc-nombre'); if (i) i.focus(); }, 60);
+}
+
+function closeNewClientModal() {
+  closeOverlay('new-client-overlay');
+  editingClientId = null;
+}
 function newClientBg(e) { if (e.target.id === 'new-client-overlay') closeNewClientModal(); }
 
 async function submitNewClient() {
@@ -2335,17 +2486,33 @@ async function submitNewClient() {
     showErr('nc-err', 'El nombre fantasía es obligatorio.');
     return;
   }
+
+  const isEdit = !!editingClientId;
+  const url    = isEdit
+    ? '/api/admin/clients/' + encodeURIComponent(editingClientId)
+    : '/api/admin/clients';
+
   try {
-    const data = await api('/api/admin/clients', {
-      method: 'POST',
-      body: JSON.stringify(body),
+    const data = await api(url, {
+      method: isEdit ? 'PATCH' : 'POST',
+      body:   JSON.stringify(body),
     });
-    clientsCache.push(data.client);
+
+    if (isEdit) {
+      const idx = clientsCache.findIndex(c => c.id === editingClientId);
+      if (idx > -1 && data.client) clientsCache[idx] = data.client;
+      // Si el modal Ver Cliente sigue abierto para este cliente, refrescar
+      if (currentClientId === editingClientId && data.client) renderClientModal(data.client);
+      toast('Cliente actualizado.', 'success');
+    } else {
+      if (data.client) clientsCache.push(data.client);
+      toast('Cliente creado.', 'success');
+    }
+
     closeNewClientModal();
     renderClientesSubTab();
-    toast('Cliente creado.', 'success');
   } catch (err) {
-    showErr('nc-err', err.message || 'No se pudo crear el cliente.');
+    showErr('nc-err', err.message || (isEdit ? 'No se pudo guardar.' : 'No se pudo crear el cliente.'));
   }
 }
 
@@ -2353,10 +2520,42 @@ async function submitNewClient() {
 async function reloadClients() {
   if (!isAdmin()) return;
   try {
-    const data = await api('/api/admin/clients');
-    clientsCache = data.clients || [];
+    const [activeData, trashData] = await Promise.all([
+      api('/api/admin/clients'),
+      api('/api/admin/clients/trash'),
+    ]);
+    clientsCache      = activeData.clients || [];
+    clientsTrashCache = trashData.clients  || [];
     if (activeTeam === 'admin' && adminSubTab === 'clientes') renderClientesSubTab();
   } catch (_err) { /* ignore */ }
+}
+
+async function restoreClient(id) {
+  try {
+    const data = await api('/api/admin/clients/' + encodeURIComponent(id) + '/restore', { method: 'POST' });
+    // mover del trash al active
+    clientsTrashCache = clientsTrashCache.filter(c => c.id !== id);
+    if (data.client) clientsCache.push(data.client);
+    renderClientesSubTab();
+    toast('Cliente restaurado.', 'success');
+  } catch (err) {
+    toast(err.message || 'No se pudo restaurar.', 'error');
+  }
+}
+
+async function purgeClient(id) {
+  const c = clientsTrashCache.find(x => x.id === id);
+  const nombre = c ? clientDisplayName(c) : 'este cliente';
+  if (!confirm(`⚠️ ELIMINAR DEFINITIVAMENTE "${nombre}"?\n\nSe borrarán también todos sus movimientos. Esta acción no se puede deshacer.`)) return;
+  try {
+    await api('/api/admin/clients/' + encodeURIComponent(id) + '/purge', { method: 'DELETE' });
+    clientsTrashCache = clientsTrashCache.filter(x => x.id !== id);
+    delete movementsCache[id];
+    renderClientesSubTab();
+    toast('Cliente eliminado definitivamente.', 'success');
+  } catch (err) {
+    toast(err.message || 'No se pudo eliminar.', 'error');
+  }
 }
 
 /* ── Ver Cliente ── */
@@ -2522,16 +2721,17 @@ async function deleteClientFromModal() {
   if (!currentClientId) return;
   const c = clientsCache.find(x => x.id === currentClientId);
   if (!c) return;
-  if (!confirm(`¿Eliminar el cliente "${clientDisplayName(c)}"? Se borrarán también todos sus movimientos.`)) return;
+  if (!confirm(`¿Mover "${clientDisplayName(c)}" a la papelera?\n\nVas a poder restaurarlo desde la papelera más adelante.`)) return;
   try {
     await api('/api/admin/clients/' + encodeURIComponent(currentClientId), { method: 'DELETE' });
+    // Mover del active al trash
     clientsCache = clientsCache.filter(x => x.id !== currentClientId);
-    delete movementsCache[currentClientId];
+    clientsTrashCache.unshift({ ...c, deletedAt: new Date().toISOString() });
     closeClientModal();
     renderClientesSubTab();
-    toast('Cliente eliminado.', 'success');
+    toast('Cliente movido a la papelera.', 'success');
   } catch (err) {
-    toast(err.message || 'No se pudo eliminar.', 'error');
+    toast(err.message || 'No se pudo mover.', 'error');
   }
 }
 
@@ -3374,7 +3574,7 @@ function dueInfo(c) {
   const today = new Date();
   today.setHours(0,0,0,0);
   const diff = Math.round((d - today) / 86400000);
-  const label = d.toLocaleDateString('es-AR');
+  const label = formatDueDate(c.vence, c.venceHora);
   if (!hasDebt(c)) return { key:'ok', cls:'ok', label, hint:'Sin deuda' };
   if (diff < 0) return { key:'overdue', cls:'overdue', label, hint:'Vencido hace ' + Math.abs(diff) + ' dia' + (diff === -1 ? '' : 's') };
   if (diff === 0) return { key:'today', cls:'soon', label, hint:'Vence hoy' };
@@ -3384,7 +3584,7 @@ function dueInfo(c) {
 
 function fmtDate(ts) {
   const d = new Date(ts);
-  return d.getDate() + ' ' + MONTHS[d.getMonth()].slice(0,3).toLowerCase();
+  return pad2(d.getDate()) + '/' + pad2(d.getMonth() + 1) + '/' + d.getFullYear();
 }
 
 function pad2(n) {
@@ -3395,9 +3595,14 @@ function toISODate(d) {
   return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
 }
 
-function formatDueDate(iso) {
+function formatDueDate(iso, hora) {
   const d = dateFromInput(iso);
-  return d ? d.getDate() + '/' + (d.getMonth() + 1) + '/' + d.getFullYear() : '';
+  if (!d) return '';
+  const base = pad2(d.getDate()) + '/' + pad2(d.getMonth() + 1) + '/' + d.getFullYear();
+  const h = String(hora || '').trim();
+  if (!h) return base;
+  // hora viene en formato HH:mm (24hs) — la dejamos tal cual
+  return base + ' ' + h;
 }
 
 function parseDueTextDate(value) {
@@ -3560,8 +3765,9 @@ function syncDueButton() {
   const btn = $('due-action-btn');
   if (!btn) return;
   const value = $('f-vence') ? $('f-vence').value : '';
+  const hora  = $('f-vence-hora') ? $('f-vence-hora').value : '';
   if (!value && $('f-vence-hora')) $('f-vence-hora').value = '';
-  btn.textContent = value ? 'Vencimiento: ' + formatDueDate(value) : 'Vencimiento';
+  btn.textContent = value ? 'Vencimiento: ' + formatDueDate(value, hora) : 'Vencimiento';
   btn.classList.toggle('has-due', !!value);
 }
 
@@ -3897,9 +4103,9 @@ function renderActivity(card) {
 }
 
 function fmtActivityDate(ts) {
-  return new Date(ts).toLocaleString('es-AR', {
-    day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'
-  });
+  const d = new Date(ts);
+  return pad2(d.getDate()) + '/' + pad2(d.getMonth() + 1) + '/' + d.getFullYear() +
+         ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
 }
 
 async function saveCard() {
