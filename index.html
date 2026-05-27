@@ -334,11 +334,15 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 }
 
 .kcard-body {
-  padding: 0.42rem 0.58rem 0.45rem;
+  padding: 0.45rem 0.6rem 0.48rem;
   display: flex; flex-direction: column; gap: 0.32rem;
 }
 
-.kcard-top { display: flex; align-items: flex-start; gap: 0.42rem; }
+/* Fila superior: check + titulo + avatares (todo en linea) */
+.kcard-top {
+  display: flex; align-items: flex-start;
+  gap: 0.45rem; min-width: 0;
+}
 .kcard-check {
   width: 13px; height: 13px; border-radius: 50%;
   border: 1.5px solid var(--surface3); flex-shrink: 0; margin-top: 2px;
@@ -366,17 +370,22 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 .kcard-title {
   font-size: 0.72rem; font-weight: 500;
   color: var(--text-hi); line-height: 1.3;
-  flex: 1;
+  flex: 1; min-width: 0;
   word-break: break-word;
-  overflow-wrap: anywhere;     /* corta palabras largas (URLs, etc) si no entran */
+  overflow-wrap: anywhere;
 }
 
+/* Avatares inline en el header — pegados a la derecha del titulo */
+.kcard-top .kcard-avatars {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+/* Fila inferior: solo checklist (cuando hay) */
 .kcard-meta {
   display: flex; align-items: center; gap: 0.35rem;
-  min-height: 20px;
+  min-height: 18px;
 }
-.kcard-meta-left  { display: flex; align-items: center; gap: 0.4rem; min-width: 0; flex-shrink: 0; }
-.kcard-meta-right { display: flex; align-items: center; gap: 0.4rem; margin-left: auto; }
 
 .kcard-date {
   display: inline-flex; align-items: center; gap: 0.28rem;
@@ -3535,8 +3544,14 @@ function cardHTML(c, users) {
   const title = clientName(c);
 
   const dailyDone = isDailyChecked(c);
-  const hasMetaLeft = checklist.total > 0;
-  const hasMetaRight = shownAssignees.length > 0;
+  const hasAvatars = shownAssignees.length > 0;
+  const hasChecklist = checklist.total > 0;
+
+  const avatarsHTML = hasAvatars ? `
+    <span class="kcard-avatars">
+      ${shownAssignees.map(u => `<span class="kcard-ava" style="${avatarStyle(u, AVA_COLORS[users.indexOf(u) % AVA_COLORS.length])}" title="${esc(userFullName(u))}">${avatarText(u)}</span>`).join('')}
+      ${extraAssignees > 0 ? `<span class="kcard-ava" style="background:var(--surface3);color:var(--text-hi)" title="${esc(avatarTitle)}">+${extraAssignees}</span>` : ''}
+    </span>` : '';
 
   return `
     <div class="kcard" draggable="true" data-id="${c.id}"
@@ -3549,18 +3564,13 @@ function cardHTML(c, users) {
                onclick="event.stopPropagation();toggleDailyCheck('${c.id}')"
                title="Marcar como hecho hoy${dailyDone ? ' (se reinicia 00:00 ART)' : ''}"></div>
           <div class="kcard-title">${esc(title)}</div>
+          ${avatarsHTML}
         </div>
-        ${hasMetaLeft || hasMetaRight ? `
+        ${hasChecklist ? `
         <div class="kcard-meta">
-          <div class="kcard-meta-left">
-            ${checklist.total ? `<span class="kcard-checklist${checklist.done === checklist.total ? ' done' : ''}" title="Checklist ${checklist.done}/${checklist.total}"><span class="kcard-checklist-icon"></span>${checklist.done}/${checklist.total}</span>` : ''}
-          </div>
-          <div class="kcard-meta-right">
-            <span class="kcard-avatars">
-              ${shownAssignees.map(u => `<span class="kcard-ava" style="${avatarStyle(u, AVA_COLORS[users.indexOf(u) % AVA_COLORS.length])}" title="${esc(userFullName(u))}">${avatarText(u)}</span>`).join('')}
-              ${extraAssignees > 0 ? `<span class="kcard-ava" style="background:var(--surface3);color:var(--text-hi)" title="${esc(avatarTitle)}">+${extraAssignees}</span>` : ''}
-            </span>
-          </div>
+          <span class="kcard-checklist${checklist.done === checklist.total ? ' done' : ''}" title="Checklist ${checklist.done}/${checklist.total}">
+            <span class="kcard-checklist-icon"></span>${checklist.done}/${checklist.total}
+          </span>
         </div>` : ''}
       </div>
     </div>`;
