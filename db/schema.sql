@@ -43,6 +43,19 @@ ALTER TABLE cards ADD COLUMN IF NOT EXISTS checklist JSONB NOT NULL DEFAULT '[]'
 ALTER TABLE cards ADD COLUMN IF NOT EXISTS vence_hora TEXT NOT NULL DEFAULT '';
 ALTER TABLE cards ADD COLUMN IF NOT EXISTS usuarios JSONB NOT NULL DEFAULT '[]'::jsonb;
 
+-- Daily check (YYYY-MM-DD en zona horaria America/Argentina/Cordoba). Se reinicia naturalmente cada dia.
+ALTER TABLE cards ADD COLUMN IF NOT EXISTS daily_check_date TEXT NOT NULL DEFAULT '';
+
+-- Posicion dentro de la columna (orden manual via drag-reorder)
+ALTER TABLE cards ADD COLUMN IF NOT EXISTS position INTEGER;
+UPDATE cards SET position = sub.rn
+FROM (
+  SELECT id, ROW_NUMBER() OVER (PARTITION BY equipo, estado ORDER BY creado_en DESC) AS rn
+  FROM cards
+) sub
+WHERE cards.id = sub.id AND cards.position IS NULL;
+CREATE INDEX IF NOT EXISTS idx_cards_position ON cards(equipo, estado, position);
+
 UPDATE cards
 SET usuarios = jsonb_build_array(usuario)
 WHERE usuario IS NOT NULL

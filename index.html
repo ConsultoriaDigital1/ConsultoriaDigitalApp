@@ -312,37 +312,65 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 }
 .kcard:hover { background: var(--surface3); border-color: var(--border2); }
 .kcard.dragging { opacity: 0.45; transform: rotate(2deg) scale(0.97); }
+.kcard.drop-before { box-shadow: 0 -3px 0 0 var(--lime); }
+.kcard.drop-after  { box-shadow: 0  3px 0 0 var(--lime); }
+.col-cards.drop-empty { box-shadow: inset 0 0 0 2px var(--lime); border-radius: var(--r-sm); }
 
-.kcard-body { padding: 0.52rem 0.65rem 0.55rem; }
+.kcard-body { padding: 0.65rem 0.75rem 0.7rem; display: flex; flex-direction: column; gap: 0.45rem; }
 
-.kcard-top { display: flex; align-items: flex-start; gap: 0.38rem; margin-bottom: 0.32rem; }
+.kcard-top { display: flex; align-items: flex-start; gap: 0.5rem; }
 .kcard-check {
-  width: 13px; height: 13px; border-radius: 50%;
+  width: 15px; height: 15px; border-radius: 50%;
   border: 1.5px solid var(--surface3); flex-shrink: 0; margin-top: 2px;
-  transition: border-color 150ms ease;
+  cursor: pointer;
+  transition: all 150ms ease;
+  position: relative;
 }
 .kcard:hover .kcard-check { border-color: var(--muted); }
-.kcard-check.done { border-color: var(--success); background: var(--success); }
+.kcard-check:hover {
+  border-color: var(--success) !important;
+  background: rgba(75,206,151,0.18);
+  transform: scale(1.08);
+}
+.kcard-check.done {
+  border-color: var(--success); background: var(--success);
+}
+.kcard-check.done::after {
+  content: '✓';
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 9px; font-weight: 900; color: #08231a;
+  line-height: 1;
+}
 
-.kcard-title { font-size: 0.74rem; font-weight: 500; color: var(--text-hi); line-height: 1.3; flex: 1; }
+.kcard-title { font-size: 0.78rem; font-weight: 500; color: var(--text-hi); line-height: 1.35; flex: 1; word-break: break-word; }
 
-.kcard-meta { display: flex; align-items: center; gap: 0.32rem; flex-wrap: wrap; }
+.kcard-meta {
+  display: flex; align-items: center; gap: 0.4rem;
+  min-height: 22px;
+}
+.kcard-meta-left  { display: flex; align-items: center; gap: 0.4rem; min-width: 0; flex-shrink: 0; }
+.kcard-meta-right { display: flex; align-items: center; gap: 0.4rem; margin-left: auto; }
+
 .kcard-date {
   display: inline-flex; align-items: center; gap: 0.28rem;
-  font-size: 0.6rem; font-weight: 600; padding: 0.15rem 0.45rem;
+  font-size: 0.62rem; font-weight: 600; padding: 0.18rem 0.5rem;
   border-radius: var(--r-xs); background: var(--surface3); color: var(--muted);
 }
 .kcard-date.has-date { background: rgba(245,205,71,0.15); color: var(--warn); }
-.kcard-icons { display: flex; align-items: center; gap: 0.4rem; margin-left: auto; }
+.kcard-icons { display: flex; align-items: center; gap: 0.4rem; }
 .kcard-icon { font-size: 0.62rem; color: var(--muted); }
-.kcard-avatars { display: flex; gap: 0.18rem; margin-left: auto; }
+.kcard-avatars { display: flex; gap: 0; }
+.kcard-avatars > .kcard-ava + .kcard-ava { margin-left: -5px; }
 .kcard-ava {
-  width: 20px; height: 20px; border-radius: 50%;
+  width: 22px; height: 22px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  font-size: 0.5rem; font-weight: 900; color: white;
-  border: 1.5px solid var(--surface2);
+  font-size: 0.55rem; font-weight: 900; color: white;
+  border: 2px solid var(--surface2);
   background-position: center; background-size: cover; background-repeat: no-repeat;
+  flex-shrink: 0;
 }
+.kcard:hover .kcard-ava { border-color: var(--surface3); }
 
 /* Add card button */
 .add-card-btn {
@@ -3379,7 +3407,7 @@ function renderBoard() {
     return;
   }
   STATUSES.forEach(status => {
-    const colCards = cards.filter(c => c.estado === status);
+    const colCards = cards.filter(c => c.estado === status).sort(byPosition);
     const col = document.createElement('div');
     col.className = 'kanban-col';
     col.innerHTML = `
@@ -3425,6 +3453,53 @@ function userAvatarHTML(u, cls = 'member-avatar') {
   return `<span class="${cls}" style="${avatarStyle(u, AVA_COLORS[getUsers().indexOf(u) % AVA_COLORS.length])}" title="${esc(userFullName(u))}">${avatarText(u)}</span>`;
 }
 
+/* ── Daily check (reset 00:00 ART) ── */
+function todayArgentina() {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Argentina/Cordoba',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date()); // YYYY-MM-DD
+}
+function isDailyChecked(c) {
+  return !!c && (c.dailyCheckDate || '') === todayArgentina();
+}
+
+let dailyCheckBusy = {};
+async function toggleDailyCheck(cardId) {
+  if (dailyCheckBusy[cardId]) return;
+  dailyCheckBusy[cardId] = true;
+  // Optimistic update
+  const card = cardsCache.find(c => c.id === cardId);
+  if (!card) { dailyCheckBusy[cardId] = false; return; }
+  const today = todayArgentina();
+  const prev = card.dailyCheckDate || '';
+  card.dailyCheckDate = (prev === today) ? '' : today;
+  renderBoard();
+  try {
+    const data = await api('/api/cards/' + encodeURIComponent(cardId) + '/daily-check', { method: 'POST' });
+    card.dailyCheckDate = data.dailyCheckDate || '';
+    renderBoard();
+  } catch (err) {
+    // rollback
+    card.dailyCheckDate = prev;
+    renderBoard();
+    toast(err.message || 'No se pudo actualizar el check', 'error');
+  } finally {
+    dailyCheckBusy[cardId] = false;
+  }
+}
+
+// Re-render automatico cuando cambia el dia en Argentina (cada minuto chequea)
+let lastSeenArtDay = todayArgentina();
+setInterval(() => {
+  const now = todayArgentina();
+  if (now !== lastSeenArtDay) {
+    lastSeenArtDay = now;
+    // Cambio de dia: refrescamos para que los checks viejos pasen a "no hecho"
+    if (activeTab === 'clientes') renderBoard();
+  }
+}, 30 * 1000);
+
 function cardHTML(c, users) {
   const assignees = usersForCard(c, users);
   const avatarTitle = assignees.map(userFullName).join(', ');
@@ -3433,6 +3508,10 @@ function cardHTML(c, users) {
   const checklist = checklistStats(c.checklist);
   const title = clientName(c);
 
+  const dailyDone = isDailyChecked(c);
+  const hasMetaLeft = checklist.total > 0;
+  const hasMetaRight = shownAssignees.length > 0;
+
   return `
     <div class="kcard" draggable="true" data-id="${c.id}"
          onclick="openCard('${c.id}')"
@@ -3440,16 +3519,23 @@ function cardHTML(c, users) {
          ondragend="onDragEnd()">
       <div class="kcard-body">
         <div class="kcard-top">
-          <div class="kcard-check${c.estado === 'finalizado' ? ' done' : ''}"></div>
+          <div class="kcard-check${dailyDone ? ' done' : ''}"
+               onclick="event.stopPropagation();toggleDailyCheck('${c.id}')"
+               title="Marcar como hecho hoy${dailyDone ? ' (se reinicia 00:00 ART)' : ''}"></div>
           <div class="kcard-title">${esc(title)}</div>
         </div>
+        ${hasMetaLeft || hasMetaRight ? `
         <div class="kcard-meta">
-          ${checklist.total ? `<span class="kcard-checklist${checklist.done === checklist.total ? ' done' : ''}" title="Checklist ${checklist.done}/${checklist.total}"><span class="kcard-checklist-icon"></span>${checklist.done}/${checklist.total}</span>` : ''}
-          <span class="kcard-avatars">
-            ${shownAssignees.map(u => `<span class="kcard-ava" style="${avatarStyle(u, AVA_COLORS[users.indexOf(u) % AVA_COLORS.length])}" title="${esc(userFullName(u))}">${avatarText(u)}</span>`).join('')}
-            ${extraAssignees > 0 ? `<span class="kcard-ava" style="background:var(--surface3);color:var(--text-hi)" title="${esc(avatarTitle)}">+${extraAssignees}</span>` : ''}
-          </span>
-        </div>
+          <div class="kcard-meta-left">
+            ${checklist.total ? `<span class="kcard-checklist${checklist.done === checklist.total ? ' done' : ''}" title="Checklist ${checklist.done}/${checklist.total}"><span class="kcard-checklist-icon"></span>${checklist.done}/${checklist.total}</span>` : ''}
+          </div>
+          <div class="kcard-meta-right">
+            <span class="kcard-avatars">
+              ${shownAssignees.map(u => `<span class="kcard-ava" style="${avatarStyle(u, AVA_COLORS[users.indexOf(u) % AVA_COLORS.length])}" title="${esc(userFullName(u))}">${avatarText(u)}</span>`).join('')}
+              ${extraAssignees > 0 ? `<span class="kcard-ava" style="background:var(--surface3);color:var(--text-hi)" title="${esc(avatarTitle)}">+${extraAssignees}</span>` : ''}
+            </span>
+          </div>
+        </div>` : ''}
       </div>
     </div>`;
 }
@@ -3823,36 +3909,134 @@ function syncDueButton() {
 function onDragStart(e, id) {
   dragId = id;
   e.dataTransfer.effectAllowed = 'move';
+  try { e.dataTransfer.setData('text/plain', id); } catch (_) {}
   requestAnimationFrame(() => {
     const el = document.querySelector(`[data-id="${id}"]`);
     if (el) el.classList.add('dragging');
   });
 }
 function onDragEnd() {
-  document.querySelectorAll('.kcard.dragging').forEach(el => el.classList.remove('dragging'));
+  document.querySelectorAll('.kcard.dragging,.kcard.drop-before,.kcard.drop-after').forEach(el => {
+    el.classList.remove('dragging','drop-before','drop-after');
+  });
+  document.querySelectorAll('.col-cards.drop-empty').forEach(el => el.classList.remove('drop-empty'));
 }
-function onDragOver(e, status)  { e.preventDefault(); $('col-'+status).classList.add('drag-over'); }
-function onDragLeave(e, status) { $('col-'+status).classList.remove('drag-over'); }
+
+// Calcula el indice donde caeria la card dentro de col-cards segun el mouseY
+function computeDropIndex(colEl, clientY) {
+  const items = Array.from(colEl.querySelectorAll('.kcard:not(.dragging)'));
+  if (!items.length) return 0;
+  for (let i = 0; i < items.length; i++) {
+    const r = items[i].getBoundingClientRect();
+    const mid = r.top + r.height / 2;
+    if (clientY < mid) return i;
+  }
+  return items.length;
+}
+
+function clearDropHints(colEl) {
+  colEl.classList.remove('drop-empty');
+  colEl.querySelectorAll('.kcard.drop-before,.kcard.drop-after').forEach(el => {
+    el.classList.remove('drop-before','drop-after');
+  });
+}
+
+function onDragOver(e, status) {
+  e.preventDefault();
+  const colEl = $('col-' + status);
+  colEl.classList.add('drag-over');
+  // Indicador visual de DONDE va a caer
+  const items = Array.from(colEl.querySelectorAll('.kcard:not(.dragging)'));
+  clearDropHints(colEl);
+  if (!items.length) {
+    colEl.classList.add('drop-empty');
+    return;
+  }
+  const idx = computeDropIndex(colEl, e.clientY);
+  if (idx >= items.length) {
+    items[items.length - 1].classList.add('drop-after');
+  } else {
+    items[idx].classList.add('drop-before');
+  }
+}
+
+function onDragLeave(e, status) {
+  const colEl = $('col-' + status);
+  // Solo limpiar si realmente saliste del contenedor
+  if (!colEl.contains(e.relatedTarget)) {
+    colEl.classList.remove('drag-over');
+    clearDropHints(colEl);
+  }
+}
+
 async function onDrop(e, status) {
   e.preventDefault();
-  $('col-'+status).classList.remove('drag-over');
+  const colEl = $('col-' + status);
+  colEl.classList.remove('drag-over');
+  clearDropHints(colEl);
   if (!dragId) return;
-  const cards = getCards();
-  const card  = cards.find(c => c.id === dragId);
-  if (card && card.estado !== status) {
+
+  const card = cardsCache.find(c => c.id === dragId);
+  if (!card) { dragId = null; return; }
+
+  // Calcular indice donde queremos insertar (basado en el orden actual filtrado a esta columna)
+  const sameCol = card.estado === status;
+  const dropIdx = computeDropIndex(colEl, e.clientY);
+
+  const changedEstado = !sameCol;
+
+  // 1) Si cambio de columna: persistir el cambio de estado primero
+  if (changedEstado) {
     try {
       const saved = await api('/api/cards/' + dragId, {
         method: 'PUT',
         body: JSON.stringify({ ...card, estado: status }),
       });
       replaceCard(saved.card);
-      renderBoard();
       toast('→ ' + STATUS_LABEL[status], 'success');
     } catch (err) {
       toast(err.message, 'error');
+      dragId = null;
+      return;
     }
   }
+
+  // 2) Construir el nuevo orden de la columna destino y persistirlo
+  const equipo = card.equipo;
+  const colCards = filteredCards()
+    .filter(c => c.equipo === equipo && c.estado === status && c.id !== dragId)
+    .sort(byPosition);
+
+  const newOrder = colCards.slice();
+  newOrder.splice(Math.min(dropIdx, newOrder.length), 0, { ...card, estado: status });
+
+  // Actualizar cache localmente con nuevas positions (1..n)
+  newOrder.forEach((c, i) => {
+    const idx = cardsCache.findIndex(x => x.id === c.id);
+    if (idx > -1) cardsCache[idx] = { ...cardsCache[idx], estado: status, position: i + 1 };
+  });
+  renderBoard();
+
+  try {
+    await api('/api/cards/reorder', {
+      method: 'PUT',
+      body: JSON.stringify({
+        equipo, estado: status,
+        ids: newOrder.map(c => c.id),
+      }),
+    });
+  } catch (err) {
+    toast(err.message || 'No se pudo guardar el orden', 'error');
+  }
+
   dragId = null;
+}
+
+function byPosition(a, b) {
+  const pa = (a.position == null) ? Number.POSITIVE_INFINITY : a.position;
+  const pb = (b.position == null) ? Number.POSITIVE_INFINITY : b.position;
+  if (pa !== pb) return pa - pb;
+  return (b.creadoEn || 0) - (a.creadoEn || 0);
 }
 
 /* ─────────────────────────────────────────

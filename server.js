@@ -110,6 +110,8 @@ function cardDTO(row, descriptionHistory = []) {
     venceHora: row.vence_hora || '',
     coverImage: row.cover_image,
     checklist: cleanChecklist(row.checklist),
+    dailyCheckDate: row.daily_check_date || '',
+    position: row.position == null ? null : Number(row.position),
     descriptionHistory,
   };
 }
@@ -296,7 +298,9 @@ async function visibleUsers(user) {
 async function visibleCards(user) {
   const teams = allowedTeams(user);
   const { rows } = await pool.query(
-    'SELECT * FROM cards WHERE equipo = ANY($1) ORDER BY creado_en DESC',
+    `SELECT * FROM cards
+     WHERE equipo = ANY($1)
+     ORDER BY position ASC NULLS LAST, creado_en DESC`,
     [teams]
   );
   const historyByCard = await descriptionHistoryByCardIds(rows.map((row) => row.id));
@@ -1020,6 +1024,69 @@ app.put('/api/cards/:id', requireAuth, async (req, res, next) => {
     const historyByCard = await descriptionHistoryByCardIds([req.params.id], client);
     await client.query('COMMIT');
     res.json({ card: cardDTO(rows[0], historyByCard.get(req.params.id) || []) });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    next(err);
+  } finally {
+    client.release();
+  }
+});
+
+// ── Helpers fecha Argentina ──
+function todayInArgentina() {
+  // YYYY-MM-DD usando America/Argentina/Cordoba (UTC-3, sin DST)
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Argentina/Cordoba',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  });
+  return fmt.format(new Date()); // ya viene YYYY-MM-DD
+}
+
+// Toggle del check diario de una card
+app.post('/api/cards/:id/daily-check', requireAuth, async (req, res, next) => {
+  try {
+    const { rows: cur } = await pool.query(
+      'SELECT equipo, daily_check_date FROM cards WHERE id = $1',
+      [req.params.id]
+    );
+    if (!cur[0]) return res.status(404).json({ error: 'Card no encontrada.' });
+    if (!canAccessTeam(req.user, cur[0].equipo)) return res.status(403).json({ error: 'Sin permiso.' });
+
+    const today  = todayInArgentina();
+    const wasOn  = String(cur[0].daily_check_date || '') === today;
+    const newVal = wasOn ? '' : today;
+
+    await pool.query(
+      'UPDATE cards SET daily_check_date = $1, updated_at = NOW() WHERE id = $2',
+      [newVal, req.params.id]
+    );
+    res.json({ id: req.params.id, dailyCheckDate: newVal, today });
+  } catch (err) { next(err); }
+});
+
+// Reordenar cards dentro de una columna (mismo equipo + estado)
+app.put('/api/cards/reorder', requireAuth, async (req, res, next) => {
+  const client = await pool.connect();
+  try {
+    const equipo = cleanTeam(req.body.equipo);
+    const estado = String(req.body.estado || '');
+    const ids    = Array.isArray(req.body.ids) ? req.body.ids.map(String) : [];
+    if (!equipo) return res.status(400).json({ error: 'Equipo invalido.' });
+    if (!['iniciada','en_proceso','finalizado'].includes(estado)) return res.status(400).json({ error: 'Estado invalido.' });
+    if (!canAccessTeam(req.user, equipo)) return res.status(403).json({ error: 'Sin permiso.' });
+    if (!ids.length) return res.json({ ok: true });
+
+    await client.query('BEGIN');
+    // Solo actualizamos cards que cumplen equipo+estado y estan en ids — evita pisar cards de otros
+    for (let i = 0; i < ids.length; i++) {
+      await client.query(
+        `UPDATE cards SET position = $1, updated_at = NOW()
+         WHERE id = $2 AND equipo = $3 AND estado = $4`,
+        [i + 1, ids[i], equipo, estado]
+      );
+    }
+    await client.query('COMMIT');
+    res.json({ ok: true });
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
     next(err);
