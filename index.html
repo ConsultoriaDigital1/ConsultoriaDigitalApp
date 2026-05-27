@@ -382,11 +382,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
   margin-top: 1px;
 }
 
-/* Fila inferior: solo checklist (cuando hay) */
-.kcard-meta {
-  display: flex; align-items: center; gap: 0.35rem;
-  min-height: 18px;
-}
+/* (Antes habia una fila inferior para el checklist — ahora va inline en .kcard-top) */
 
 .kcard-date {
   display: inline-flex; align-items: center; gap: 0.28rem;
@@ -688,6 +684,16 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
   background: var(--danger); color: #fff;
   border-radius: 999px; font-size: 0.7rem; font-weight: 800;
   margin-left: 0.2rem;
+}
+.btn-trash.is-active {
+  background: rgba(87, 157, 255, 0.18);
+  border-color: rgba(87, 157, 255, 0.55);
+  color: #85b8ff;
+}
+.btn-trash.is-active:hover {
+  background: rgba(87, 157, 255, 0.28);
+  border-color: rgba(87, 157, 255, 0.7);
+  color: #85b8ff;
 }
 .btn-restore {
   background: linear-gradient(135deg, #579dff 0%, #3b7fdc 100%);
@@ -1184,8 +1190,14 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 .checklist-new-actions { display: flex; gap: 0.45rem; margin-top: 0.4rem; }
 .checklist-empty { color: var(--muted); font-size: 0.64rem; margin-bottom: 0.45rem; }
 .kcard-checklist {
-  display: inline-flex; align-items: center; gap: 0.25rem;
+  display: inline-flex; align-items: center; gap: 0.22rem;
   color: var(--muted); font-size: 0.6rem; font-weight: 700;
+  flex-shrink: 0;
+  white-space: nowrap;
+  margin-top: 1px;
+  padding: 0.05rem 0.32rem;
+  border-radius: var(--r-xs);
+  background: var(--surface3);
 }
 .kcard-checklist.done { color: var(--success); }
 .kcard-checklist-icon { width: 12px; height: 12px; border-radius: 2px; }
@@ -1562,6 +1574,9 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
           <div style="margin-left:auto;display:flex;gap:0.4rem;flex-wrap:wrap;justify-content:flex-end">
             <button id="btn-cards-trash" class="btn btn-trash btn-sm" onclick="switchCardsView('trash')" title="Ver tarjetas en la papelera">
               🗑️ Papelera <span id="cards-trash-count" class="trash-count" style="display:none"></span>
+            </button>
+            <button id="btn-my-clients" class="btn btn-trash btn-sm" onclick="toggleMyClients()" title="Mostrar solo las tarjetas en las que sos miembro" aria-pressed="false">
+              👤 Ver mis clientes
             </button>
             <button id="btn-cards-active" class="btn btn-ghost btn-sm" onclick="switchCardsView('active')" style="display:none" title="Volver al tablero">← Volver al tablero</button>
             <button id="btn-new-card" class="btn btn-subtle btn-sm" onclick="openNewCard()">
@@ -2966,6 +2981,7 @@ let currentUser = null;
 let activeTeam  = 'all';
 let activeTab   = 'clientes';
 let searchQ     = '';
+let myClientsOnly = false;
 let editingId   = null;
 let modalStatus = 'iniciada';
 let modalColor  = 'none';
@@ -3029,6 +3045,7 @@ async function doLogout() {
   cardsCache  = [];
   cardsTrashCache = [];
   cardsView = 'active';
+  myClientsOnly = false;
   eventsCache = [];
   $('app').style.display = 'none';
   $('login-screen').style.display = '';
@@ -3048,6 +3065,7 @@ function startApp() {
   $('login-screen').style.display = 'none';
   $('app').style.display = 'flex';
   const u   = currentUser;
+  loadMyClientsPref();
   activeTeam = canViewTeam(activeTeam) ? activeTeam : u.equipo;
   setAvatarElement($('pill-ava'), u);
   $('pill-name').textContent = u.nombre;
@@ -3411,6 +3429,10 @@ function filterTeam(team) {
 function filteredCards() {
   let cards = getCards();
   if (activeTeam !== 'all') cards = cards.filter(c => c.equipo === activeTeam);
+  if (myClientsOnly && currentUser) {
+    const uid = currentUser.id;
+    cards = cards.filter(c => cardUserIds(c).includes(uid));
+  }
   if (searchQ) {
     const q = searchQ.toLowerCase();
     cards = cards.filter(c =>
@@ -3562,14 +3584,12 @@ function cardHTML(c, users) {
                onclick="event.stopPropagation();toggleDailyCheck('${c.id}')"
                title="Marcar como hecho hoy${dailyDone ? ' (se reinicia 00:00 ART)' : ''}"></div>
           <div class="kcard-title">${esc(title)}</div>
-          ${avatarsHTML}
-        </div>
-        ${hasChecklist ? `
-        <div class="kcard-meta">
+          ${hasChecklist ? `
           <span class="kcard-checklist${checklist.done === checklist.total ? ' done' : ''}" title="Checklist ${checklist.done}/${checklist.total}">
             <span class="kcard-checklist-icon"></span>${checklist.done}/${checklist.total}
-          </span>
-        </div>` : ''}
+          </span>` : ''}
+          ${avatarsHTML}
+        </div>
       </div>
     </div>`;
 }
@@ -4414,16 +4434,46 @@ function switchCardsView(view) {
   renderBoard();
 }
 
+function myClientsStorageKey() {
+  return currentUser ? ('cd:myClientsOnly:' + currentUser.id) : '';
+}
+
+function loadMyClientsPref() {
+  const key = myClientsStorageKey();
+  if (!key) { myClientsOnly = false; return; }
+  try {
+    myClientsOnly = localStorage.getItem(key) === '1';
+  } catch (_) {
+    myClientsOnly = false;
+  }
+}
+
+function toggleMyClients() {
+  myClientsOnly = !myClientsOnly;
+  const key = myClientsStorageKey();
+  if (key) {
+    try { localStorage.setItem(key, myClientsOnly ? '1' : '0'); } catch (_) {}
+  }
+  renderBoard();
+}
+
 function syncCardsViewToolbar() {
   const inTrash = cardsView === 'trash' && activeTeam !== 'admin';
   const newBtn   = $('btn-new-card');
   const trashBtn = $('btn-cards-trash');
+  const mineBtn  = $('btn-my-clients');
   const backBtn  = $('btn-cards-active');
   const titleEl  = $('clientes-title');
   const countEl  = $('cards-trash-count');
   const subEl    = $('clientes-sub');
   if (newBtn)   newBtn.style.display   = (inTrash || activeTeam === 'admin') ? 'none' : '';
   if (trashBtn) trashBtn.style.display = (inTrash || activeTeam === 'admin') ? 'none' : '';
+  if (mineBtn) {
+    mineBtn.style.display = (inTrash || activeTeam === 'admin') ? 'none' : '';
+    mineBtn.classList.toggle('is-active', !!myClientsOnly);
+    mineBtn.setAttribute('aria-pressed', myClientsOnly ? 'true' : 'false');
+    mineBtn.innerHTML = myClientsOnly ? '👤 Mostrando mis clientes' : '👤 Ver mis clientes';
+  }
   if (backBtn)  backBtn.style.display  = inTrash ? '' : 'none';
   if (titleEl)  titleEl.textContent    = inTrash ? 'Papelera de tarjetas' : 'Gestión de Clientes';
   const visibleTrash = (cardsTrashCache || []).filter(c => activeTeam === 'all' || c.equipo === activeTeam);
