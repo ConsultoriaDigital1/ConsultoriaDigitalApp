@@ -82,6 +82,7 @@ function userDTO(row) {
     apellido: row.apellido,
     equipo: row.equipo,
     avatarImage: row.avatar_image || '',
+    autosaveCards: row.autosave_cards === true,
   };
 }
 
@@ -805,6 +806,16 @@ app.delete('/api/admin/clients/:id/movements/:movId', requireAdmin, async (req, 
 
 app.patch('/api/profile', requireAuth, async (req, res, next) => {
   try {
+    // Preferencia de guardado automatico: actualizacion aislada (no toca nombre/avatar)
+    if ('autosaveCards' in req.body && req.body.nombre === undefined) {
+      await pool.query(
+        'UPDATE users SET autosave_cards = $1, updated_at = NOW() WHERE id = $2',
+        [req.body.autosaveCards === true, req.user.id]
+      );
+      const updated = await getUserById(req.user.id);
+      return res.json({ user: userDTO(updated) });
+    }
+
     const nombre = String(req.body.nombre || '').trim();
     const apellido = String(req.body.apellido || '').trim();
     const password = String(req.body.password || '');

@@ -1593,6 +1593,9 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
             <button id="btn-my-clients" class="btn btn-trash btn-sm" onclick="toggleMyClients()" title="Mostrar solo las tarjetas en las que sos miembro" aria-pressed="false">
               👤 Ver mis clientes
             </button>
+            <button id="btn-autosave" class="btn btn-trash btn-sm" onclick="toggleAutosave()" title="Alterna entre guardar al apretar Guardar o guardar automáticamente al salir de cada campo" aria-pressed="false">
+              ✋ Guardado manual
+            </button>
             <button id="btn-cards-active" class="btn btn-ghost btn-sm" onclick="switchCardsView('active')" style="display:none" title="Volver al tablero">← Volver al tablero</button>
             <button id="btn-new-card" class="btn btn-subtle btn-sm" onclick="openNewCard()">
               + Nueva tarjeta
@@ -1648,7 +1651,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
     <div id="modal-cover-strip" class="card-cover-strip">
       <div class="card-detail-topbar">
         <div class="card-status-wrap">
-          <select id="modal-status-select" class="card-status-select" onchange="setStatus(this.value)">
+          <select id="modal-status-select" class="card-status-select" onchange="onModalStatusChange(this.value)">
             <option value="iniciada">Iniciada</option>
             <option value="en_proceso">En proceso</option>
             <option value="finalizado">Hecho</option>
@@ -1674,7 +1677,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
       <main class="card-detail-main">
         <div class="card-title-row">
           <span class="card-title-check"></span>
-          <textarea id="f-nf" class="card-title-input" rows="2" placeholder="Nombre fiscal..." oninput="syncModalPreview()"></textarea>
+          <textarea id="f-nf" class="card-title-input" rows="2" placeholder="Nombre fiscal..." oninput="syncModalPreview()" onblur="autosaveCardIfEnabled()"></textarea>
         </div>
         <div id="modal-card-subtitle" class="card-subtitle">en Iniciada</div>
 
@@ -1711,7 +1714,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 
         <section class="trello-section">
           <div class="trello-section-title"><span>=</span> Descripcion</div>
-          <textarea id="f-c" class="form-textarea trello-description" placeholder="Anadir una descripcion mas detallada..." oninput="syncModalPreview()"></textarea>
+          <textarea id="f-c" class="form-textarea trello-description" placeholder="Anadir una descripcion mas detallada..." oninput="syncModalPreview()" onblur="autosaveCardIfEnabled()"></textarea>
         </section>
 
         <section id="checklist-section" class="trello-section checklist-section" data-open="false" style="display:none">
@@ -1743,38 +1746,38 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
           <div class="client-detail-grid">
             <div class="form-group">
               <label class="form-label">R.S. - Razon Social</label>
-              <input id="f-rs" class="form-input" type="text" placeholder="Razon social..." oninput="syncModalPreview()" />
+              <input id="f-rs" class="form-input" type="text" placeholder="Razon social..." oninput="syncModalPreview()" onblur="autosaveCardIfEnabled()" />
             </div>
             <div class="form-group">
               <label class="form-label">CUIT</label>
-              <input id="f-cuit" class="form-input" type="text" placeholder="30-12345678-9" maxlength="13" oninput="fmtCuit(this)" />
+              <input id="f-cuit" class="form-input" type="text" placeholder="30-12345678-9" maxlength="13" oninput="fmtCuit(this)" onblur="autosaveCardIfEnabled()" />
             </div>
             <div class="form-group">
               <label class="form-label">C.A. - Cuenta / Actividad</label>
-              <input id="f-ca" class="form-input" type="text" placeholder="Nro. de cuenta..." />
+              <input id="f-ca" class="form-input" type="text" placeholder="Nro. de cuenta..." onblur="autosaveCardIfEnabled()" />
             </div>
             <div class="form-group">
               <label class="form-label">Nro. Tel principal</label>
-              <input id="f-ntel" class="form-input" type="tel" placeholder="+54 9 11 ..." />
+              <input id="f-ntel" class="form-input" type="tel" placeholder="+54 9 11 ..." onblur="autosaveCardIfEnabled()" />
             </div>
             <div class="form-group">
               <label class="form-label">Telefono alternativo</label>
-              <input id="f-t" class="form-input" type="tel" placeholder="+54 ..." />
+              <input id="f-t" class="form-input" type="tel" placeholder="+54 ..." onblur="autosaveCardIfEnabled()" />
             </div>
             <div class="form-group">
               <label class="form-label">Tipo de Actividad</label>
-              <input id="f-ta" class="form-input" type="text" placeholder="Ej: Comercio minorista, Servicios TI..." />
+              <input id="f-ta" class="form-input" type="text" placeholder="Ej: Comercio minorista, Servicios TI..." onblur="autosaveCardIfEnabled()" />
             </div>
             <div class="form-group">
               <label class="form-label">Debe</label>
-              <select id="f-debe" class="form-select">
+              <select id="f-debe" class="form-select" onchange="autosaveCardIfEnabled()">
                 <option value="no">No</option>
                 <option value="si">Si</option>
               </select>
             </div>
             <div class="form-group">
               <label class="form-label">Monto adeudado</label>
-              <input id="f-monto" class="form-input" type="number" min="0" step="1" placeholder="0" />
+              <input id="f-monto" class="form-input" type="number" min="0" step="1" placeholder="0" onblur="autosaveCardIfEnabled()" />
             </div>
             <div class="form-group">
               <label class="form-label">Vencimiento</label>
@@ -1796,8 +1799,8 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 
     <div class="modal-foot card-modal-foot">
       <button id="btn-del" class="btn btn-danger btn-sm" onclick="deleteCard()" style="display:none;margin-right:auto" title="Mueve la tarjeta a la papelera">🗑️ Mover a papelera</button>
-      <button class="btn btn-ghost btn-sm" onclick="closeModal()">Cancelar</button>
-      <button class="btn btn-primary btn-sm" onclick="saveCard()">Guardar</button>
+      <button id="btn-cancel-card" class="btn btn-ghost btn-sm" onclick="closeModal()">Cancelar</button>
+      <button id="btn-save-card" class="btn btn-primary btn-sm" onclick="saveCard()">Guardar</button>
     </div>
   </div>
 </div>
@@ -3143,6 +3146,7 @@ function pickColor(key) {
   if (el) el.classList.add('sel');
   updateCoverPreview();
   syncModalPreview();
+  autosaveCardIfEnabled();
 }
 
 function toggleCoverMenu(event) {
@@ -3200,8 +3204,9 @@ function loadCoverImage(input) {
       modalCoverImage = canvas.toDataURL('image/jpeg', 0.82);
       updateCoverPreview();
       syncModalPreview();
+      autosaveCardIfEnabled();
     };
-    img.onerror = () => { modalCoverImage = reader.result; updateCoverPreview(); syncModalPreview(); };
+    img.onerror = () => { modalCoverImage = reader.result; updateCoverPreview(); syncModalPreview(); autosaveCardIfEnabled(); };
     img.src = reader.result;
   };
   reader.readAsDataURL(file);
@@ -3213,6 +3218,7 @@ function clearCoverImage() {
   if (input) input.value = '';
   updateCoverPreview();
   syncModalPreview();
+  autosaveCardIfEnabled();
 }
 
 function makeChecklistId() {
@@ -3294,6 +3300,7 @@ function addChecklistItem() {
   if (input) input.value = '';
   checklistHideDone = false;
   renderChecklist();
+  autosaveCardIfEnabled();
   if (input) input.focus();
 }
 
@@ -3310,6 +3317,7 @@ function toggleChecklistItem(index, done) {
   modalChecklist[index].done = done === true;
   if (modalChecklist[index].done) modalChecklist[index].progress = false;
   renderChecklist();
+  autosaveCardIfEnabled();
 }
 
 function toggleChecklistProgress(index) {
@@ -3317,6 +3325,7 @@ function toggleChecklistProgress(index) {
   if (modalChecklist[index].done) return;
   modalChecklist[index].progress = !modalChecklist[index].progress;
   renderChecklist();
+  autosaveCardIfEnabled();
 }
 
 function renameChecklistItem(index, value) {
@@ -3329,6 +3338,7 @@ function renameChecklistItem(index, value) {
   if (modalChecklist[index].text === text) return;
   modalChecklist[index].text = text.slice(0, 500);
   renderChecklist();
+  autosaveCardIfEnabled();
 }
 
 function assignChecklistItem(index, userId) {
@@ -3337,12 +3347,14 @@ function assignChecklistItem(index, userId) {
   const exists = getUsers().some(u => u.id === userId && (!team || u.equipo === team));
   modalChecklist[index].usuario = exists ? userId : '';
   renderChecklist();
+  autosaveCardIfEnabled();
 }
 
 function deleteChecklistItem(index) {
   modalChecklist.splice(index, 1);
   if (!modalChecklist.length) checklistHideDone = false;
   renderChecklist();
+  autosaveCardIfEnabled();
 }
 
 function toggleChecklistDone() {
@@ -3358,6 +3370,7 @@ function deleteChecklist() {
   if (section) section.dataset.open = 'false';
   hideChecklistInput(true);
   renderChecklist();
+  autosaveCardIfEnabled();
 }
 
 function checklistUserOptions(selected) {
@@ -3962,6 +3975,7 @@ function applyDuePopover() {
   syncDueButton();
   closeDuePopover();
   syncModalPreview();
+  autosaveCardIfEnabled();
 }
 
 function removeDueDate() {
@@ -3971,6 +3985,7 @@ function removeDueDate() {
   syncDueButton();
   closeDuePopover();
   syncModalPreview();
+  autosaveCardIfEnabled();
 }
 
 function syncDueButton() {
@@ -4120,6 +4135,7 @@ function openNewCard(status = 'iniciada') {
   hideChecklistInput(true);
   setCardDetailsOpen(true);
   syncModalPreview();
+  applyModalSaveMode();
   openOverlay('card-overlay');
 }
 
@@ -4156,6 +4172,7 @@ function openCard(id) {
   hideChecklistInput(true);
   setCardDetailsOpen(false);
   syncModalPreview();
+  applyModalSaveMode();
   openOverlay('card-overlay');
 }
 
@@ -4255,6 +4272,7 @@ function addCardMember(userId) {
   membersSearch = '';
   renderMemberPicker();
   syncModalPreview();
+  autosaveCardIfEnabled();
 }
 
 function removeCardMember(userId, event) {
@@ -4262,6 +4280,7 @@ function removeCardMember(userId, event) {
   modalUserIds = modalUserIds.filter(id => id !== userId);
   renderMemberPicker();
   syncModalPreview();
+  autosaveCardIfEnabled();
 }
 
 function onCardTeamChange() {
@@ -4272,6 +4291,7 @@ function onCardTeamChange() {
   modalChecklist = normalizeChecklist(modalChecklist).map(item => ({ ...item, usuario: '' }));
   renderChecklist();
   syncModalPreview();
+  autosaveCardIfEnabled();
 }
 
 function clearForm() {
@@ -4290,6 +4310,12 @@ function setStatus(s) {
   const sel = $('modal-status-select');
   if (sel) sel.value = s;
   syncModalPreview();
+}
+
+// Cambio de estado por interaccion del usuario (no durante la carga del modal).
+function onModalStatusChange(s) {
+  setStatus(s);
+  autosaveCardIfEnabled();
 }
 
 function statusText(s) {
@@ -4404,14 +4430,11 @@ function fmtActivityDate(ts) {
          ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
 }
 
-async function saveCard() {
-  const nf = $('f-nf').value.trim();
-  const rs = $('f-rs').value.trim();
-  if (!nf && !rs) { toast('Ingresá al menos el Nombre Fiscal o Razón Social', 'error'); return; }
+function collectCardData() {
   const usuarios = selectedCardUserIds();
-  const data = {
+  return {
     estado:  modalStatus, equipo: $('f-equipo').value,
-    color:   modalColor,  nf, rs,
+    color:   modalColor,  nf: $('f-nf').value.trim(), rs: $('f-rs').value.trim(),
     coverImage: modalCoverImage,
     cuit:    $('f-cuit').value.trim(), ca:  $('f-ca').value.trim(),
     ntel:    $('f-ntel').value.trim(), t:   $('f-t').value.trim(),
@@ -4424,6 +4447,22 @@ async function saveCard() {
     usuarios,
     checklist: normalizeChecklist(modalChecklist),
   };
+}
+
+// Ajusta los botones del footer segun el modo de guardado y si la tarjeta ya existe.
+function applyModalSaveMode() {
+  const saveBtn = $('btn-save-card');
+  const cancelBtn = $('btn-cancel-card');
+  const auto = !!(currentUser && currentUser.autosaveCards);
+  // Autoguardado solo aplica a tarjetas ya creadas; en "nueva" se mantiene Guardar.
+  const autoActive = auto && !!editingId;
+  if (saveBtn) saveBtn.style.display = autoActive ? 'none' : '';
+  if (cancelBtn) cancelBtn.textContent = autoActive ? 'Cerrar' : 'Cancelar';
+}
+
+async function saveCard() {
+  const data = collectCardData();
+  if (!data.nf && !data.rs) { toast('Ingresá al menos el Nombre Fiscal o Razón Social', 'error'); return; }
   try {
     const saved = await api(editingId ? '/api/cards/' + editingId : '/api/cards', {
       method: editingId ? 'PUT' : 'POST',
@@ -4435,6 +4474,31 @@ async function saveCard() {
     toast(editingId ? 'Tarjeta actualizada' : 'Tarjeta creada', 'success');
   } catch (err) {
     toast(err.message, 'error');
+  }
+}
+
+// Guardado automatico: persiste la tarjeta existente sin cerrar el modal.
+let autosaveBusy = false;
+let autosavePending = false;
+async function autosaveCardIfEnabled() {
+  if (!(currentUser && currentUser.autosaveCards)) return;
+  if (!editingId) return; // las tarjetas nuevas se crean con Guardar
+  const data = collectCardData();
+  if (!data.nf && !data.rs) return; // no autoguardar sin titulo valido
+  if (autosaveBusy) { autosavePending = true; return; }
+  autosaveBusy = true;
+  try {
+    const saved = await api('/api/cards/' + editingId, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+    replaceCard(saved.card);
+    renderBoard();
+  } catch (err) {
+    toast(err.message || 'No se pudo guardar automáticamente', 'error');
+  } finally {
+    autosaveBusy = false;
+    if (autosavePending) { autosavePending = false; autosaveCardIfEnabled(); }
   }
 }
 
@@ -4483,6 +4547,39 @@ function toggleMyClients() {
   renderBoard();
 }
 
+function syncAutosaveBtn() {
+  const btn = $('btn-autosave');
+  if (!btn) return;
+  const on = !!(currentUser && currentUser.autosaveCards);
+  btn.classList.toggle('is-active', on);
+  btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+  btn.innerHTML = on ? '💾 Guardado automático' : '✋ Guardado manual';
+}
+
+async function toggleAutosave() {
+  if (!currentUser) return;
+  const prev = !!currentUser.autosaveCards;
+  currentUser.autosaveCards = !prev;
+  syncAutosaveBtn();
+  try {
+    const data = await api('/api/profile', {
+      method: 'PATCH',
+      body: JSON.stringify({ autosaveCards: currentUser.autosaveCards }),
+    });
+    currentUser = data.user;
+    const idx = usersCache.findIndex(u => u.id === currentUser.id);
+    if (idx > -1) usersCache[idx] = currentUser;
+    syncAutosaveBtn();
+    // Si el modal de una tarjeta esta abierto, reflejar el nuevo modo de botones
+    if (editingId) applyModalSaveMode();
+    toast(currentUser.autosaveCards ? 'Guardado automático activado' : 'Guardado manual activado', 'success');
+  } catch (err) {
+    currentUser.autosaveCards = prev;
+    syncAutosaveBtn();
+    toast(err.message || 'No se pudo guardar la preferencia', 'error');
+  }
+}
+
 function syncCardsViewToolbar() {
   const inTrash = cardsView === 'trash' && activeTeam !== 'admin';
   const newBtn   = $('btn-new-card');
@@ -4500,6 +4597,9 @@ function syncCardsViewToolbar() {
     mineBtn.setAttribute('aria-pressed', myClientsOnly ? 'true' : 'false');
     mineBtn.innerHTML = myClientsOnly ? '👤 Mostrando mis clientes' : '👤 Ver mis clientes';
   }
+  const autoBtn = $('btn-autosave');
+  if (autoBtn) autoBtn.style.display = inTrash ? 'none' : '';
+  syncAutosaveBtn();
   if (backBtn)  backBtn.style.display  = inTrash ? '' : 'none';
   if (titleEl)  titleEl.textContent    = inTrash ? 'Papelera de tarjetas' : 'Gestión de Clientes';
   const visibleTrash = (cardsTrashCache || []).filter(c => activeTeam === 'all' || c.equipo === activeTeam);
