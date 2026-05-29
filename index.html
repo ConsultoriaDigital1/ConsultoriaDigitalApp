@@ -4489,6 +4489,7 @@ function byPosition(a, b) {
    CARD MODAL
 ───────────────────────────────────────── */
 function openNewCard(status = 'iniciada') {
+  if (autosaveTimer) { clearTimeout(autosaveTimer); autosaveTimer = null; }
   editingId   = null;
   modalStatus = status;
   modalColor  = 'none';
@@ -4518,6 +4519,7 @@ function openNewCard(status = 'iniciada') {
 }
 
 function openCard(id) {
+  if (autosaveTimer) { clearTimeout(autosaveTimer); autosaveTimer = null; }
   editingId = id;
   const c = getCards().find(x => x.id === id);
   if (!c) return;
@@ -4844,6 +4846,7 @@ function applyModalSaveMode() {
 }
 
 async function saveCard() {
+  if (autosaveTimer) { clearTimeout(autosaveTimer); autosaveTimer = null; }
   const data = collectCardData();
   if (!data.nf && !data.rs) { toast('Ingresá al menos el Nombre Fiscal o Razón Social', 'error'); return; }
   try {
@@ -4861,11 +4864,32 @@ async function saveCard() {
 }
 
 // Guardado automatico: persiste la tarjeta existente sin cerrar el modal.
+// Usa debounce para agrupar cambios seguidos en un solo PUT (evita inflar el
+// historial de actividad y reduce peticiones). flushAutosaveCard() fuerza el
+// guardado pendiente al instante (al cerrar el modal o guardar manualmente).
 let autosaveBusy = false;
 let autosavePending = false;
-async function autosaveCardIfEnabled() {
+let autosaveTimer = null;
+const AUTOSAVE_DELAY_MS = 1500;
+
+function autosaveCardIfEnabled() {
   if (!(currentUser && currentUser.autosaveCards)) return;
   if (!editingId) return; // las tarjetas nuevas se crean con Guardar
+  if (autosaveTimer) clearTimeout(autosaveTimer);
+  autosaveTimer = setTimeout(() => { autosaveTimer = null; runAutosaveCard(); }, AUTOSAVE_DELAY_MS);
+}
+
+// Guarda de inmediato cualquier autoguardado pendiente (cancela el debounce).
+function flushAutosaveCard() {
+  if (!autosaveTimer) return;
+  clearTimeout(autosaveTimer);
+  autosaveTimer = null;
+  if (currentUser && currentUser.autosaveCards && editingId) runAutosaveCard();
+}
+
+async function runAutosaveCard() {
+  if (!(currentUser && currentUser.autosaveCards)) return;
+  if (!editingId) return;
   const data = collectCardData();
   if (!data.nf && !data.rs) return; // no autoguardar sin titulo valido
   if (autosaveBusy) { autosavePending = true; return; }
@@ -4881,7 +4905,7 @@ async function autosaveCardIfEnabled() {
     toast(err.message || 'No se pudo guardar automáticamente', 'error');
   } finally {
     autosaveBusy = false;
-    if (autosavePending) { autosavePending = false; autosaveCardIfEnabled(); }
+    if (autosavePending) { autosavePending = false; runAutosaveCard(); }
   }
 }
 
@@ -5069,7 +5093,7 @@ async function restoreCardFromTrash(id) {
   }
 }
 
-function closeModal()  { closeCoverMenu(); closeDuePopover(); closeMembersPopover(); closeOverlay('pauta-overlay'); closeOverlay('card-overlay'); }
+function closeModal()  { flushAutosaveCard(); closeCoverMenu(); closeDuePopover(); closeMembersPopover(); closeOverlay('pauta-overlay'); closeOverlay('card-overlay'); }
 function overlayBg(e)  { if (e.target.id === 'card-overlay') closeModal(); }
 
 /* ─────────────────────────────────────────
