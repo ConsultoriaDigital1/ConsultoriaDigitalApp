@@ -110,6 +110,7 @@ function cardDTO(row, descriptionHistory = []) {
     vence: row.vence,
     venceHora: row.vence_hora || '',
     coverImage: row.cover_image,
+    pautaUrl: row.pauta_url || '',
     checklist: cleanChecklist(row.checklist),
     dailyCheckDate: row.daily_check_date || '',
     position: row.position == null ? null : Number(row.position),
@@ -485,6 +486,9 @@ function cardValues(body, user, existing = {}) {
     vence: String(body.vence || ''),
     venceHora: /^\d{2}:\d{2}$/.test(rawVenceHora) ? rawVenceHora : '',
     coverImage: String(body.coverImage || ''),
+    pautaUrl: Object.prototype.hasOwnProperty.call(body, 'pautaUrl')
+      ? String(body.pautaUrl || '')
+      : String(existing.pauta_url || ''),
     checklist: cleanChecklist(body.checklist ?? existing.checklist ?? []),
   };
 }
@@ -995,14 +999,14 @@ app.post('/api/cards', requireAuth, async (req, res, next) => {
       const { rows } = await client.query(
         `INSERT INTO cards (
           id, nf, rs, cuit, ca, ntel, t, ta, c, color, estado, equipo, usuario,
-          usuarios, creado_por, creado_en, debe, monto_deuda, vence, vence_hora, cover_image, checklist
+          usuarios, creado_por, creado_en, debe, monto_deuda, vence, vence_hora, cover_image, checklist, pauta_url
         )
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,$15,$16,$17,$18,$19,$20,$21,$22::jsonb)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,$15,$16,$17,$18,$19,$20,$21,$22::jsonb,$23)
         RETURNING *`,
         [
           cardId, data.nf, data.rs, data.cuit, data.ca, data.ntel, data.t, data.ta, data.c,
           data.color, data.estado, data.equipo, data.usuario, JSON.stringify(data.usuarios), req.user.id, creadoEn,
-          data.debe, data.montoDeuda, data.vence, data.venceHora, data.coverImage, JSON.stringify(data.checklist),
+          data.debe, data.montoDeuda, data.vence, data.venceHora, data.coverImage, JSON.stringify(data.checklist), data.pautaUrl,
         ]
       );
       const history = [];
@@ -1081,13 +1085,13 @@ app.put('/api/cards/:id', requireAuth, async (req, res, next) => {
       `UPDATE cards SET
         nf=$1, rs=$2, cuit=$3, ca=$4, ntel=$5, t=$6, ta=$7, c=$8, color=$9,
         estado=$10, equipo=$11, usuario=$12, usuarios=$13::jsonb, debe=$14, monto_deuda=$15, vence=$16,
-        vence_hora=$17, cover_image=$18, checklist=$19::jsonb, updated_at=NOW()
-       WHERE id=$20
+        vence_hora=$17, cover_image=$18, checklist=$19::jsonb, pauta_url=$20, updated_at=NOW()
+       WHERE id=$21
        RETURNING *`,
       [
         data.nf, data.rs, data.cuit, data.ca, data.ntel, data.t, data.ta, data.c, data.color,
         data.estado, data.equipo, data.usuario, JSON.stringify(data.usuarios), data.debe, data.montoDeuda, data.vence,
-        data.venceHora, data.coverImage, JSON.stringify(data.checklist), req.params.id,
+        data.venceHora, data.coverImage, JSON.stringify(data.checklist), data.pautaUrl, req.params.id,
       ]
     );
     if (String(data.c) !== String(current.rows[0].c || '')) {

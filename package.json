@@ -11,7 +11,8 @@
     "db:up": "docker compose up -d postgres",
     "db:down": "docker compose stop postgres",
     "db:schema": "node db/schema.js",
-    "db:seed": "node db/seed.js"
+    "db:seed": "node db/seed.js",
+    "db:admin": "node db/create-admin.js"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",

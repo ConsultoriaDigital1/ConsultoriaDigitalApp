@@ -817,6 +817,15 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 }
 .rc-totals .rc-saldo-final { color: var(--text-hi); font-weight: 800; }
 
+/* Borrar movimiento (con espera de 5s) */
+.rc-table td.rc-actions, .rc-table th.rc-actions { text-align: right; white-space: nowrap; width: 1%; }
+.rc-del-btn { opacity: 0.55; padding: 0.22rem 0.5rem; }
+.rc-del-btn:hover { opacity: 1; }
+.rc-del-confirm { display: inline-flex; gap: 0.3rem; align-items: center; justify-content: flex-end; }
+.rc-del-go { padding: 0.22rem 0.6rem; min-width: 38px; }
+.rc-del-go:disabled { opacity: 0.5; cursor: not-allowed; }
+.rc-del-cancel { padding: 0.22rem 0.5rem; }
+
 /* ─── COLOR PICKER ─── */
 .color-picker { display: flex; gap: 0.38rem; flex-wrap: wrap; margin-bottom: 0.9rem; }
 .cp-swatch {
@@ -972,6 +981,49 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 .trello-action:hover { background: var(--surface3); color: var(--text-hi); }
 .trello-action.has-due {
   background: rgba(87,157,255,0.14); border-color: rgba(87,157,255,0.45); color: #85b8ff;
+}
+.trello-action.has-pauta {
+  background: rgba(231,255,79,0.14); border-color: rgba(231,255,79,0.45); color: var(--lime);
+}
+
+/* ── PAUTA: popup grande con iframe configurable por cliente ── */
+.pauta-modal {
+  max-width: min(1400px, calc(100vw - 32px));
+  width: 100%;
+  height: min(900px, calc(100vh - 32px));
+  max-height: calc(100vh - 32px);
+  display: flex; flex-direction: column;
+}
+.pauta-modal .modal-head { gap: 0.8rem; }
+.pauta-modal .pauta-title-wrap { display: flex; flex-direction: column; gap: 0.18rem; flex: 1; min-width: 0; }
+.pauta-modal .pauta-title { font-family: var(--font-disp); font-size: 1.05rem; font-weight: 700; color: var(--text-hi); }
+.pauta-modal .pauta-sub { font-size: 0.72rem; color: var(--muted); }
+.pauta-url-bar {
+  display: flex; gap: 0.5rem; align-items: center; padding: 0.65rem 1.2rem;
+  border-bottom: 1px solid var(--border); background: var(--bg2);
+  flex-shrink: 0; flex-wrap: wrap;
+}
+.pauta-url-bar .form-input { flex: 1; min-width: 220px; padding: 0.45rem 0.7rem; font-size: 0.78rem; }
+.pauta-frame-wrap {
+  flex: 1; min-height: 0; padding: 0.85rem 1.2rem 1.2rem;
+  display: flex; flex-direction: column; gap: 0.6rem; overflow: hidden;
+}
+.pauta-frame-wrap iframe {
+  flex: 1; width: 100%; border: 1px solid var(--border2);
+  border-radius: var(--r-md); background: var(--bg2); min-height: 0;
+}
+.pauta-empty {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 0.4rem; padding: 2rem 1rem; border: 1px dashed var(--border2);
+  border-radius: var(--r-md); background: var(--bg2); color: var(--muted);
+  text-align: center;
+}
+.pauta-empty strong { color: var(--text-hi); font-size: 0.95rem; }
+.pauta-empty span { font-size: 0.8rem; max-width: 480px; }
+@media (max-width: 720px) {
+  .pauta-modal { height: calc(100vh - 16px); border-radius: 12px; }
+  .pauta-url-bar { padding: 0.55rem 0.8rem; }
+  .pauta-frame-wrap { padding: 0.55rem 0.8rem 0.8rem; }
 }
 .due-popover {
   display: none; position: fixed; width: 306px; max-height: calc(100vh - 20px);
@@ -1684,6 +1736,8 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
         <div class="card-action-row">
           <button class="trello-action" onclick="openChecklistSection()"><span class="checklist-action-icon"></span> Checklist</button>
           <button id="due-action-btn" class="trello-action" onclick="openDuePopover(event)">Vencimiento</button>
+          <button id="pauta-action-btn" class="trello-action" onclick="openPautaModal()" style="display:none">PAUTA</button>
+          <input id="f-pauta-url" type="hidden" />
         </div>
 
         <div class="card-props">
@@ -1801,6 +1855,34 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
       <button id="btn-del" class="btn btn-danger btn-sm" onclick="deleteCard()" style="display:none;margin-right:auto" title="Mueve la tarjeta a la papelera">🗑️ Mover a papelera</button>
       <button id="btn-cancel-card" class="btn btn-ghost btn-sm" onclick="closeModal()">Cancelar</button>
       <button id="btn-save-card" class="btn btn-primary btn-sm" onclick="saveCard()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     PAUTA MODAL (iframe configurable por cliente)
+     ═══════════════════════════════════════════ -->
+<div id="pauta-overlay" class="overlay" onclick="if(event.target===this)closePautaModal()">
+  <div class="modal pauta-modal" onclick="event.stopPropagation()">
+    <div class="modal-head">
+      <div class="pauta-title-wrap">
+        <span class="pauta-title">PAUTA</span>
+        <span id="pauta-client-name" class="pauta-sub">Cliente</span>
+      </div>
+      <a id="pauta-open-link" class="btn btn-ghost btn-sm" href="#" target="_blank" rel="noopener" style="display:none">Abrir en pestaña nueva ↗</a>
+      <button class="modal-close" onclick="closePautaModal()" title="Cerrar">x</button>
+    </div>
+    <div class="pauta-url-bar">
+      <input id="pauta-url-input" class="form-input" type="text" placeholder="Pegá la URL del embed (Google Sheets, Looker, etc.) o el <iframe> completo" />
+      <button class="btn btn-lime btn-sm" type="button" onclick="applyPautaUrl()">Aplicar</button>
+      <button class="btn btn-ghost btn-sm" type="button" onclick="clearPautaUrl()">Quitar</button>
+    </div>
+    <div class="pauta-frame-wrap">
+      <iframe id="pauta-iframe" src="about:blank" referrerpolicy="no-referrer" loading="lazy" style="display:none"></iframe>
+      <div id="pauta-empty" class="pauta-empty">
+        <strong>Sin pauta configurada</strong>
+        <span>Pegá arriba la URL del embed o el código &lt;iframe&gt; y tocá <em>Aplicar</em>. La pauta se guarda con la tarjeta al tocar <em>Guardar</em>.</span>
+      </div>
     </div>
   </div>
 </div>
@@ -2773,6 +2855,7 @@ function renderClientMovementsLoading() {
 function renderClientMovements(movements) {
   const wrap = $('cv-movements-wrap');
   if (!wrap) return;
+  const clientId = currentClientId;
   if (!movements || movements.length === 0) {
     wrap.innerHTML = '<div class="rc-empty">Sin movimientos cargados.</div>';
     return;
@@ -2794,10 +2877,14 @@ function renderClientMovements(movements) {
         <td class="num rc-haber">${m.haber ? formatMoney(m.haber) : '—'}</td>
         <td class="num rc-saldo">${formatMoney(saldo)}</td>
         <td><span class="ct-chip ${impago ? 'impago' : 'pagado'}">${impago ? 'IMPAGO' : 'PAGADO'}</span></td>
+        <td class="rc-actions">
+          <button class="btn btn-danger btn-sm rc-del-btn" title="Eliminar movimiento"
+            onclick="startMovDelete('${clientId}','${m.id}', this)">🗑️</button>
+        </td>
       </tr>
       ${m.detalle || m.medioPago || m.banco ? `
         <tr>
-          <td colspan="6" style="color:var(--muted);font-size:0.74rem;padding-top:0;padding-bottom:0.6rem">
+          <td colspan="7" style="color:var(--muted);font-size:0.74rem;padding-top:0;padding-bottom:0.6rem">
             ${m.medioPago ? `<strong>${esc(MEDIO_PAGO_LABEL[m.medioPago] || m.medioPago)}</strong>` : ''}
             ${m.banco ? ` · ${esc(m.banco)}` : ''}
             ${m.detalle ? ` · ${esc(m.detalle)}` : ''}
@@ -2816,6 +2903,7 @@ function renderClientMovements(movements) {
           <th class="num">Haber</th>
           <th class="num">Saldo</th>
           <th>Estado</th>
+          <th class="rc-actions"></th>
         </tr>
       </thead>
       <tbody>${rows}</tbody>
@@ -2824,6 +2912,51 @@ function renderClientMovements(movements) {
       Saldo final: <span class="rc-saldo-final" style="color:${saldo > 0 ? 'var(--danger)' : 'var(--success)'}">${formatMoney(saldo)}</span>
     </div>
   `;
+}
+
+// Inicia el borrado de un movimiento con espera de 5s (cuenta regresiva en el boton de confirmar).
+function startMovDelete(clientId, movId, btn) {
+  const cell = btn.closest('td');
+  if (!cell) return;
+  const originalHTML = cell.innerHTML;
+  let remaining = 5;
+  cell.innerHTML = `
+    <div class="rc-del-confirm">
+      <button class="btn btn-danger btn-sm rc-del-go" disabled>${remaining}s</button>
+      <button class="btn btn-ghost btn-sm rc-del-cancel" title="Cancelar">✕</button>
+    </div>`;
+  const goBtn = cell.querySelector('.rc-del-go');
+  const cancelBtn = cell.querySelector('.rc-del-cancel');
+
+  const timer = setInterval(() => {
+    remaining -= 1;
+    if (remaining > 0) {
+      goBtn.textContent = remaining + 's';
+    } else {
+      clearInterval(timer);
+      goBtn.disabled = false;
+      goBtn.textContent = '🗑️ Eliminar';
+      goBtn.onclick = () => confirmMovDelete(clientId, movId, goBtn);
+    }
+  }, 1000);
+
+  cancelBtn.onclick = () => {
+    clearInterval(timer);
+    cell.innerHTML = originalHTML;
+  };
+}
+
+async function confirmMovDelete(clientId, movId, goBtn) {
+  goBtn.disabled = true;
+  goBtn.textContent = 'Eliminando…';
+  try {
+    await api('/api/admin/clients/' + encodeURIComponent(clientId) + '/movements/' + encodeURIComponent(movId), { method: 'DELETE' });
+    await loadMovementsForClient(clientId);
+    toast('Movimiento eliminado.', 'success');
+  } catch (err) {
+    toast(err.message || 'No se pudo eliminar el movimiento.', 'error');
+    renderClientMovements(movementsCache[clientId] || []);
+  }
 }
 
 async function loadMovementsForClient(clientId) {
@@ -3998,6 +4131,103 @@ function syncDueButton() {
   btn.classList.toggle('has-due', !!value);
 }
 
+/* ── PAUTA: iframe configurable por cliente ── */
+function extractIframeSrc(raw) {
+  raw = String(raw || '').trim();
+  if (!raw) return '';
+  if (raw.toLowerCase().startsWith('<iframe')) {
+    try {
+      const doc = new DOMParser().parseFromString(raw, 'text/html');
+      raw = (doc.querySelector('iframe') || {}).src || '';
+    } catch (_) { raw = ''; }
+  }
+  if (!raw) return '';
+  try {
+    const u = new URL(raw);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return '';
+    return u.toString();
+  } catch (_) {
+    return '';
+  }
+}
+
+function syncPautaButton() {
+  const btn = $('pauta-action-btn');
+  if (!btn) return;
+  const team = $('f-equipo') ? $('f-equipo').value : '';
+  if (team !== 'marketing') {
+    btn.style.display = 'none';
+    btn.classList.remove('has-pauta');
+    return;
+  }
+  btn.style.display = '';
+  const has = !!($('f-pauta-url') && $('f-pauta-url').value);
+  btn.classList.toggle('has-pauta', has);
+  btn.textContent = has ? 'PAUTA ●' : 'PAUTA';
+}
+
+function renderPautaFrame() {
+  const url   = ($('f-pauta-url') && $('f-pauta-url').value) || '';
+  const ifr   = $('pauta-iframe');
+  const empty = $('pauta-empty');
+  const link  = $('pauta-open-link');
+  if (ifr) {
+    if (url) {
+      if (ifr.src !== url) ifr.src = url;
+      ifr.style.display = '';
+    } else {
+      ifr.src = 'about:blank';
+      ifr.style.display = 'none';
+    }
+  }
+  if (empty) empty.style.display = url ? 'none' : '';
+  if (link) {
+    if (url) { link.href = url; link.style.display = ''; }
+    else { link.removeAttribute('href'); link.style.display = 'none'; }
+  }
+}
+
+function openPautaModal() {
+  if (($('f-equipo') && $('f-equipo').value) !== 'marketing') return;
+  const current = ($('f-pauta-url') && $('f-pauta-url').value) || '';
+  if ($('pauta-url-input')) $('pauta-url-input').value = current;
+  const nameEl = $('pauta-client-name');
+  if (nameEl) {
+    const nf = ($('f-nf') && $('f-nf').value.trim()) || '';
+    const rs = ($('f-rs') && $('f-rs').value.trim()) || '';
+    nameEl.textContent = nf || rs || 'Cliente sin nombre';
+  }
+  renderPautaFrame();
+  openOverlay('pauta-overlay');
+}
+
+function closePautaModal() {
+  closeOverlay('pauta-overlay');
+  if ($('card-overlay') && $('card-overlay').classList.contains('open')) {
+    document.body.style.overflow = 'hidden';
+  }
+}
+
+function applyPautaUrl() {
+  const raw = ($('pauta-url-input') && $('pauta-url-input').value) || '';
+  if (!raw.trim()) { clearPautaUrl(); return; }
+  const url = extractIframeSrc(raw);
+  if (!url) { toast('URL invalida. Pega un link http(s) o un <iframe>.', 'error'); return; }
+  if ($('f-pauta-url')) $('f-pauta-url').value = url;
+  if ($('pauta-url-input')) $('pauta-url-input').value = url;
+  renderPautaFrame();
+  syncPautaButton();
+  syncModalPreview();
+}
+
+function clearPautaUrl() {
+  if ($('f-pauta-url')) $('f-pauta-url').value = '';
+  if ($('pauta-url-input')) $('pauta-url-input').value = '';
+  renderPautaFrame();
+  syncPautaButton();
+  syncModalPreview();
+}
+
 /* ─────────────────────────────────────────
    DRAG & DROP (SortableJS — smooth reorder)
 ───────────────────────────────────────── */
@@ -4134,6 +4364,7 @@ function openNewCard(status = 'iniciada') {
   renderChecklist();
   hideChecklistInput(true);
   setCardDetailsOpen(true);
+  syncPautaButton();
   syncModalPreview();
   applyModalSaveMode();
   openOverlay('card-overlay');
@@ -4165,7 +4396,9 @@ function openCard(id) {
   $('f-monto').value = c.montoDeuda || '';
   $('f-vence').value = c.vence || '';
   $('f-vence-hora').value = c.venceHora || '';
+  if ($('f-pauta-url')) $('f-pauta-url').value = c.pautaUrl || '';
   syncDueButton();
+  syncPautaButton();
   populateUsers(cardUserIds(c));
   $('activity-comment').value = '';
   renderChecklist();
@@ -4290,16 +4523,18 @@ function onCardTeamChange() {
   populateUsers([]);
   modalChecklist = normalizeChecklist(modalChecklist).map(item => ({ ...item, usuario: '' }));
   renderChecklist();
+  syncPautaButton();
   syncModalPreview();
   autosaveCardIfEnabled();
 }
 
 function clearForm() {
-  ['f-nf','f-rs','f-cuit','f-ca','f-ntel','f-t','f-ta','f-c','f-monto','f-vence','f-vence-hora'].forEach(id => $(id).value = '');
+  ['f-nf','f-rs','f-cuit','f-ca','f-ntel','f-t','f-ta','f-c','f-monto','f-vence','f-vence-hora','f-pauta-url'].forEach(id => { if ($(id)) $(id).value = ''; });
   if ($('f-cover')) $('f-cover').value = '';
   if ($('checklist-new-text')) $('checklist-new-text').value = '';
   $('f-debe').value = 'no';
   syncDueButton();
+  syncPautaButton();
 }
 
 function setStatus(s) {
@@ -4443,6 +4678,7 @@ function collectCardData() {
     montoDeuda: $('f-monto').value.trim(),
     vence:   $('f-vence').value,
     venceHora: $('f-vence-hora').value,
+    pautaUrl: ($('f-pauta-url') && $('f-pauta-url').value) || '',
     usuario: usuarios[0] || null,
     usuarios,
     checklist: normalizeChecklist(modalChecklist),
@@ -4686,7 +4922,7 @@ async function restoreCardFromTrash(id) {
   }
 }
 
-function closeModal()  { closeCoverMenu(); closeDuePopover(); closeMembersPopover(); closeOverlay('card-overlay'); }
+function closeModal()  { closeCoverMenu(); closeDuePopover(); closeMembersPopover(); closeOverlay('pauta-overlay'); closeOverlay('card-overlay'); }
 function overlayBg(e)  { if (e.target.id === 'card-overlay') closeModal(); }
 
 /* ─────────────────────────────────────────

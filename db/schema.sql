@@ -51,6 +51,9 @@ CREATE INDEX IF NOT EXISTS idx_cards_deleted_at ON cards(deleted_at);
 -- Daily check (YYYY-MM-DD en zona horaria America/Argentina/Cordoba). Se reinicia naturalmente cada dia.
 ALTER TABLE cards ADD COLUMN IF NOT EXISTS daily_check_date TEXT NOT NULL DEFAULT '';
 
+-- URL/embed para pauta publicitaria (per-card, configurable por usuario)
+ALTER TABLE cards ADD COLUMN IF NOT EXISTS pauta_url TEXT NOT NULL DEFAULT '';
+
 -- Posicion dentro de la columna (orden manual via drag-reorder)
 ALTER TABLE cards ADD COLUMN IF NOT EXISTS position INTEGER;
 UPDATE cards SET position = sub.rn
