@@ -122,8 +122,24 @@ CREATE INDEX IF NOT EXISTS idx_calendar_events_equipo ON calendar_events(equipo)
 CREATE INDEX IF NOT EXISTS idx_calendar_events_fecha  ON calendar_events(fecha);
 
 -- ──────────────────────────────────────────────
--- ADMIN: Clientes y movimientos de cuenta
+-- NOTAS
 -- ──────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS app_notes (
+  id TEXT PRIMARY KEY,
+  scope TEXT NOT NULL CHECK (scope IN ('personal', 'team', 'admin')),
+  user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+  equipo TEXT CHECK (equipo IN ('marketing', 'desarrollo', 'admin')),
+  content TEXT NOT NULL DEFAULT '',
+  updated_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_app_notes_personal ON app_notes(user_id) WHERE scope = 'personal';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_app_notes_team ON app_notes(equipo) WHERE scope = 'team';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_app_notes_admin ON app_notes(scope) WHERE scope = 'admin';
+
+-- ADMIN: Clientes y movimientos de cuenta
 CREATE TABLE IF NOT EXISTS clients (
   id              TEXT PRIMARY KEY,
   nombre_fantasia TEXT NOT NULL DEFAULT '',

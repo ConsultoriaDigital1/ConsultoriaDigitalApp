@@ -1395,7 +1395,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
    CALENDAR
    ═══════════════════════════════════════════ */
 .cal-wrap { flex: 1; padding: 1rem 1.1rem; overflow-y: auto; }
-.google-cal-panel { height: 100%; min-height: 520px; }
+.google-cal-panel { margin-top: 1rem; }
 .google-cal-team { margin-bottom: 1rem; }
 .google-cal-title {
   display: flex; align-items: center; gap: 0.45rem;
@@ -1409,7 +1409,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
   font-size: 0.78rem;
 }
 .google-cal-frame {
-  width: 100%; height: 100%; min-height: 520px;
+  width: 100%; height: 420px; min-height: 420px;
   border: 1px solid var(--border); border-radius: var(--r-sm);
   background: var(--surface);
 }
@@ -1484,6 +1484,32 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 }
 .talent-action-btn:hover { background: var(--surface3); color: var(--text); border-color: var(--border2); }
 .talent-action-btn.danger:hover { background: #ff5c5c22; color: #ff5c5c; border-color: #ff5c5c66; }
+
+/* ═══════════════════════════════════════════
+   NOTAS
+   ═══════════════════════════════════════════ */
+.notas-wrap {
+  flex: 1; padding: 1rem 1.1rem; overflow-y: auto;
+  display: grid; grid-template-columns: repeat(auto-fit,minmax(260px,1fr));
+  gap: 0.82rem; align-content: start;
+}
+.note-panel {
+  min-height: 320px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-lg); display: flex; flex-direction: column; overflow: hidden;
+}
+.note-head {
+  padding: 0.85rem 0.95rem; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between; gap: 0.8rem;
+}
+.note-title { color: var(--text-hi); font-weight: 800; font-size: 0.9rem; }
+.note-sub { color: var(--muted); font-size: 0.72rem; margin-top: 0.16rem; }
+.note-status { color: var(--muted); font-size: 0.68rem; white-space: nowrap; }
+.note-textarea {
+  flex: 1; width: 100%; min-height: 240px; padding: 0.95rem;
+  border: 0; resize: vertical; outline: none; background: transparent;
+  color: var(--text); font: 0.86rem/1.5 var(--font-body);
+}
+.note-textarea::placeholder { color: var(--muted); }
 
 /* ═══════════════════════════════════════════
    TOAST
@@ -1604,6 +1630,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
     <div class="nav-tabs">
       <button class="nav-tab active" data-tab="clientes"   onclick="switchTab('clientes')">CLIENTES</button>
       <button class="nav-tab"        data-tab="calendario" onclick="switchTab('calendario')">CALENDARIO</button>
+      <button class="nav-tab"        data-tab="notas"      onclick="switchTab('notas')">NOTAS</button>
       <button class="nav-tab"        data-tab="talentos"   onclick="switchTab('talentos')">TALENTOS</button>
     </div>
     <div class="topnav-right">
@@ -1701,10 +1728,21 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
           </div>
         </div>
         <div class="cal-wrap">
-          <div id="google-cal-panel" class="google-cal-panel" style="display:none"></div>
           <div class="cal-grid" id="cal-header"></div>
           <div class="cal-grid" id="cal-body" style="margin-top:0.32rem"></div>
+          <div id="google-cal-panel" class="google-cal-panel" style="display:none"></div>
         </div>
+      </div>
+
+      <!-- ── NOTAS TAB ── -->
+      <div id="tab-notas" class="tab-panel">
+        <div class="cbar">
+          <div>
+            <div class="cbar-title">Notas</div>
+            <div class="cbar-sub" id="notas-sub">Notas privadas y del equipo</div>
+          </div>
+        </div>
+        <div class="notas-wrap" id="notas-wrap"></div>
       </div>
 
       <!-- ── TALENTOS TAB ── -->
@@ -2414,6 +2452,8 @@ let cardsTrashCache = [];
 let cardsView = 'active';  // 'active' | 'trash'
 let calendarsCache = {};
 let eventsCache = [];
+let notesCache = { personal: null, teams: {} };
+let noteSaveTimers = {};
 const getUsers  = () => usersCache;
 const getCards  = () => cardsCache;
 const getEvents = () => eventsCache;
@@ -2457,6 +2497,8 @@ async function loadAppData() {
   cardsTrashCache = data.cardsTrash || [];
   calendarsCache = data.calendars || {};
   eventsCache    = data.events    || [];
+  notesCache     = data.notes     || { personal: null, teams: {} };
+  if (!notesCache.teams) notesCache.teams = {};
   clientsCache      = data.clients      || [];
   clientsTrashCache = data.clientsTrash || [];
   libretaUrl        = data.libretaUrl || '';
@@ -3298,6 +3340,8 @@ async function doLogout() {
   cardsView = 'active';
   myClientsOnly = false;
   eventsCache = [];
+  notesCache = { personal: null, teams: {} };
+  noteSaveTimers = {};
   $('app').style.display = 'none';
   $('login-screen').style.display = '';
   $('li-username').value = ''; $('li-pass').value = '';
@@ -3333,6 +3377,7 @@ function startApp() {
   const newCardBtn = $('btn-new-card');
   if (newCardBtn) newCardBtn.style.display = activeTeam === 'admin' ? 'none' : '';
   renderBoard();
+  if (activeTab === 'notas') renderNotas();
   renderTalentos();
 }
 
@@ -3669,6 +3714,7 @@ function switchTab(tab) {
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + tab));
   closeDD();
   if (tab === 'calendario') renderCalendar();
+  if (tab === 'notas')      renderNotas();
   if (tab === 'talentos')   renderTalentos();
 }
 
@@ -3692,6 +3738,7 @@ function filterTeam(team) {
   if (newCardBtn) newCardBtn.style.display = team === 'admin' ? 'none' : '';
   renderBoard();
   if (activeTab === 'calendario') renderCalendar();
+  if (activeTab === 'notas') renderNotas();
   if (activeTab === 'talentos') renderTalentos();
 }
 
@@ -5183,59 +5230,44 @@ async function clearGoogleCalendar() {
 function setGoogleCalendarMode(on) {
   const panel = $('google-cal-panel');
   if (panel) panel.style.display = on ? '' : 'none';
-  document.querySelectorAll('#tab-calendario button[onclick^="changeMonth"]').forEach(btn => {
-    btn.style.display = on ? 'none' : '';
-  });
   const addBtn = $('cal-add-event-btn');
-  if (addBtn) addBtn.style.display = on ? 'none' : '';
-  $('cal-header').style.display = on ? 'none' : '';
-  $('cal-body').style.display   = on ? 'none' : '';
+  if (addBtn) addBtn.style.display = '';
+  $('cal-header').style.display = '';
+  $('cal-body').style.display   = '';
 }
 
 function calendarCardDate(card) {
   return dateFromInput(card.vence) || (card.creadoEn ? new Date(card.creadoEn) : null);
 }
 
-function renderAllGoogleCalendars() {
-  const teams = allowedTeams();
-  setGoogleCalendarMode(true);
-  $('cal-sub').textContent = 'Todos los calendarios';
-  $('google-cal-panel').innerHTML = teams.map(team => {
+function calendarTeamsForView() {
+  return activeTeam === 'all' && isAdmin() ? allowedTeams() : [currentCalendarTeam()];
+}
+
+function renderGoogleCalendarPanel(teams) {
+  const visible = teams.filter(team => getGoogleCalendar(team));
+  setGoogleCalendarMode(visible.length > 0);
+  $('google-cal-panel').innerHTML = visible.map(team => {
     const url = getGoogleCalendar(team);
     return `<div class="google-cal-team">
       <div class="google-cal-title">
         <span class="sb-dot ${TEAM_DOT[team]||'d-all'}" style="display:inline-block"></span>
-        ${esc(TEAMS[team]||team)}
+        Google Calendar - ${esc(TEAMS[team]||team)}
       </div>
-      ${url
-        ? `<iframe class="google-cal-frame" src="${esc(url)}" loading="lazy"></iframe>`
-        : `<div class="google-cal-empty">Sin Google Calendar configurado</div>`}
+      <iframe class="google-cal-frame" src="${esc(url)}" loading="lazy"></iframe>
     </div>`;
   }).join('');
 }
 
 function renderCalendar() {
-  if (activeTeam === 'all' && isAdmin()) {
-    renderAllGoogleCalendars();
-    return;
-  }
-  const team = currentCalendarTeam();
-  const googleUrl = getGoogleCalendar(team);
-  if (googleUrl) {
-    setGoogleCalendarMode(true);
-    $('cal-sub').textContent = (TEAMS[team] || team) + ' - Google Calendar';
-    $('google-cal-panel').innerHTML =
-      `<iframe class="google-cal-frame" src="${esc(googleUrl)}" loading="lazy"></iframe>`;
-    return;
-  }
-
-  setGoogleCalendarMode(false);
-  $('google-cal-panel').innerHTML = '';
-  $('cal-sub').textContent = (TEAMS[team] || team) + ' - ' + MONTHS[calMonth] + ' ' + calYear;
+  const teams = calendarTeamsForView();
+  const multiTeam = teams.length > 1;
+  renderGoogleCalendarPanel(teams);
+  $('cal-sub').textContent = (multiTeam ? 'Todos los equipos' : (TEAMS[teams[0]] || teams[0])) + ' - ' + MONTHS[calMonth] + ' ' + calYear;
   $('cal-header').innerHTML = DAYS.map(d => `<div class="cal-lbl">${d}</div>`).join('');
 
   const itemsByDay = {};
-  getCards().filter(c => c.equipo === team).forEach(c => {
+  getCards().filter(c => teams.includes(c.equipo)).forEach(c => {
     const d = calendarCardDate(c);
     if (!d) return;
     if (d.getFullYear() === calYear && d.getMonth() === calMonth) {
@@ -5245,7 +5277,7 @@ function renderCalendar() {
     }
   });
   getEvents().filter(e => {
-    if (e.equipo !== team) return false;
+    if (!teams.includes(e.equipo)) return false;
     const p = e.fecha.split('-');
     return parseInt(p[0],10) === calYear && parseInt(p[1],10) === calMonth + 1;
   }).forEach(ev => {
@@ -5270,13 +5302,19 @@ function renderCalendar() {
     html += `<div class="cal-day${isToday?' today':''}">
       <div class="cal-daynum" onclick="openEventModal('${isoDate}')" title="Agregar evento">${d}</div>
       ${shown.map(item => item.type === 'event'
-        ? `<div class="cal-event evt" style="border-left-color:${EVT_COLORS[item.data.color]||'#579dff'};color:${EVT_COLORS[item.data.color]||'#579dff'}" onclick="openEditEvent('${item.data.id}')">${esc(item.data.titulo)}</div>`
+        ? `<div class="cal-event evt" style="border-left-color:${EVT_COLORS[item.data.color]||'#579dff'};color:${EVT_COLORS[item.data.color]||'#579dff'}" onclick="openEditEvent('${item.data.id}')">${esc(calendarEventLabel(item.data, multiTeam))}</div>`
         : `<div class="cal-event" onclick="openCard('${item.data.id}')">${esc(item.data.nf||item.data.rs||'—')}</div>`
       ).join('')}
       ${extra ? `<div class="cal-event" style="background:var(--surface3)">+${extra} más</div>` : ''}
     </div>`;
   }
   $('cal-body').innerHTML = html;
+}
+
+function calendarEventLabel(ev, showTeam) {
+  const time = ev.horaInicio ? ev.horaInicio + ' ' : '';
+  const team = showTeam ? (TEAMS[ev.equipo] || ev.equipo || '') + ': ' : '';
+  return time + team + ev.titulo;
 }
 
 function changeMonth(dir) {
@@ -5289,6 +5327,98 @@ function changeMonth(dir) {
 /* ─────────────────────────────────────────
    TALENTOS
 ───────────────────────────────────────── */
+function noteTeam() {
+  return activeTeam !== 'all' && canViewTeam(activeTeam) ? activeTeam : currentUser.equipo;
+}
+
+function noteDomId(scope, team) {
+  return 'note-' + scope + (team ? '-' + team : '');
+}
+
+function noteStatusId(scope, team) {
+  return 'note-status-' + scope + (team ? '-' + team : '');
+}
+
+function getNoteContent(scope, team) {
+  if (scope === 'personal') return (notesCache.personal && notesCache.personal.content) || '';
+  if (scope === 'team') return (notesCache.teams && notesCache.teams[team] && notesCache.teams[team].content) || '';
+  if (scope === 'admin') return (notesCache.admin && notesCache.admin.content) || '';
+  return '';
+}
+
+function setNoteCache(note) {
+  if (!note) return;
+  if (note.scope === 'personal') notesCache.personal = note;
+  if (note.scope === 'team') {
+    if (!notesCache.teams) notesCache.teams = {};
+    notesCache.teams[note.equipo] = note;
+  }
+  if (note.scope === 'admin') notesCache.admin = note;
+}
+
+function noteDefs() {
+  const team = noteTeam();
+  const defs = [
+    { scope:'personal', team:'', title:'Privadas', sub:'Solo las ves vos', placeholder:'Escribi tus notas personales...' },
+    { scope:'team', team, title:'Equipo', sub:TEAMS[team] || team, placeholder:'Notas compartidas del equipo...' },
+  ];
+  if (isAdmin()) {
+    defs.push({ scope:'admin', team:'', title:'Administracion', sub:'Solo administradores', placeholder:'Notas internas de administracion...' });
+  }
+  return defs;
+}
+
+function renderNotas() {
+  const wrap = $('notas-wrap');
+  if (!wrap) return;
+  const defs = noteDefs();
+  const team = noteTeam();
+  $('notas-sub').textContent = isAdmin()
+    ? 'Privadas, ' + (TEAMS[team] || team) + ' y administracion'
+    : 'Privadas y ' + (TEAMS[team] || team);
+  wrap.innerHTML = defs.map(def => {
+    const id = noteDomId(def.scope, def.team);
+    const st = noteStatusId(def.scope, def.team);
+    return `<section class="note-panel">
+      <div class="note-head">
+        <div>
+          <div class="note-title">${esc(def.title)}</div>
+          <div class="note-sub">${esc(def.sub)}</div>
+        </div>
+        <div class="note-status" id="${st}">Guardado</div>
+      </div>
+      <textarea id="${id}" class="note-textarea" placeholder="${esc(def.placeholder)}" oninput="onNoteInput('${def.scope}','${def.team}')">${esc(getNoteContent(def.scope, def.team))}</textarea>
+    </section>`;
+  }).join('');
+}
+
+function onNoteInput(scope, team) {
+  const key = scope + ':' + (team || '');
+  const status = $(noteStatusId(scope, team));
+  if (status) status.textContent = 'Guardando...';
+  clearTimeout(noteSaveTimers[key]);
+  noteSaveTimers[key] = setTimeout(() => saveNote(scope, team), 700);
+}
+
+async function saveNote(scope, team) {
+  const el = $(noteDomId(scope, team));
+  const status = $(noteStatusId(scope, team));
+  if (!el) return;
+  try {
+    const body = { content: el.value };
+    if (team) body.equipo = team;
+    const data = await api('/api/notes/' + scope, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    });
+    setNoteCache(data.note);
+    if (status) status.textContent = 'Guardado';
+  } catch (err) {
+    if (status) status.textContent = 'Error';
+    toast(err.message, 'error');
+  }
+}
+
 function renderTalentos() {
   const users = activeTeam === 'all' && isAdmin() ? getUsers() : getUsers().filter(u => u.equipo === activeTeam);
   const teamName = activeTeam === 'all' ? 'todos los equipos' : (TEAMS[activeTeam] || 'equipo actual');

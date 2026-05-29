@@ -24,6 +24,45 @@ if (process.env.NODE_ENV === 'production' && SESSION_SECRET === 'dev-only-change
 
 async function ensureDatabaseMigrations() {
   await pool.query("ALTER TABLE cards ADD COLUMN IF NOT EXISTS pauta_url TEXT NOT NULL DEFAULT ''");
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS team_calendars (
+      equipo TEXT PRIMARY KEY CHECK (equipo IN ('marketing', 'desarrollo', 'admin')),
+      google_calendar_url TEXT NOT NULL DEFAULT '',
+      updated_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS calendar_events (
+      id TEXT PRIMARY KEY,
+      titulo TEXT NOT NULL,
+      descripcion TEXT NOT NULL DEFAULT '',
+      fecha TEXT NOT NULL,
+      hora_inicio TEXT NOT NULL DEFAULT '',
+      hora_fin TEXT NOT NULL DEFAULT '',
+      equipo TEXT NOT NULL CHECK (equipo IN ('marketing', 'desarrollo', 'admin')),
+      color TEXT NOT NULL DEFAULT 'blue',
+      creado_por TEXT REFERENCES users(id) ON DELETE SET NULL,
+      creado_en BIGINT NOT NULL
+    )
+  `);
+  await pool.query("CREATE INDEX IF NOT EXISTS idx_calendar_events_equipo ON calendar_events(equipo)");
+  await pool.query("CREATE INDEX IF NOT EXISTS idx_calendar_events_fecha ON calendar_events(fecha)");
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS app_notes (
+      id TEXT PRIMARY KEY,
+      scope TEXT NOT NULL CHECK (scope IN ('personal', 'team', 'admin')),
+      user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+      equipo TEXT CHECK (equipo IN ('marketing', 'desarrollo', 'admin')),
+      content TEXT NOT NULL DEFAULT '',
+      updated_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await pool.query("CREATE UNIQUE INDEX IF NOT EXISTS idx_app_notes_personal ON app_notes(user_id) WHERE scope = 'personal'");
+  await pool.query("CREATE UNIQUE INDEX IF NOT EXISTS idx_app_notes_team ON app_notes(equipo) WHERE scope = 'team'");
+  await pool.query("CREATE UNIQUE INDEX IF NOT EXISTS idx_app_notes_admin ON app_notes(scope) WHERE scope = 'admin'");
 }
 
 app.use(express.json({ limit: '10mb' }));
@@ -255,6 +294,42 @@ function movementDTO(row, saldoAcumulado = null) {
   };
 }
 
+function noteDTO(row) {
+  return {
+    id: row.id,
+    scope: row.scope,
+    userId: row.user_id || null,
+    equipo: row.equipo || '',
+    content: row.content || '',
+    updatedBy: row.updated_by || null,
+    updatedAt: row.updated_at ? row.updated_at.toISOString() : null,
+  };
+}
+
+function groupNotes(rows, user) {
+  const notes = { personal: null, teams: {} };
+  for (const row of rows) {
+    const note = noteDTO(row);
+    if (note.scope === 'personal') notes.personal = note;
+    if (note.scope === 'team' && note.equipo) notes.teams[note.equipo] = note;
+    if (note.scope === 'admin' && isAdmin(user)) notes.admin = note;
+  }
+  return notes;
+}
+
+async function visibleNotes(user) {
+  const teams = allowedTeams(user);
+  const { rows } = await pool.query(
+    `SELECT * FROM app_notes
+     WHERE (scope = 'personal' AND user_id = $1)
+        OR (scope = 'team' AND equipo = ANY($2))
+        OR (scope = 'admin' AND $3 = TRUE)
+     ORDER BY scope, equipo NULLS LAST`,
+    [user.id, teams, isAdmin(user)]
+  );
+  return groupNotes(rows, user);
+}
+
 async function clientBalances() {
   // Saldo = total facturado - total pagado (haber)
   const { rows } = await pool.query(
@@ -340,7 +415,13 @@ async function trashedCards(user) {
 
 async function visibleCalendars(user) {
   const teams = allowedTeams(user);
-  return Object.fromEntries(teams.map((team) => [team, calendarUrlFromEnv(team)]));
+  const calendars = Object.fromEntries(teams.map((team) => [team, calendarUrlFromEnv(team)]));
+  const { rows } = await pool.query(
+    'SELECT equipo, google_calendar_url FROM team_calendars WHERE equipo = ANY($1)',
+    [teams]
+  );
+  for (const row of rows) calendars[row.equipo] = row.google_calendar_url || '';
+  return calendars;
 }
 
 async function visibleEvents(user) {
@@ -610,12 +691,76 @@ app.get('/api/bootstrap', requireAuth, async (req, res, next) => {
       cardsTrash: await trashedCards(req.user),
       calendars: await visibleCalendars(req.user),
       events: await visibleEvents(req.user),
+      notes: await visibleNotes(req.user),
       teams: allowedTeams(req.user),
       clients:         isAdmin ? await listClients()        : [],
       clientsTrash:    isAdmin ? await listTrashedClients() : [],
       libretaUrl:      isAdmin ? (process.env.LIBRETA_URL || '')       : '',
       flujoFondosUrl:  isAdmin ? (process.env.FLUJO_FONDOS_URL || '')  : '',
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ════════════════════════════════════════════
+// NOTAS
+// ════════════════════════════════════════════
+app.get('/api/notes', requireAuth, async (req, res, next) => {
+  try {
+    res.json({ notes: await visibleNotes(req.user) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.put('/api/notes/:scope', requireAuth, async (req, res, next) => {
+  try {
+    const scope = String(req.params.scope || '');
+    if (!['personal', 'team', 'admin'].includes(scope)) {
+      return res.status(400).json({ error: 'Tipo de nota invalido.' });
+    }
+    if (scope === 'admin' && !isAdmin(req.user)) {
+      return res.status(403).json({ error: 'Solo administradores.' });
+    }
+
+    const body = req.body || {};
+    const content = String(body.content || '').slice(0, 50000);
+    const equipo = scope === 'team' ? (cleanTeam(body.equipo) || req.user.equipo) : null;
+    if (scope === 'team' && !canAccessTeam(req.user, equipo)) {
+      return res.status(403).json({ error: 'Sin acceso a ese equipo.' });
+    }
+
+    let rows;
+    if (scope === 'personal') {
+      ({ rows } = await pool.query(
+        `INSERT INTO app_notes (id, scope, user_id, content, updated_by)
+         VALUES ($1, 'personal', $2, $3, $4)
+         ON CONFLICT (user_id) WHERE scope = 'personal'
+         DO UPDATE SET content = EXCLUDED.content, updated_by = EXCLUDED.updated_by, updated_at = NOW()
+         RETURNING *`,
+        [mkId(), req.user.id, content, req.user.id]
+      ));
+    } else if (scope === 'team') {
+      ({ rows } = await pool.query(
+        `INSERT INTO app_notes (id, scope, equipo, content, updated_by)
+         VALUES ($1, 'team', $2, $3, $4)
+         ON CONFLICT (equipo) WHERE scope = 'team'
+         DO UPDATE SET content = EXCLUDED.content, updated_by = EXCLUDED.updated_by, updated_at = NOW()
+         RETURNING *`,
+        [mkId(), equipo, content, req.user.id]
+      ));
+    } else {
+      ({ rows } = await pool.query(
+        `INSERT INTO app_notes (id, scope, content, updated_by)
+         VALUES ($1, 'admin', $2, $3)
+         ON CONFLICT (scope) WHERE scope = 'admin'
+         DO UPDATE SET content = EXCLUDED.content, updated_by = EXCLUDED.updated_by, updated_at = NOW()
+         RETURNING *`,
+        [mkId(), content, req.user.id]
+      ));
+    }
+    res.json({ note: noteDTO(rows[0]) });
   } catch (err) {
     next(err);
   }
