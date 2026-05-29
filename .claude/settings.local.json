@@ -25,7 +25,17 @@
       "Bash(node -e \"const fs=require\\('fs'\\);const html=fs.readFileSync\\('index.html','utf8'\\);const m=html.match\\(/<script>\\([\\\\s\\\\S]*?\\)<\\\\/script>/\\);if\\(!m\\){process.exit\\(0\\)}new Function\\(m[1]\\);console.log\\('inline JS OK'\\)\")",
       "Bash(npm run *)",
       "Bash(ls \"D:/dev/crm/CRM\" 2>&1 | head -50)",
-      "Bash(git fetch *)"
+      "Bash(git fetch *)",
+      "Bash(cd /d D:\\\\dev\\\\ConsultoriaDigital)",
+      "Bash(dir /B)",
+      "Bash(sort -u -t: -k1,1n)",
+      "Bash(PORT=3055 node server.js)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3055/)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3055/logo.webp)",
+      "Bash(PORT=3055 timeout 4 node server.js)",
+      "Bash(node -e ' *)",
+      "Bash(node _synckcheck.js)",
+      "Bash(cd \"D:/dev/ConsultoriaDigital\" && rm -f _synckcheck.js _synccheck.out.txt syntax-check.txt && rm -f .claude/preview.json && echo \"cleaned\")"
     ]
   }
 }

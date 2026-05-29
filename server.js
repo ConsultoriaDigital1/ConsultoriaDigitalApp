@@ -1242,6 +1242,14 @@ app.use('/api', (_req, res) => {
   res.status(404).json({ error: 'Ruta API no encontrada.' });
 });
 
+// Assets estáticos (logo, favicons). Se sirven explícitamente para no exponer
+// el resto del directorio (server.js, .env, db/, node_modules, etc.).
+const STATIC_FILES = ['logo.webp', 'favicon.svg', 'favicon.png'];
+for (const file of STATIC_FILES) {
+  app.get('/' + file, (_req, res) => res.sendFile(path.join(__dirname, file)));
+}
+app.get('/favicon.ico', (_req, res) => res.sendFile(path.join(__dirname, 'favicon.png')));
+
 app.get('*', (_req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 
 app.use((err, _req, res, _next) => {

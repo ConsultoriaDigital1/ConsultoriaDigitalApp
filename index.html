@@ -144,6 +144,40 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 .logo-mark.brand-logo { padding: 0.42rem 0.7rem; font-size: 0.9rem; cursor: pointer; }
 .logo-mark.brand-logo:focus-visible { outline: 2px solid #579dff; outline-offset: 2px; }
 
+/* Logo como imagen (wordmark lime sobre fondo transparente) */
+.auth-logo-img {
+  width: 100%; max-width: 300px; aspect-ratio: 5 / 1;
+  object-fit: cover; object-position: center; display: block;
+}
+.brand-logo-img {
+  height: 30px; width: 150px;
+  object-fit: cover; object-position: center;
+  display: block; cursor: pointer;
+}
+.brand-logo-img:focus-visible { outline: 2px solid #579dff; outline-offset: 2px; border-radius: 4px; }
+
+/* Buscador de clientes (Administración) */
+.clients-search { position: relative; margin: 0.2rem 0 0.9rem; }
+.clients-search-ico {
+  position: absolute; left: 0.75rem; top: 50%; transform: translateY(-50%);
+  font-size: 0.9rem; pointer-events: none; opacity: 0.7;
+}
+.clients-search-inp {
+  width: 100%; padding: 0.55rem 2.2rem 0.55rem 2.2rem;
+  border-radius: var(--r-sm); border: 1px solid var(--border);
+  background: var(--surface2); color: var(--text); font-size: 0.85rem;
+  outline: none; transition: border-color 150ms ease;
+}
+.clients-search-inp:focus { border-color: #579dff; }
+.clients-search-inp::placeholder { color: var(--muted); }
+.clients-search-clear {
+  position: absolute; right: 0.6rem; top: 50%; transform: translateY(-50%);
+  border: none; background: transparent; color: var(--muted);
+  font-size: 0.95rem; cursor: pointer; padding: 0.2rem 0.35rem; line-height: 1;
+  border-radius: 4px;
+}
+.clients-search-clear:hover { color: var(--text-hi); background: var(--surface3); }
+
 .nav-tabs { display: flex; gap: 0.15rem; }
 .nav-tab {
   padding: 0.42rem 0.95rem; border-radius: var(--r-sm);
@@ -1481,9 +1515,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 <div id="login-screen">
   <div class="auth-card">
     <div class="auth-logo">
-      <div class="logo-mark auth" aria-label="consultoria digital">
-        <span class="logo-text-main">consultor&iacute;a</span><span class="logo-text-strong">digital</span>
-      </div>
+      <img class="auth-logo-img" src="logo.webp" alt="consultor&iacute;a digital" />
       <div class="auth-logo-icon">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
           <rect x="3" y="3" width="7" height="7" rx="1.5"/>
@@ -1558,9 +1590,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
   <!-- Top Nav -->
   <nav class="topnav">
     <div class="brand">
-      <div class="logo-mark brand-logo" aria-label="Ir a clientes" role="button" tabindex="0" onclick="goClientesHome()" onkeydown="onBrandLogoKeydown(event)">
-        <span class="logo-text-main">consultor&iacute;a</span><span class="logo-text-strong">digital</span>
-      </div>
+      <img class="brand-logo-img" src="logo.webp" alt="consultor&iacute;a digital" aria-label="Ir a clientes" role="button" tabindex="0" onclick="goClientesHome()" onkeydown="onBrandLogoKeydown(event)" />
       <div class="brand-icon">
         <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
           <rect x="3" y="3" width="7" height="7" rx="1.5"/>
@@ -2455,6 +2485,7 @@ let adminSubTab        = 'clientes';
 let clientsCache       = [];
 let clientsTrashCache  = [];
 let clientsView        = 'active';  // 'active' | 'trash'
+let clientsSearchTerm  = '';        // término del buscador de clientes
 let movementsCache     = {};       // { [clientId]: [movements...] }
 let currentClientId    = null;
 let editingClientId    = null;     // id si el modal de cliente está editando; null = creando
@@ -2500,25 +2531,22 @@ function clientDisplayName(c) {
   return (c.nombreFantasia || c.razonSocial || '(Sin nombre)').trim();
 }
 
+// Normaliza texto para búsqueda (minúsculas, sin acentos)
+function normTxt(s) {
+  return (s == null ? '' : String(s)).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
+
 function renderClientesSubTab() {
   const cont = $('admin-sub-clientes');
   if (!cont) return;
   const inTrash = clientsView === 'trash';
-  const source  = inTrash ? clientsTrashCache : clientsCache;
-  const list = (source || []).slice().sort((a, b) =>
-    clientDisplayName(a).localeCompare(clientDisplayName(b), 'es')
-  );
   const trashCount = (clientsTrashCache || []).length;
 
   cont.innerHTML = `
     <div class="admin-section-head">
       <div>
         <div class="admin-section-title">${inTrash ? 'Papelera de clientes' : 'Clientes'}</div>
-        <div class="admin-section-sub">
-          ${inTrash
-            ? `${list.length} cliente${list.length === 1 ? '' : 's'} en la papelera.`
-            : `${list.length} cliente${list.length === 1 ? '' : 's'} activo${list.length === 1 ? '' : 's'}.`}
-        </div>
+        <div class="admin-section-sub" id="clients-sub"></div>
       </div>
       <div style="display:flex;gap:0.5rem">
         ${inTrash ? `
@@ -2531,37 +2559,109 @@ function renderClientesSubTab() {
         `}
       </div>
     </div>
-    ${list.length === 0 ? `
+    <div class="clients-search">
+      <span class="clients-search-ico">🔍</span>
+      <input type="search" id="clients-search-inp" class="clients-search-inp"
+             placeholder="Buscar cliente por nombre, razón social o CUIT…"
+             value="${esc(clientsSearchTerm)}" oninput="onClientsSearch(this.value)" autocomplete="off" />
+      ${clientsSearchTerm ? `<button class="clients-search-clear" onclick="clearClientsSearch()" title="Limpiar búsqueda">✕</button>` : ''}
+    </div>
+    <div id="clients-results"></div>
+  `;
+  renderClientsResults();
+}
+
+function renderClientsResults() {
+  const box = $('clients-results');
+  if (!box) return;
+  const inTrash = clientsView === 'trash';
+  const source  = inTrash ? clientsTrashCache : clientsCache;
+  const all = (source || []).slice().sort((a, b) =>
+    clientDisplayName(a).localeCompare(clientDisplayName(b), 'es')
+  );
+  const term = normTxt(clientsSearchTerm).trim();
+  const list = term
+    ? all.filter(c =>
+        normTxt(clientDisplayName(c)).includes(term) ||
+        normTxt(c.razonSocial).includes(term) ||
+        normTxt(c.cuit).includes(term))
+    : all;
+
+  // Subtítulo con conteo en vivo
+  const sub = $('clients-sub');
+  if (sub) {
+    if (term) {
+      sub.textContent = `${list.length} resultado${list.length === 1 ? '' : 's'} para “${clientsSearchTerm.trim()}”.`;
+    } else if (inTrash) {
+      sub.textContent = `${list.length} cliente${list.length === 1 ? '' : 's'} en la papelera.`;
+    } else {
+      sub.textContent = `${list.length} cliente${list.length === 1 ? '' : 's'} activo${list.length === 1 ? '' : 's'}.`;
+    }
+  }
+
+  if (list.length === 0) {
+    box.innerHTML = `
       <div class="admin-placeholder">
-        ${inTrash ? `
+        ${term ? `
+          <strong>Sin resultados</strong>
+          No hay clientes que coincidan con “${esc(clientsSearchTerm.trim())}”.
+        ` : inTrash ? `
           <strong>Papelera vacía</strong>
           No hay clientes eliminados.
         ` : `
           <strong>Sin clientes todavía</strong>
           Tocá <em>"+ Nuevo cliente"</em> para empezar a cargar.
         `}
-      </div>
-    ` : `
-      <div style="overflow-x:auto">
-        <table class="clients-table">
-          <thead>
-            <tr>
-              <th>Cliente</th>
-              <th>RS</th>
-              <th>CUIT</th>
-              <th>Debe</th>
-              <th>Vence</th>
-              <th>Estado</th>
-              <th>${inTrash ? 'Eliminado' : 'Acciones'}</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${list.map(inTrash ? trashRowHTML : clientRowHTML).join('')}
-          </tbody>
-        </table>
-      </div>
-    `}
-  `;
+      </div>`;
+    return;
+  }
+
+  box.innerHTML = `
+    <div style="overflow-x:auto">
+      <table class="clients-table">
+        <thead>
+          <tr>
+            <th>Cliente</th>
+            <th>RS</th>
+            <th>CUIT</th>
+            <th>Debe</th>
+            <th>Vence</th>
+            <th>Estado</th>
+            <th>${inTrash ? 'Eliminado' : 'Acciones'}</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${list.map(inTrash ? trashRowHTML : clientRowHTML).join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+function onClientsSearch(value) {
+  clientsSearchTerm = value;
+  renderClientsResults();
+  // Mostrar/ocultar el botón de limpiar sin perder el foco del input
+  const inp = $('clients-search-inp');
+  if (!inp) return;
+  const wrap = inp.parentElement;
+  let clearBtn = wrap.querySelector('.clients-search-clear');
+  if (clientsSearchTerm && !clearBtn) {
+    clearBtn = document.createElement('button');
+    clearBtn.className = 'clients-search-clear';
+    clearBtn.title = 'Limpiar búsqueda';
+    clearBtn.textContent = '✕';
+    clearBtn.onclick = clearClientsSearch;
+    wrap.appendChild(clearBtn);
+  } else if (!clientsSearchTerm && clearBtn) {
+    clearBtn.remove();
+  }
+}
+
+function clearClientsSearch() {
+  clientsSearchTerm = '';
+  renderClientesSubTab();
+  const inp = $('clients-search-inp');
+  if (inp) inp.focus();
 }
 
 function switchClientsView(view) {
