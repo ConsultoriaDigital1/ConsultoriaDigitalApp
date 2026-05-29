@@ -25,30 +25,6 @@ if (process.env.NODE_ENV === 'production' && SESSION_SECRET === 'dev-only-change
 async function ensureDatabaseMigrations() {
   await pool.query("ALTER TABLE cards ADD COLUMN IF NOT EXISTS pauta_url TEXT NOT NULL DEFAULT ''");
   await pool.query(`
-    CREATE TABLE IF NOT EXISTS team_calendars (
-      equipo TEXT PRIMARY KEY CHECK (equipo IN ('marketing', 'desarrollo', 'admin')),
-      google_calendar_url TEXT NOT NULL DEFAULT '',
-      updated_by TEXT REFERENCES users(id) ON DELETE SET NULL,
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `);
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS calendar_events (
-      id TEXT PRIMARY KEY,
-      titulo TEXT NOT NULL,
-      descripcion TEXT NOT NULL DEFAULT '',
-      fecha TEXT NOT NULL,
-      hora_inicio TEXT NOT NULL DEFAULT '',
-      hora_fin TEXT NOT NULL DEFAULT '',
-      equipo TEXT NOT NULL CHECK (equipo IN ('marketing', 'desarrollo', 'admin')),
-      color TEXT NOT NULL DEFAULT 'blue',
-      creado_por TEXT REFERENCES users(id) ON DELETE SET NULL,
-      creado_en BIGINT NOT NULL
-    )
-  `);
-  await pool.query("CREATE INDEX IF NOT EXISTS idx_calendar_events_equipo ON calendar_events(equipo)");
-  await pool.query("CREATE INDEX IF NOT EXISTS idx_calendar_events_fecha ON calendar_events(fecha)");
-  await pool.query(`
     CREATE TABLE IF NOT EXISTS app_notes (
       id TEXT PRIMARY KEY,
       scope TEXT NOT NULL CHECK (scope IN ('personal', 'team', 'admin')),
@@ -415,13 +391,7 @@ async function trashedCards(user) {
 
 async function visibleCalendars(user) {
   const teams = allowedTeams(user);
-  const calendars = Object.fromEntries(teams.map((team) => [team, calendarUrlFromEnv(team)]));
-  const { rows } = await pool.query(
-    'SELECT equipo, google_calendar_url FROM team_calendars WHERE equipo = ANY($1)',
-    [teams]
-  );
-  for (const row of rows) calendars[row.equipo] = row.google_calendar_url || '';
-  return calendars;
+  return Object.fromEntries(teams.map((team) => [team, calendarUrlFromEnv(team)]));
 }
 
 async function visibleEvents(user) {

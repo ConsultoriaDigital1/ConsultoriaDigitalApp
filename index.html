@@ -1395,7 +1395,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
    CALENDAR
    ═══════════════════════════════════════════ */
 .cal-wrap { flex: 1; padding: 1rem 1.1rem; overflow-y: auto; }
-.google-cal-panel { margin-top: 1rem; }
+.google-cal-panel { height: 100%; min-height: 520px; }
 .google-cal-team { margin-bottom: 1rem; }
 .google-cal-title {
   display: flex; align-items: center; gap: 0.45rem;
@@ -1409,7 +1409,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
   font-size: 0.78rem;
 }
 .google-cal-frame {
-  width: 100%; height: 420px; min-height: 420px;
+  width: 100%; height: 100%; min-height: 520px;
   border: 1px solid var(--border); border-radius: var(--r-sm);
   background: var(--surface);
 }
@@ -1728,9 +1728,9 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
           </div>
         </div>
         <div class="cal-wrap">
+          <div id="google-cal-panel" class="google-cal-panel" style="display:none"></div>
           <div class="cal-grid" id="cal-header"></div>
           <div class="cal-grid" id="cal-body" style="margin-top:0.32rem"></div>
-          <div id="google-cal-panel" class="google-cal-panel" style="display:none"></div>
         </div>
       </div>
 
@@ -5230,44 +5230,59 @@ async function clearGoogleCalendar() {
 function setGoogleCalendarMode(on) {
   const panel = $('google-cal-panel');
   if (panel) panel.style.display = on ? '' : 'none';
+  document.querySelectorAll('#tab-calendario button[onclick^="changeMonth"]').forEach(btn => {
+    btn.style.display = on ? 'none' : '';
+  });
   const addBtn = $('cal-add-event-btn');
-  if (addBtn) addBtn.style.display = '';
-  $('cal-header').style.display = '';
-  $('cal-body').style.display   = '';
+  if (addBtn) addBtn.style.display = on ? 'none' : '';
+  $('cal-header').style.display = on ? 'none' : '';
+  $('cal-body').style.display   = on ? 'none' : '';
 }
 
 function calendarCardDate(card) {
   return dateFromInput(card.vence) || (card.creadoEn ? new Date(card.creadoEn) : null);
 }
 
-function calendarTeamsForView() {
-  return activeTeam === 'all' && isAdmin() ? allowedTeams() : [currentCalendarTeam()];
-}
-
-function renderGoogleCalendarPanel(teams) {
-  const visible = teams.filter(team => getGoogleCalendar(team));
-  setGoogleCalendarMode(visible.length > 0);
-  $('google-cal-panel').innerHTML = visible.map(team => {
+function renderAllGoogleCalendars() {
+  const teams = allowedTeams();
+  setGoogleCalendarMode(true);
+  $('cal-sub').textContent = 'Todos los calendarios';
+  $('google-cal-panel').innerHTML = teams.map(team => {
     const url = getGoogleCalendar(team);
     return `<div class="google-cal-team">
       <div class="google-cal-title">
         <span class="sb-dot ${TEAM_DOT[team]||'d-all'}" style="display:inline-block"></span>
-        Google Calendar - ${esc(TEAMS[team]||team)}
+        ${esc(TEAMS[team]||team)}
       </div>
-      <iframe class="google-cal-frame" src="${esc(url)}" loading="lazy"></iframe>
+      ${url
+        ? `<iframe class="google-cal-frame" src="${esc(url)}" loading="lazy"></iframe>`
+        : `<div class="google-cal-empty">Sin Google Calendar configurado</div>`}
     </div>`;
   }).join('');
 }
 
 function renderCalendar() {
-  const teams = calendarTeamsForView();
-  const multiTeam = teams.length > 1;
-  renderGoogleCalendarPanel(teams);
-  $('cal-sub').textContent = (multiTeam ? 'Todos los equipos' : (TEAMS[teams[0]] || teams[0])) + ' - ' + MONTHS[calMonth] + ' ' + calYear;
+  if (activeTeam === 'all' && isAdmin()) {
+    renderAllGoogleCalendars();
+    return;
+  }
+  const team = currentCalendarTeam();
+  const googleUrl = getGoogleCalendar(team);
+  if (googleUrl) {
+    setGoogleCalendarMode(true);
+    $('cal-sub').textContent = (TEAMS[team] || team) + ' - Google Calendar';
+    $('google-cal-panel').innerHTML =
+      `<iframe class="google-cal-frame" src="${esc(googleUrl)}" loading="lazy"></iframe>`;
+    return;
+  }
+
+  setGoogleCalendarMode(false);
+  $('google-cal-panel').innerHTML = '';
+  $('cal-sub').textContent = (TEAMS[team] || team) + ' - ' + MONTHS[calMonth] + ' ' + calYear;
   $('cal-header').innerHTML = DAYS.map(d => `<div class="cal-lbl">${d}</div>`).join('');
 
   const itemsByDay = {};
-  getCards().filter(c => teams.includes(c.equipo)).forEach(c => {
+  getCards().filter(c => c.equipo === team).forEach(c => {
     const d = calendarCardDate(c);
     if (!d) return;
     if (d.getFullYear() === calYear && d.getMonth() === calMonth) {
@@ -5277,7 +5292,7 @@ function renderCalendar() {
     }
   });
   getEvents().filter(e => {
-    if (!teams.includes(e.equipo)) return false;
+    if (e.equipo !== team) return false;
     const p = e.fecha.split('-');
     return parseInt(p[0],10) === calYear && parseInt(p[1],10) === calMonth + 1;
   }).forEach(ev => {
@@ -5302,19 +5317,13 @@ function renderCalendar() {
     html += `<div class="cal-day${isToday?' today':''}">
       <div class="cal-daynum" onclick="openEventModal('${isoDate}')" title="Agregar evento">${d}</div>
       ${shown.map(item => item.type === 'event'
-        ? `<div class="cal-event evt" style="border-left-color:${EVT_COLORS[item.data.color]||'#579dff'};color:${EVT_COLORS[item.data.color]||'#579dff'}" onclick="openEditEvent('${item.data.id}')">${esc(calendarEventLabel(item.data, multiTeam))}</div>`
+        ? `<div class="cal-event evt" style="border-left-color:${EVT_COLORS[item.data.color]||'#579dff'};color:${EVT_COLORS[item.data.color]||'#579dff'}" onclick="openEditEvent('${item.data.id}')">${esc(item.data.titulo)}</div>`
         : `<div class="cal-event" onclick="openCard('${item.data.id}')">${esc(item.data.nf||item.data.rs||'—')}</div>`
       ).join('')}
       ${extra ? `<div class="cal-event" style="background:var(--surface3)">+${extra} más</div>` : ''}
     </div>`;
   }
   $('cal-body').innerHTML = html;
-}
-
-function calendarEventLabel(ev, showTeam) {
-  const time = ev.horaInicio ? ev.horaInicio + ' ' : '';
-  const team = showTeam ? (TEAMS[ev.equipo] || ev.equipo || '') + ': ' : '';
-  return time + team + ev.titulo;
 }
 
 function changeMonth(dir) {
