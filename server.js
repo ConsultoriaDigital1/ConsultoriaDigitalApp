@@ -401,7 +401,8 @@ function cleanChecklist(value) {
     if (!text) return null;
     const id = String(item && item.id ? item.id : '').trim().slice(0, 80) || mkId();
     const usuario = cleanUserIds(item && item.usuario)[0] || null;
-    return { id, text, done: item && item.done === true, usuario };
+    const done = item && item.done === true;
+    return { id, text, done, progress: !done && item && item.progress === true, usuario };
   }).filter(Boolean);
 }
 

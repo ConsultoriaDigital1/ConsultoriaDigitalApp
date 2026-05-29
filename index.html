@@ -1162,12 +1162,27 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 }
 .checklist-items { display: flex; flex-direction: column; gap: 0.28rem; margin-bottom: 0.45rem; }
 .checklist-item {
-  display: grid; grid-template-columns: 18px minmax(0, 1fr) minmax(120px, 160px) 24px; align-items: center;
+  display: grid; grid-template-columns: 18px 20px minmax(0, 1fr) minmax(120px, 160px) 24px; align-items: center;
   gap: 0.35rem; min-height: 28px;
 }
 .checklist-item-check {
   width: 15px; height: 15px; accent-color: #579dff; cursor: pointer;
 }
+.checklist-item-progress {
+  width: 18px; height: 18px; padding: 0; border-radius: 50%;
+  border: 1.5px solid var(--border2); background: transparent; cursor: pointer;
+  position: relative; display: inline-flex; align-items: center; justify-content: center;
+}
+.checklist-item-progress::after {
+  content: ''; width: 8px; height: 8px; border-radius: 50%; background: transparent;
+}
+.checklist-item-progress:hover:not(:disabled) { border-color: #f2a93b; }
+.checklist-item-progress.active { border-color: #f2a93b; }
+.checklist-item-progress.active::after {
+  background: conic-gradient(#f2a93b 0 50%, transparent 50% 100%);
+}
+.checklist-item-progress:disabled { opacity: 0.3; cursor: not-allowed; }
+.checklist-item-text.progress { color: #f2a93b; font-style: italic; }
 .checklist-item-text {
   width: 100%; border: 1px solid transparent; border-radius: 5px;
   background: transparent; color: var(--text-hi); padding: 0.22rem 0.32rem;
@@ -1269,9 +1284,9 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
   .card-title-row { gap: 0.55rem; }
   .card-title-input { font-size: 0.98rem; min-height: 44px; }
   .card-subtitle, .card-action-row, .card-props, .trello-section, .client-details { margin-left: 0; }
-  .checklist-item { grid-template-columns: 18px minmax(0, 1fr) 24px; }
-  .checklist-user-select { grid-column: 2 / 4; grid-row: 2; }
-  .checklist-item-del { grid-column: 3; grid-row: 1; }
+  .checklist-item { grid-template-columns: 18px 20px minmax(0, 1fr) 24px; }
+  .checklist-user-select { grid-column: 3 / 5; grid-row: 2; }
+  .checklist-item-del { grid-column: 4; grid-row: 1; }
   .card-title-check { display: none; }
   .card-window-actions .card-icon-btn:not(.modal-close):not(.cover-menu-btn) { display: none; }
 }
@@ -3223,10 +3238,12 @@ function normalizeChecklist(items) {
     const text = String(item && item.text != null ? item.text : '').trim().slice(0, 500);
     if (!text) return null;
     const usuario = normalizeUserIds(item && item.usuario)[0] || '';
+    const done = item && item.done === true;
     return {
       id: String(item && item.id ? item.id : makeChecklistId()).slice(0, 80),
       text,
-      done: item && item.done === true,
+      done,
+      progress: !done && item && item.progress === true,
       usuario,
     };
   }).filter(Boolean);
@@ -3273,7 +3290,7 @@ function addChecklistItem() {
   const input = $('checklist-new-text');
   const text = input ? input.value.trim() : '';
   if (!text) return;
-  modalChecklist = normalizeChecklist([...modalChecklist, { id: makeChecklistId(), text, done: false, usuario: '' }]);
+  modalChecklist = normalizeChecklist([...modalChecklist, { id: makeChecklistId(), text, done: false, progress: false, usuario: '' }]);
   if (input) input.value = '';
   checklistHideDone = false;
   renderChecklist();
@@ -3291,6 +3308,14 @@ function onChecklistInputKey(event) {
 function toggleChecklistItem(index, done) {
   if (!modalChecklist[index]) return;
   modalChecklist[index].done = done === true;
+  if (modalChecklist[index].done) modalChecklist[index].progress = false;
+  renderChecklist();
+}
+
+function toggleChecklistProgress(index) {
+  if (!modalChecklist[index]) return;
+  if (modalChecklist[index].done) return;
+  modalChecklist[index].progress = !modalChecklist[index].progress;
   renderChecklist();
 }
 
@@ -3373,9 +3398,10 @@ function renderChecklist() {
   const itemsEl = $('checklist-items');
   if (itemsEl) {
     itemsEl.innerHTML = visibleItems.map(({ item, index }) => `
-      <div class="checklist-item">
+      <div class="checklist-item${item.progress ? ' in-progress' : ''}">
         <input class="checklist-item-check" type="checkbox" ${item.done ? 'checked' : ''} onchange="toggleChecklistItem(${index}, this.checked)" />
-        <input class="checklist-item-text${item.done ? ' done' : ''}" value="${esc(item.text)}" onblur="renameChecklistItem(${index}, this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()} if(event.key==='Escape'){this.value=this.defaultValue;this.blur()}" />
+        <button class="checklist-item-progress${item.progress ? ' active' : ''}" type="button" ${item.done ? 'disabled' : ''} onmousedown="event.preventDefault()" onclick="toggleChecklistProgress(${index})" title="${item.progress ? 'En proceso (clic para quitar)' : 'Marcar en proceso'}" aria-pressed="${item.progress ? 'true' : 'false'}"></button>
+        <input class="checklist-item-text${item.done ? ' done' : ''}${item.progress ? ' progress' : ''}" value="${esc(item.text)}" onblur="renameChecklistItem(${index}, this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()} if(event.key==='Escape'){this.value=this.defaultValue;this.blur()}" />
         <select class="checklist-user-select" onchange="assignChecklistItem(${index}, this.value)">${checklistUserOptions(item.usuario)}</select>
         <button class="checklist-item-del" type="button" onmousedown="event.preventDefault()" onclick="deleteChecklistItem(${index})" title="Eliminar">x</button>
       </div>
