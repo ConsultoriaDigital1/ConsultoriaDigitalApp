@@ -22,6 +22,10 @@ if (process.env.NODE_ENV === 'production' && SESSION_SECRET === 'dev-only-change
   throw new Error('Defini SESSION_SECRET en produccion.');
 }
 
+async function ensureDatabaseMigrations() {
+  await pool.query("ALTER TABLE cards ADD COLUMN IF NOT EXISTS pauta_url TEXT NOT NULL DEFAULT ''");
+}
+
 app.use(express.json({ limit: '10mb' }));
 
 function mkId() {
@@ -1257,6 +1261,16 @@ app.use((err, _req, res, _next) => {
   res.status(err.status || 500).json({ error: err.message || 'Error interno.' });
 });
 
-app.listen(PORT, () => {
-  console.log(`ConsultoriaDigital en http://localhost:${PORT}`);
-});
+async function start() {
+  try {
+    await ensureDatabaseMigrations();
+    app.listen(PORT, () => {
+      console.log(`ConsultoriaDigital en http://localhost:${PORT}`);
+    });
+  } catch (err) {
+    console.error('No se pudo preparar la base de datos:', err);
+    process.exit(1);
+  }
+}
+
+start();
