@@ -1744,9 +1744,10 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
             <div class="cbar-sub" id="cal-sub"></div>
           </div>
           <div style="margin-left:auto;display:flex;gap:0.4rem;flex-wrap:wrap;justify-content:flex-end">
+            <button id="cal-gcal-btn" class="btn btn-ghost btn-sm" onclick="openGcalConfigModal()" title="Configurar Google Calendar">⚙ Google Cal</button>
             <button id="cal-add-event-btn" class="btn btn-primary btn-sm" onclick="openEventModal()">+ Evento</button>
-            <button class="btn btn-ghost btn-sm" onclick="changeMonth(-1)">‹</button>
-            <button class="btn btn-ghost btn-sm" onclick="changeMonth(1)">›</button>
+            <button id="cal-prev-btn" class="btn btn-ghost btn-sm" onclick="changeMonth(-1)">‹</button>
+            <button id="cal-next-btn" class="btn btn-ghost btn-sm" onclick="changeMonth(1)">›</button>
           </div>
         </div>
         <div class="cal-wrap">
@@ -2172,6 +2173,43 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
       <button id="ev-delete-btn" class="btn btn-ghost btn-sm" style="color:#ff5c5c;margin-right:auto;display:none" onclick="confirmDeleteEvent()">Eliminar evento</button>
       <button class="btn btn-ghost btn-sm" onclick="closeEventModal()">Cancelar</button>
       <button class="btn btn-primary btn-sm" onclick="saveEvent()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- GCAL CONFIG MODAL -->
+<div id="gcal-overlay" class="overlay" onclick="gcalBg(event)">
+  <div class="modal" style="max-width:500px" onclick="event.stopPropagation()">
+    <div class="modal-head">
+      <span class="modal-head-title">Configurar Google Calendar</span>
+      <button class="modal-close" onclick="closeGcalModal()">x</button>
+    </div>
+    <div style="padding:1.2rem 1.4rem">
+      <div class="form-group" id="gcal-team-group">
+        <label class="form-label">Equipo</label>
+        <select id="gcal-equipo" class="form-select" onchange="onGcalTeamChange()">
+          <option value="marketing">Marketing</option>
+          <option value="desarrollo">Desarrollo</option>
+          <option value="admin">Administración</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">URL o ID de Google Calendar</label>
+        <input id="gcal-url" class="form-input" type="text" placeholder="Pega la URL de inserción o el ID del calendario..." />
+        <div style="font-size:0.72rem;color:var(--muted);margin-top:0.35rem">
+          Aceptamos URL de inserción, iframe completo, o solo el ID (ej: <em>abc123@group.calendar.google.com</em>). En Google Calendar: Configuración → tu calendario → Integrar calendario → URL de inserción.
+        </div>
+      </div>
+      <div id="gcal-current" style="display:none;margin-top:0.5rem">
+        <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.3rem">Calendario activo:</div>
+        <div id="gcal-current-url" style="font-size:0.72rem;color:var(--accent);word-break:break-all;background:var(--surface3);padding:0.4rem 0.6rem;border-radius:var(--r-sm)"></div>
+      </div>
+      <div id="gcal-err" class="form-error" style="display:none"></div>
+    </div>
+    <div class="modal-foot">
+      <button id="gcal-clear-btn" class="btn btn-ghost btn-sm" style="color:#ff5c5c;margin-right:auto;display:none" onclick="clearGcalFromModal()">Quitar calendario</button>
+      <button class="btn btn-ghost btn-sm" onclick="closeGcalModal()">Cancelar</button>
+      <button class="btn btn-primary btn-sm" onclick="saveGcalFromModal()">Guardar</button>
     </div>
   </div>
 </div>
@@ -5370,6 +5408,72 @@ function normalizeGoogleCalendar(raw) {
   }
 }
 
+function openGcalConfigModal() {
+  const team = currentCalendarTeam();
+  openGcalConfigForTeam(team);
+}
+
+function openGcalConfigForTeam(team) {
+  const adminView = isAdmin();
+  $('gcal-team-group').style.display = adminView ? '' : 'none';
+  $('gcal-equipo').value = team;
+  _refreshGcalModalForTeam(team);
+  hideErr('gcal-err');
+  openOverlay('gcal-overlay');
+  $('gcal-url').focus();
+}
+
+function _refreshGcalModalForTeam(team) {
+  const existing = getGoogleCalendar(team);
+  $('gcal-url').value = '';
+  const cur = $('gcal-current');
+  if (existing) {
+    $('gcal-current-url').textContent = existing;
+    cur.style.display = '';
+    $('gcal-clear-btn').style.display = '';
+  } else {
+    cur.style.display = 'none';
+    $('gcal-clear-btn').style.display = 'none';
+  }
+}
+
+function onGcalTeamChange() {
+  _refreshGcalModalForTeam($('gcal-equipo').value);
+  hideErr('gcal-err');
+}
+
+function closeGcalModal() { closeOverlay('gcal-overlay'); }
+function gcalBg(e) { if (e.target.id === 'gcal-overlay') closeGcalModal(); }
+
+async function saveGcalFromModal() {
+  const team = isAdmin() ? $('gcal-equipo').value : currentCalendarTeam();
+  const raw  = $('gcal-url').value.trim();
+  if (!raw) { showErr('gcal-err', 'Ingresa una URL o ID de Google Calendar.'); return; }
+  const url = normalizeGoogleCalendar(raw);
+  if (!url) { showErr('gcal-err', 'URL o ID de Google Calendar inválido. Verificá que sea una URL de inserción válida.'); return; }
+  try {
+    await saveGoogleCalendar(team, url);
+    closeGcalModal();
+    renderCalendar();
+    toast('Google Calendar configurado', 'success');
+  } catch (err) {
+    showErr('gcal-err', err.message);
+  }
+}
+
+async function clearGcalFromModal() {
+  const team = isAdmin() ? $('gcal-equipo').value : currentCalendarTeam();
+  if (!confirm('¿Quitar el Google Calendar de ' + (TEAMS[team] || team) + '?')) return;
+  try {
+    await saveGoogleCalendar(team, '');
+    closeGcalModal();
+    renderCalendar();
+    toast('Google Calendar quitado', 'success');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
 function promptCalendarTeam() {
   if (!(activeTeam === 'all' && isAdmin())) return currentCalendarTeam();
   const raw = prompt('Equipo para configurar: marketing, desarrollo o admin', 'marketing');
@@ -5382,42 +5486,16 @@ function promptCalendarTeam() {
   return team;
 }
 
-async function configureGoogleCalendar() {
-  const team = promptCalendarTeam();
-  if (!team) return;
-  const raw = prompt('Pega la URL de insercion o el ID de Google Calendar para ' + (TEAMS[team] || team) + ':', getGoogleCalendar(team));
-  if (raw === null) return;
-  const url = normalizeGoogleCalendar(raw);
-  if (!url) { toast('Google Calendar invalido', 'error'); return; }
-  try {
-    await saveGoogleCalendar(team, url);
-    renderCalendar();
-    toast('Google Calendar configurado', 'success');
-  } catch (err) {
-    toast(err.message, 'error');
-  }
-}
-
-async function clearGoogleCalendar() {
-  const team = promptCalendarTeam();
-  if (!team) return;
-  try {
-    await saveGoogleCalendar(team, '');
-    renderCalendar();
-    toast('Google Calendar quitado', 'success');
-  } catch (err) {
-    toast(err.message, 'error');
-  }
-}
+async function configureGoogleCalendar() { openGcalConfigModal(); }
+async function clearGoogleCalendar()     { openGcalConfigModal(); }
 
 function setGoogleCalendarMode(on) {
   const panel = $('google-cal-panel');
   if (panel) panel.style.display = on ? '' : 'none';
-  document.querySelectorAll('#tab-calendario button[onclick^="changeMonth"]').forEach(btn => {
-    btn.style.display = on ? 'none' : '';
-  });
-  const addBtn = $('cal-add-event-btn');
-  if (addBtn) addBtn.style.display = on ? 'none' : '';
+  const prevBtn = $('cal-prev-btn');
+  const nextBtn = $('cal-next-btn');
+  if (prevBtn) prevBtn.style.display = on ? 'none' : '';
+  if (nextBtn) nextBtn.style.display = on ? 'none' : '';
   $('cal-header').style.display = on ? 'none' : '';
   $('cal-body').style.display   = on ? 'none' : '';
 }
@@ -5436,10 +5514,14 @@ function renderAllGoogleCalendars() {
       <div class="google-cal-title">
         <span class="sb-dot ${TEAM_DOT[team]||'d-all'}" style="display:inline-block"></span>
         ${esc(TEAMS[team]||team)}
+        <button class="btn btn-ghost btn-sm" style="margin-left:auto;font-size:0.7rem;padding:0.1rem 0.5rem" onclick="openGcalConfigForTeam('${team}')" title="Configurar Google Calendar">⚙</button>
       </div>
       ${url
         ? `<iframe class="google-cal-frame" src="${esc(url)}" loading="lazy"></iframe>`
-        : `<div class="google-cal-empty">Sin Google Calendar configurado</div>`}
+        : `<div class="google-cal-empty" style="cursor:pointer;gap:0.4rem;flex-direction:column" onclick="openGcalConfigForTeam('${team}')">
+            <span style="font-size:1.2rem">📅</span>
+            <span>Sin Google Calendar — click para configurar</span>
+          </div>`}
     </div>`;
   }).join('');
 }
