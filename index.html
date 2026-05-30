@@ -3397,40 +3397,12 @@ function applyLibretaUrl() {
     toEmbed: (u) => toEditableSheetUrl(u, true),
     toOpen:  (u) => toEditableSheetUrl(u, false),
   });
-  const inp = $('libreta-url-input');
-  if (inp && document.activeElement !== inp) inp.value = libretaUrl || '';
   const hint = $('libreta-hint');
   if (hint) {
     const u = String(libretaUrl || '').trim();
     hint.style.display = u ? '' : 'none';
     const ro = $('libreta-hint-readonly');
     if (ro) ro.style.display = (u && isPublishedSheet(u)) ? '' : 'none';
-  }
-}
-
-async function saveLibretaUrl() {
-  const raw = ($('libreta-url-input') && $('libreta-url-input').value) || '';
-  const url = raw.trim() ? extractIframeSrc(raw) : '';
-  if (raw.trim() && !url) { toast('URL invalida. Pega un link http(s) o un <iframe>.', 'error'); return; }
-  try {
-    const res = await api('/api/admin/settings/libreta_url', { method: 'PUT', body: JSON.stringify({ value: url }) });
-    libretaUrl = (res && res.value) || '';
-    applyLibretaUrl();
-    toast(libretaUrl ? 'Libreta actualizada.' : 'Libreta quitada.', 'success');
-  } catch (err) {
-    toast(err.message || 'No se pudo guardar.', 'error');
-  }
-}
-
-async function clearLibretaUrl() {
-  if ($('libreta-url-input')) $('libreta-url-input').value = '';
-  try {
-    const res = await api('/api/admin/settings/libreta_url', { method: 'PUT', body: JSON.stringify({ value: '' }) });
-    libretaUrl = (res && res.value) || '';
-    applyLibretaUrl();
-    toast('Libreta quitada.', 'success');
-  } catch (err) {
-    toast(err.message || 'No se pudo guardar.', 'error');
   }
 }
 
@@ -4143,17 +4115,10 @@ function renderAdminTable(board, cards, _users) {
         </div>
         <a id="libreta-open" class="btn btn-lime btn-sm" href="#" target="_blank" rel="noopener" style="display:none">✏️ Editar en Google Sheets ↗</a>
       </div>
-      <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;margin-bottom:0.7rem">
-        <input id="libreta-url-input" class="form-input" type="text" style="flex:1;min-width:240px"
-               placeholder="Pegá la URL de edición del Sheet (.../d/ID/edit) o el <iframe> completo"
-               onkeydown="if(event.key==='Enter')saveLibretaUrl()" />
-        <button class="btn btn-lime btn-sm" type="button" onclick="saveLibretaUrl()">Aplicar</button>
-        <button class="btn btn-ghost btn-sm" type="button" onclick="clearLibretaUrl()">Quitar</button>
-      </div>
       <div id="libreta-empty" class="admin-placeholder" style="display:none">
         <strong>Libreta no configurada</strong>
-        Pegá arriba la URL de edición de la hoja (<code>.../spreadsheets/d/ID/edit</code>),
-        compartila como «Editor – cualquiera con el enlace» y tocá <strong>Aplicar</strong>.
+        Definí <code>LIBRETA_URL</code> en el archivo <code>.env</code> con la URL de edición de la hoja
+        (<code>.../spreadsheets/d/ID/edit</code>), compartila como «Editor – cualquiera con el enlace» y reiniciá el server.
       </div>
       <div id="libreta-hint" style="display:none;margin-bottom:0.6rem;font-size:0.8rem;color:var(--muted)">
         Para editar acá adentro necesitás estar logueado en Google con permiso de edición sobre la hoja

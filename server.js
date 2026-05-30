@@ -39,23 +39,6 @@ async function ensureDatabaseMigrations() {
   await pool.query("CREATE UNIQUE INDEX IF NOT EXISTS idx_app_notes_personal ON app_notes(user_id) WHERE scope = 'personal'");
   await pool.query("CREATE UNIQUE INDEX IF NOT EXISTS idx_app_notes_team ON app_notes(equipo) WHERE scope = 'team'");
   await pool.query("CREATE UNIQUE INDEX IF NOT EXISTS idx_app_notes_admin ON app_notes(scope) WHERE scope = 'admin'");
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS app_settings (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL DEFAULT '',
-      updated_by TEXT REFERENCES users(id) ON DELETE SET NULL,
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `);
-}
-
-// Lee un valor de app_settings; cae al fallback (normalmente una env var) si no existe.
-async function getSetting(key, fallback = '') {
-  try {
-    const { rows } = await pool.query('SELECT value FROM app_settings WHERE key = $1', [key]);
-    if (rows[0] && String(rows[0].value || '').trim()) return rows[0].value;
-  } catch (_err) { /* la tabla puede no existir todavia */ }
-  return fallback;
 }
 
 app.use(express.json({ limit: '10mb' }));
@@ -683,8 +666,8 @@ app.get('/api/bootstrap', requireAuth, async (req, res, next) => {
       teams: allowedTeams(req.user),
       clients:         isAdmin ? await listClients()        : [],
       clientsTrash:    isAdmin ? await listTrashedClients() : [],
-      libretaUrl:      isAdmin ? await getSetting('libreta_url', process.env.LIBRETA_URL || '')      : '',
-      flujoFondosUrl:  isAdmin ? await getSetting('flujo_url',   process.env.FLUJO_FONDOS_URL || '') : '',
+      libretaUrl:      isAdmin ? (process.env.LIBRETA_URL || '')      : '',
+      flujoFondosUrl:  isAdmin ? (process.env.FLUJO_FONDOS_URL || '') : '',
     });
   } catch (err) {
     next(err);
@@ -928,30 +911,6 @@ app.get('/api/admin/dashboard', requireAdmin, async (req, res, next) => {
 // Eliminacion definitiva deshabilitada: los clientes solo se mandan a papelera y se pueden restaurar.
 app.delete('/api/admin/clients/:id/purge', requireAdmin, (_req, res) => {
   res.status(405).json({ error: 'La eliminacion definitiva esta deshabilitada. Restaurar desde la papelera.' });
-});
-
-// ════════════════════════════════════════════
-// ADMIN — SETTINGS (URLs de planillas embebidas: libreta / flujo)
-// ════════════════════════════════════════════
-const ALLOWED_SETTING_KEYS = new Set(['libreta_url', 'flujo_url']);
-
-app.put('/api/admin/settings/:key', requireAdmin, async (req, res, next) => {
-  try {
-    const key = String(req.params.key || '').trim();
-    if (!ALLOWED_SETTING_KEYS.has(key)) {
-      return res.status(400).json({ error: 'Configuracion no permitida.' });
-    }
-    const value = String((req.body && req.body.value) || '').trim().slice(0, 2048);
-    const { rows } = await pool.query(
-      `INSERT INTO app_settings (key, value, updated_by, updated_at)
-       VALUES ($1, $2, $3, NOW())
-       ON CONFLICT (key) DO UPDATE SET
-         value = EXCLUDED.value, updated_by = EXCLUDED.updated_by, updated_at = NOW()
-       RETURNING key, value`,
-      [key, value, req.user.id]
-    );
-    res.json({ key: rows[0].key, value: rows[0].value });
-  } catch (err) { next(err); }
 });
 
 app.get('/api/admin/clients/:id/movements', requireAdmin, async (req, res, next) => {
