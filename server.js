@@ -235,21 +235,22 @@ function clientDTO(row, balance = null) {
   const saldo = balance != null ? Number(balance.saldo || 0) : 0;
   return {
     id: row.id,
-    nombreFantasia: row.nombre_fantasia || '',
-    razonSocial:    row.razon_social || '',
-    cuit:           row.cuit || '',
-    direccion:      row.direccion || '',
-    telAdmin:       row.tel_admin || '',
-    telDueno:       row.tel_dueno || '',
-    mail1:          row.mail1 || '',
-    mail2:          row.mail2 || '',
-    vence:          row.vence || '',
-    cardId:         row.card_id || null,
-    creadoPor:      row.creado_por || null,
-    creadoEn:       Number(row.creado_en) || 0,
-    deletedAt:      row.deleted_at ? row.deleted_at.toISOString() : null,
+    nombreFantasia:  row.nombre_fantasia || '',
+    razonSocial:     row.razon_social || '',
+    cuit:            row.cuit || '',
+    direccion:       row.direccion || '',
+    telAdmin:        row.tel_admin || '',
+    telDueno:        row.tel_dueno || '',
+    mail1:           row.mail1 || '',
+    mail2:           row.mail2 || '',
+    vence:           row.vence || '',
+    estadoCliente:   row.estado_cliente || 'activo',
+    descripcion:     row.descripcion || '',
+    cardId:          row.card_id || null,
+    creadoPor:       row.creado_por || null,
+    creadoEn:        Number(row.creado_en) || 0,
+    deletedAt:       row.deleted_at ? row.deleted_at.toISOString() : null,
     saldo,
-    estado:         saldo > 0 ? 'IMPAGO' : 'PAGADO',
   };
 }
 
@@ -757,14 +758,16 @@ app.post('/api/admin/clients', requireAdmin, async (req, res, next) => {
     const nombre = String(b.nombreFantasia || '').trim();
     if (!nombre) return res.status(400).json({ error: 'El nombre de fantasia es obligatorio.' });
 
+    const estadoCliente = ['activo', 'inactivo'].includes(b.estadoCliente) ? b.estadoCliente : 'activo';
     const id = mkId();
     const creadoEn = Date.now();
     const { rows } = await pool.query(
       `INSERT INTO clients (
          id, nombre_fantasia, razon_social, cuit, direccion,
          tel_admin, tel_dueno, mail1, mail2, vence,
+         estado_cliente, descripcion,
          creado_por, creado_en
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
        RETURNING *`,
       [
         id,
@@ -777,6 +780,8 @@ app.post('/api/admin/clients', requireAdmin, async (req, res, next) => {
         String(b.mail1 || '').trim(),
         String(b.mail2 || '').trim(),
         cleanDate(b.vence),
+        estadoCliente,
+        String(b.descripcion || '').trim(),
         req.user.id,
         creadoEn,
       ]
@@ -790,6 +795,7 @@ app.patch('/api/admin/clients/:id', requireAdmin, async (req, res, next) => {
     const existing = await getClientById(req.params.id);
     if (!existing) return res.status(404).json({ error: 'Cliente no encontrado.' });
     const b = req.body || {};
+    const estadoCliente = ['activo', 'inactivo'].includes(b.estadoCliente) ? b.estadoCliente : (existing.estado_cliente || 'activo');
     const { rows } = await pool.query(
       `UPDATE clients SET
          nombre_fantasia = $2,
@@ -801,6 +807,8 @@ app.patch('/api/admin/clients/:id', requireAdmin, async (req, res, next) => {
          mail1           = $8,
          mail2           = $9,
          vence           = $10,
+         estado_cliente  = $11,
+         descripcion     = $12,
          updated_at      = NOW()
        WHERE id = $1
        RETURNING *`,
@@ -815,6 +823,8 @@ app.patch('/api/admin/clients/:id', requireAdmin, async (req, res, next) => {
         String(b.mail1 || '').trim(),
         String(b.mail2 || '').trim(),
         cleanDate(b.vence),
+        estadoCliente,
+        String(b.descripcion || '').trim(),
       ]
     );
     const balances = await clientBalances();
@@ -847,6 +857,54 @@ app.post('/api/admin/clients/:id/restore', requireAdmin, async (req, res, next) 
     if (!rows[0]) return res.status(404).json({ error: 'Cliente no esta en la papelera.' });
     const balances = await clientBalances();
     res.json({ client: clientDTO(rows[0], balances[rows[0].id] || { saldo: 0 }) });
+  } catch (err) { next(err); }
+});
+
+// Dashboard mensual de administración
+app.get('/api/admin/dashboard', requireAdmin, async (req, res, next) => {
+  try {
+    const now = new Date();
+    const year  = parseInt(req.query.year  || now.getFullYear(),  10);
+    const month = parseInt(req.query.month || (now.getMonth() + 1), 10);
+    if (!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12) {
+      return res.status(400).json({ error: 'Parámetros year/month inválidos.' });
+    }
+
+    const monthStr = String(month).padStart(2, '0');
+    const prefix   = `${year}-${monthStr}`;
+
+    const [ingresosRes, pendientesRes] = await Promise.all([
+      pool.query(
+        `SELECT
+           COALESCE(SUM(monto_factura), 0) AS ingresos_totales,
+           COALESCE(SUM(haber), 0)         AS cobrados
+         FROM client_movements cm
+         JOIN clients c ON c.id = cm.client_id
+         WHERE c.deleted_at IS NULL
+           AND cm.fecha LIKE $1`,
+        [prefix + '%']
+      ),
+      pool.query(
+        `SELECT
+           COALESCE(SUM(GREATEST(bal.saldo, 0)), 0)        AS pendientes,
+           COUNT(*) FILTER (WHERE bal.saldo > 0 AND c.vence != '' AND c.vence < $1) AS vencidos
+         FROM (
+           SELECT client_id, SUM(monto_factura) - SUM(haber) AS saldo
+           FROM client_movements GROUP BY client_id
+         ) bal
+         JOIN clients c ON c.id = bal.client_id
+         WHERE c.deleted_at IS NULL`,
+        [now.toISOString().slice(0, 10)]
+      ),
+    ]);
+
+    res.json({
+      year, month,
+      ingresosTotales: Number(ingresosRes.rows[0].ingresos_totales),
+      cobrados:        Number(ingresosRes.rows[0].cobrados),
+      pendientes:      Number(pendientesRes.rows[0].pendientes),
+      vencidos:        Number(pendientesRes.rows[0].vencidos),
+    });
   } catch (err) { next(err); }
 });
 

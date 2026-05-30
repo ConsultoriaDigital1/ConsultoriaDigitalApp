@@ -752,8 +752,30 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
   padding: 0.2rem 0.55rem; border-radius: 999px;
   font-size: 0.68rem; font-weight: 800; letter-spacing: 0.05em;
 }
-.ct-chip.impago { background: rgba(248,113,104,0.16); color: var(--danger); }
-.ct-chip.pagado { background: rgba(75,206,151,0.16); color: var(--success); }
+.ct-chip.impago  { background: rgba(248,113,104,0.16); color: var(--danger); }
+.ct-chip.pagado  { background: rgba(75,206,151,0.16); color: var(--success); }
+.ct-chip.activo  { background: rgba(75,206,151,0.16); color: var(--success); }
+.ct-chip.inactivo{ background: rgba(166,197,226,0.12); color: var(--muted); }
+
+/* Dashboard admin — navegador de mes */
+.admin-dash-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 0.6rem;
+}
+.admin-month-nav {
+  display: flex; align-items: center; gap: 0.5rem;
+}
+.admin-month-nav-btn {
+  background: transparent; border: 1px solid var(--border2);
+  color: var(--text); border-radius: var(--r-sm);
+  padding: 0.22rem 0.65rem; cursor: pointer; font-size: 0.8rem;
+  transition: background 120ms;
+}
+.admin-month-nav-btn:hover { background: var(--surface2); color: var(--text-hi); }
+.admin-month-label {
+  font-size: 0.82rem; font-weight: 700; color: var(--text-hi);
+  min-width: 100px; text-align: center;
+}
 
 /* Modal Cliente — ancho */
 .client-modal-wide {
@@ -2246,9 +2268,22 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
           <input id="nc-mail2" class="form-input" type="email" />
         </div>
       </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Próximo vencimiento (opcional)</label>
+          <input id="nc-vence" class="form-input" type="date" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Estado</label>
+          <select id="nc-estado-cliente" class="form-select">
+            <option value="activo">Activo</option>
+            <option value="inactivo">Inactivo</option>
+          </select>
+        </div>
+      </div>
       <div class="form-group">
-        <label class="form-label">Próximo vencimiento (opcional)</label>
-        <input id="nc-vence" class="form-input" type="date" />
+        <label class="form-label">Descripción</label>
+        <textarea id="nc-descripcion" class="form-textarea" placeholder="Notas, observaciones sobre el cliente…"></textarea>
       </div>
       <div id="nc-err" class="form-error" style="display:none"></div>
     </div>
@@ -2309,6 +2344,14 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
           <div class="cf-row">
             <label>Mail 2</label>
             <div class="cf-value" id="cv-mail2">—</div>
+          </div>
+          <div class="cf-row">
+            <label>Estado</label>
+            <div class="cf-value" id="cv-estado-cliente">—</div>
+          </div>
+          <div class="cf-row" style="grid-column:1/-1">
+            <label>Descripción</label>
+            <div class="cf-value" id="cv-descripcion">—</div>
           </div>
         </div>
       </div>
@@ -2535,6 +2578,12 @@ let returnToViewAfterEdit = false; // si true, al cerrar el modal Editar reabre 
 let libretaUrl         = '';
 let flujoFondosUrl     = '';
 
+// Dashboard mensual
+const _now = new Date();
+let adminDashYear  = _now.getFullYear();
+let adminDashMonth = _now.getMonth() + 1;
+let adminDashData  = null;
+
 const MEDIO_PAGO_LABEL = {
   efectivo: 'Efectivo', transferencia: 'Transferencia',
   cheque: 'Cheque', echeque: 'E-cheque', tarjeta: 'Tarjeta',
@@ -2555,6 +2604,36 @@ function applyAdminSubTab() {
   document.querySelectorAll('.admin-subpanel').forEach(p => {
     p.classList.toggle('active', p.id === 'admin-sub-' + adminSubTab);
   });
+}
+
+async function loadAdminDashboard() {
+  try {
+    const data = await api(`/api/admin/dashboard?year=${adminDashYear}&month=${adminDashMonth}`);
+    adminDashData = data;
+    updateAdminDashUI(data);
+  } catch (_e) { /* silencioso */ }
+}
+
+function updateAdminDashUI(data) {
+  const lbl = $('admin-dash-month-label');
+  if (lbl) lbl.textContent = adminMonthLabel(adminDashYear, adminDashMonth);
+  const set = (id, val) => { const el = $(id); if (el) el.textContent = val; };
+  if (!data) {
+    ['adash-ingresos','adash-cobrados','adash-pendientes','adash-vencidos'].forEach(id => set(id, '—'));
+    return;
+  }
+  set('adash-ingresos',   formatMoney(data.ingresosTotales));
+  set('adash-cobrados',   formatMoney(data.cobrados));
+  set('adash-pendientes', formatMoney(data.pendientes));
+  set('adash-vencidos',   String(data.vencidos));
+}
+
+function changeAdminDashMonth(delta) {
+  adminDashMonth += delta;
+  if (adminDashMonth > 12) { adminDashMonth = 1;  adminDashYear++; }
+  if (adminDashMonth < 1)  { adminDashMonth = 12; adminDashYear--; }
+  updateAdminDashUI(null);
+  loadAdminDashboard();
 }
 
 function formatMoney(n) {
@@ -2713,21 +2792,21 @@ function switchClientsView(view) {
 
 function clientRowHTML(c) {
   const saldo = Number(c.saldo || 0);
-  const impago = saldo > 0;
-  const moneyCls = impago ? 'debt' : 'ok';
+  const moneyCls = saldo > 0 ? 'debt' : 'ok';
+  const estadoCli = c.estadoCliente || 'activo';
   return `
     <tr class="row-click" onclick="openClientModal('${c.id}')" title="Click para ver detalle">
       <td>
         <div class="ct-name">${esc(clientDisplayName(c))}</div>
-        ${c.cuit ? `<div class="ct-sub">${esc(c.cuit)}</div>` : ''}
+        ${c.descripcion ? `<div class="ct-sub" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.descripcion)}</div>` : ''}
       </td>
       <td>${c.razonSocial ? esc(c.razonSocial) : '<span class="ct-sub">—</span>'}</td>
       <td>${c.cuit ? esc(c.cuit) : '<span class="ct-sub">—</span>'}</td>
       <td><span class="ct-money ${moneyCls}">${formatMoney(saldo)}</span></td>
       <td>${formatDate(c.vence)}</td>
       <td>
-        <span class="ct-chip ${impago ? 'impago' : 'pagado'}">
-          ${impago ? 'IMPAGO' : 'PAGADO'}
+        <span class="ct-chip ${estadoCli}" onclick="event.stopPropagation();toggleClientEstado('${c.id}')" title="Cambiar estado" style="cursor:pointer">
+          ${estadoCli === 'activo' ? 'Activo' : 'Inactivo'}
         </span>
       </td>
       <td onclick="event.stopPropagation()">
@@ -2741,8 +2820,8 @@ function clientRowHTML(c) {
 
 function trashRowHTML(c) {
   const saldo = Number(c.saldo || 0);
-  const impago = saldo > 0;
-  const moneyCls = impago ? 'debt' : 'ok';
+  const moneyCls = saldo > 0 ? 'debt' : 'ok';
+  const estadoCli = c.estadoCliente || 'activo';
   const deletedTxt = c.deletedAt
     ? (() => {
         const d = new Date(c.deletedAt);
@@ -2760,11 +2839,7 @@ function trashRowHTML(c) {
       <td>${c.cuit ? esc(c.cuit) : '<span class="ct-sub">—</span>'}</td>
       <td><span class="ct-money ${moneyCls}">${formatMoney(saldo)}</span></td>
       <td>${formatDate(c.vence)}</td>
-      <td>
-        <span class="ct-chip ${impago ? 'impago' : 'pagado'}">
-          ${impago ? 'IMPAGO' : 'PAGADO'}
-        </span>
-      </td>
+      <td><span class="ct-chip ${estadoCli}">${estadoCli === 'activo' ? 'Activo' : 'Inactivo'}</span></td>
       <td>
         <div class="ct-actions">
           <div class="ct-deleted-at">${deletedTxt}</div>
@@ -2776,15 +2851,17 @@ function trashRowHTML(c) {
 
 /* ── Nuevo / Editar cliente (mismo modal, dos modos) ── */
 function fillClientForm(c) {
-  $('nc-nombre').value     = c ? (c.nombreFantasia || '') : '';
-  $('nc-rs').value         = c ? (c.razonSocial    || '') : '';
-  $('nc-cuit').value       = c ? (c.cuit           || '') : '';
-  $('nc-direccion').value  = c ? (c.direccion      || '') : '';
-  $('nc-tel-admin').value  = c ? (c.telAdmin       || '') : '';
-  $('nc-tel-dueno').value  = c ? (c.telDueno       || '') : '';
-  $('nc-mail1').value      = c ? (c.mail1          || '') : '';
-  $('nc-mail2').value      = c ? (c.mail2          || '') : '';
-  $('nc-vence').value      = c ? (c.vence          || '') : '';
+  $('nc-nombre').value            = c ? (c.nombreFantasia || '') : '';
+  $('nc-rs').value                = c ? (c.razonSocial    || '') : '';
+  $('nc-cuit').value              = c ? (c.cuit           || '') : '';
+  $('nc-direccion').value         = c ? (c.direccion      || '') : '';
+  $('nc-tel-admin').value         = c ? (c.telAdmin       || '') : '';
+  $('nc-tel-dueno').value         = c ? (c.telDueno       || '') : '';
+  $('nc-mail1').value             = c ? (c.mail1          || '') : '';
+  $('nc-mail2').value             = c ? (c.mail2          || '') : '';
+  $('nc-vence').value             = c ? (c.vence          || '') : '';
+  $('nc-estado-cliente').value    = c ? (c.estadoCliente  || 'activo') : 'activo';
+  $('nc-descripcion').value       = c ? (c.descripcion    || '') : '';
 }
 
 function openNewClientModal() {
@@ -2856,6 +2933,8 @@ async function submitNewClient() {
     mail1:          $('nc-mail1').value.trim(),
     mail2:          $('nc-mail2').value.trim(),
     vence:          $('nc-vence').value || '',
+    estadoCliente:  $('nc-estado-cliente').value || 'activo',
+    descripcion:    $('nc-descripcion').value.trim(),
   };
   if (!body.nombreFantasia) {
     showErr('nc-err', 'El nombre fantasía es obligatorio.');
@@ -2919,6 +2998,23 @@ async function restoreClient(id) {
 }
 
 
+async function toggleClientEstado(id) {
+  const c = clientsCache.find(x => x.id === id);
+  if (!c) return;
+  const nuevoEstado = (c.estadoCliente || 'activo') === 'activo' ? 'inactivo' : 'activo';
+  try {
+    const data = await api('/api/admin/clients/' + encodeURIComponent(id), {
+      method: 'PATCH',
+      body: JSON.stringify({ ...c, estadoCliente: nuevoEstado }),
+    });
+    const idx = clientsCache.findIndex(x => x.id === id);
+    if (idx > -1 && data.client) clientsCache[idx] = data.client;
+    renderClientsResults();
+  } catch (err) {
+    toast(err.message || 'No se pudo cambiar el estado.', 'error');
+  }
+}
+
 /* ── Ver Cliente ── */
 function openClientModal(clientId) {
   const c = clientsCache.find(x => x.id === clientId);
@@ -2976,6 +3072,14 @@ function renderClientModal(c) {
   fld('cv-tel-dueno',  c.telDueno);
   fld('cv-mail1',      c.mail1);
   fld('cv-mail2',      c.mail2);
+
+  const estadoEl = $('cv-estado-cliente');
+  if (estadoEl) {
+    const est = c.estadoCliente || 'activo';
+    estadoEl.innerHTML = `<span class="ct-chip ${est}">${est === 'activo' ? 'Activo' : 'Inactivo'}</span>`;
+    estadoEl.classList.remove('muted');
+  }
+  fld('cv-descripcion', c.descripcion);
 
   const saldoHead = $('cv-saldo-head');
   const saldo = Number(c.saldo || 0);
@@ -3259,7 +3363,11 @@ function applyEmbedUrl(url, iframeId, emptyId, linkId) {
     else { link.removeAttribute('href'); link.style.display = 'none'; }
   }
 }
-function applyLibretaUrl() { applyEmbedUrl(libretaUrl,     'libreta-iframe', 'libreta-empty', 'libreta-open'); }
+function applyLibretaUrl() {
+  applyEmbedUrl(libretaUrl, 'libreta-iframe', 'libreta-empty', 'libreta-open');
+  const hint = $('libreta-hint');
+  if (hint) hint.style.display = String(libretaUrl || '').trim() ? '' : 'none';
+}
 function applyFlujoUrl()   { applyEmbedUrl(flujoFondosUrl, 'flujo-iframe',   'flujo-empty',   'flujo-open');  }
 
 /* ─────────────────────────────────────────
@@ -3913,32 +4021,35 @@ function cardHTML(c, users) {
     </div>`;
 }
 
-function renderAdminTable(board, cards, _users) {
-  // Métricas globales de cards admin (dashboard inicial que se mantiene)
-  const debtCount = cards.filter(hasDebt).length;
-  const overdue   = cards.filter(c => dueInfo(c).key === 'overdue').length;
-  const soon      = cards.filter(c => {
-    const d = dueInfo(c);
-    return d.key === 'today' || d.key === 'soon';
-  }).length;
+function adminMonthLabel(year, month) {
+  return new Date(year, month - 1, 1).toLocaleString('es-AR', { month: 'long', year: 'numeric' });
+}
 
+function renderAdminTable(board, cards, _users) {
   board.innerHTML = `
+    <div class="admin-dash-header">
+      <div class="admin-month-nav">
+        <button class="admin-month-nav-btn" onclick="changeAdminDashMonth(-1)">&#8592;</button>
+        <span class="admin-month-label" id="admin-dash-month-label">${adminMonthLabel(adminDashYear, adminDashMonth)}</span>
+        <button class="admin-month-nav-btn" onclick="changeAdminDashMonth(1)">&#8594;</button>
+      </div>
+    </div>
     <div class="admin-summary">
       <div class="admin-metric">
-        <div class="admin-metric-label">Tarjetas admin</div>
-        <div class="admin-metric-value">${cards.length}</div>
+        <div class="admin-metric-label">Ingresos totales del mes</div>
+        <div class="admin-metric-value" id="adash-ingresos">—</div>
       </div>
       <div class="admin-metric">
-        <div class="admin-metric-label">Deben</div>
-        <div class="admin-metric-value">${debtCount}</div>
+        <div class="admin-metric-label">Cobrados</div>
+        <div class="admin-metric-value" id="adash-cobrados">—</div>
+      </div>
+      <div class="admin-metric">
+        <div class="admin-metric-label">Pendientes de cobro</div>
+        <div class="admin-metric-value" id="adash-pendientes">—</div>
       </div>
       <div class="admin-metric">
         <div class="admin-metric-label">Vencidos</div>
-        <div class="admin-metric-value">${overdue}</div>
-      </div>
-      <div class="admin-metric">
-        <div class="admin-metric-label">Prox. 7 dias</div>
-        <div class="admin-metric-value">${soon}</div>
+        <div class="admin-metric-value" id="adash-vencidos">—</div>
       </div>
     </div>
 
@@ -3962,15 +4073,20 @@ function renderAdminTable(board, cards, _users) {
       <div class="admin-section-head">
         <div>
           <div class="admin-section-title">Libreta</div>
-          <div class="admin-section-sub">Hoja de cálculo embebida.</div>
+          <div class="admin-section-sub">Hoja de cálculo de Google. Con la URL de edición podés editarla acá mismo.</div>
         </div>
-        <a id="libreta-open" class="btn btn-ghost btn-sm" href="#" target="_blank" rel="noopener" style="display:none">Abrir en pestaña nueva ↗</a>
+        <a id="libreta-open" class="btn btn-lime btn-sm" href="#" target="_blank" rel="noopener" style="display:none">✏️ Editar en Google Sheets ↗</a>
       </div>
       <div id="libreta-empty" class="admin-placeholder" style="display:none">
         <strong>Libreta no configurada</strong>
-        Definí <code>LIBRETA_URL</code> en el archivo <code>.env</code> y reiniciá el server.
+        Definí <code>LIBRETA_URL</code> en <code>.env</code> con la URL de edición de la hoja
+        (<code>.../spreadsheets/d/ID/edit</code>), compartila como «Editor – cualquiera con el enlace» y reiniciá el server.
       </div>
-      <iframe id="libreta-iframe" src="about:blank" referrerpolicy="no-referrer" loading="lazy" style="width:100%;height:70vh;border:1px solid var(--border2);border-radius:var(--r-md);background:var(--bg2)"></iframe>
+      <div id="libreta-hint" style="display:none;margin-bottom:0.6rem;font-size:0.8rem;color:var(--muted)">
+        ¿La planilla aparece en blanco o dice «refused to connect»? Google bloqueó la edición embebida en este navegador:
+        usá el botón <strong>✏️ Editar en Google Sheets</strong> para abrirla en una pestaña.
+      </div>
+      <iframe id="libreta-iframe" src="about:blank" referrerpolicy="no-referrer" loading="lazy" allow="clipboard-read; clipboard-write; fullscreen" style="width:100%;height:70vh;border:1px solid var(--border2);border-radius:var(--r-md);background:var(--bg2)"></iframe>
     </div>
     <div id="admin-sub-flujo" class="admin-subpanel">
       <div class="admin-section-head">
@@ -3997,6 +4113,7 @@ function renderAdminTable(board, cards, _users) {
   // Marcar tab activo y renderizar contenido del sub-tab actual
   applyAdminSubTab();
   renderClientesSubTab();
+  loadAdminDashboard();
 }
 
 function clientName(c) {
