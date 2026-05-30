@@ -3342,15 +3342,18 @@ async function submitMovement() {
   }
 }
 
-/* ── Libreta / Flujo: sheets embebidas via env var ── */
-function applyEmbedUrl(url, iframeId, emptyId, linkId) {
+/* ── Libreta / Flujo: sheets embebidas ── */
+function applyEmbedUrl(url, iframeId, emptyId, linkId, opts) {
+  opts = opts || {};
   const ifr   = $(iframeId);
   const empty = $(emptyId);
   const link  = $(linkId);
   const u = String(url || '').trim();
+  const embedU = u && opts.toEmbed ? opts.toEmbed(u) : u;
+  const openU  = u && opts.toOpen  ? opts.toOpen(u)  : u;
   if (ifr) {
-    if (u) {
-      if (ifr.src !== u) ifr.src = u;
+    if (embedU) {
+      if (ifr.src !== embedU) ifr.src = embedU;
       ifr.style.display = '';
     } else {
       ifr.src = 'about:blank';
@@ -3359,15 +3362,78 @@ function applyEmbedUrl(url, iframeId, emptyId, linkId) {
   }
   if (empty) empty.style.display = u ? 'none' : '';
   if (link) {
-    if (u) { link.href = u; link.style.display = ''; }
+    if (openU) { link.href = openU; link.style.display = ''; }
     else { link.removeAttribute('href'); link.style.display = 'none'; }
   }
 }
-function applyLibretaUrl() {
-  applyEmbedUrl(libretaUrl, 'libreta-iframe', 'libreta-empty', 'libreta-open');
-  const hint = $('libreta-hint');
-  if (hint) hint.style.display = String(libretaUrl || '').trim() ? '' : 'none';
+
+/* Una URL .../pubhtml o .../d/e/<token>/... es una hoja PUBLICADA (solo lectura):
+   su id no es el id real del documento, asi que no se puede convertir a /edit. */
+function isPublishedSheet(u) { return /\/pubhtml|\/d\/e\//.test(String(u || '')); }
+function sheetDocId(u) {
+  const m = String(u || '').match(/\/spreadsheets\/d\/([A-Za-z0-9_-]+)/);
+  return m ? m[1] : '';
 }
+function sheetGid(u) {
+  const m = String(u || '').match(/[#?&]gid=([0-9]+)/);
+  return m ? m[1] : '';
+}
+/* Arma la URL editable del Sheet. minimal=true -> chrome reducido para el iframe. */
+function toEditableSheetUrl(u, minimal) {
+  u = String(u || '').trim();
+  if (!u) return '';
+  if (isPublishedSheet(u)) return u; // publicada: solo lectura, se usa tal cual
+  const id = sheetDocId(u);
+  if (!id) return u; // no es un Sheet reconocible: se usa tal cual
+  const gid = sheetGid(u);
+  const params = [];
+  if (minimal) params.push('rm=minimal');
+  if (gid) params.push('gid=' + gid);
+  return 'https://docs.google.com/spreadsheets/d/' + id + '/edit' + (params.length ? '?' + params.join('&') : '');
+}
+
+function applyLibretaUrl() {
+  applyEmbedUrl(libretaUrl, 'libreta-iframe', 'libreta-empty', 'libreta-open', {
+    toEmbed: (u) => toEditableSheetUrl(u, true),
+    toOpen:  (u) => toEditableSheetUrl(u, false),
+  });
+  const inp = $('libreta-url-input');
+  if (inp && document.activeElement !== inp) inp.value = libretaUrl || '';
+  const hint = $('libreta-hint');
+  if (hint) {
+    const u = String(libretaUrl || '').trim();
+    hint.style.display = u ? '' : 'none';
+    const ro = $('libreta-hint-readonly');
+    if (ro) ro.style.display = (u && isPublishedSheet(u)) ? '' : 'none';
+  }
+}
+
+async function saveLibretaUrl() {
+  const raw = ($('libreta-url-input') && $('libreta-url-input').value) || '';
+  const url = raw.trim() ? extractIframeSrc(raw) : '';
+  if (raw.trim() && !url) { toast('URL invalida. Pega un link http(s) o un <iframe>.', 'error'); return; }
+  try {
+    const res = await api('/api/admin/settings/libreta_url', { method: 'PUT', body: JSON.stringify({ value: url }) });
+    libretaUrl = (res && res.value) || '';
+    applyLibretaUrl();
+    toast(libretaUrl ? 'Libreta actualizada.' : 'Libreta quitada.', 'success');
+  } catch (err) {
+    toast(err.message || 'No se pudo guardar.', 'error');
+  }
+}
+
+async function clearLibretaUrl() {
+  if ($('libreta-url-input')) $('libreta-url-input').value = '';
+  try {
+    const res = await api('/api/admin/settings/libreta_url', { method: 'PUT', body: JSON.stringify({ value: '' }) });
+    libretaUrl = (res && res.value) || '';
+    applyLibretaUrl();
+    toast('Libreta quitada.', 'success');
+  } catch (err) {
+    toast(err.message || 'No se pudo guardar.', 'error');
+  }
+}
+
 function applyFlujoUrl()   { applyEmbedUrl(flujoFondosUrl, 'flujo-iframe',   'flujo-empty',   'flujo-open');  }
 
 /* ─────────────────────────────────────────
@@ -4077,16 +4143,27 @@ function renderAdminTable(board, cards, _users) {
         </div>
         <a id="libreta-open" class="btn btn-lime btn-sm" href="#" target="_blank" rel="noopener" style="display:none">✏️ Editar en Google Sheets ↗</a>
       </div>
+      <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;margin-bottom:0.7rem">
+        <input id="libreta-url-input" class="form-input" type="text" style="flex:1;min-width:240px"
+               placeholder="Pegá la URL de edición del Sheet (.../d/ID/edit) o el <iframe> completo"
+               onkeydown="if(event.key==='Enter')saveLibretaUrl()" />
+        <button class="btn btn-lime btn-sm" type="button" onclick="saveLibretaUrl()">Aplicar</button>
+        <button class="btn btn-ghost btn-sm" type="button" onclick="clearLibretaUrl()">Quitar</button>
+      </div>
       <div id="libreta-empty" class="admin-placeholder" style="display:none">
         <strong>Libreta no configurada</strong>
-        Definí <code>LIBRETA_URL</code> en <code>.env</code> con la URL de edición de la hoja
-        (<code>.../spreadsheets/d/ID/edit</code>), compartila como «Editor – cualquiera con el enlace» y reiniciá el server.
+        Pegá arriba la URL de edición de la hoja (<code>.../spreadsheets/d/ID/edit</code>),
+        compartila como «Editor – cualquiera con el enlace» y tocá <strong>Aplicar</strong>.
       </div>
       <div id="libreta-hint" style="display:none;margin-bottom:0.6rem;font-size:0.8rem;color:var(--muted)">
-        ¿La planilla aparece en blanco o dice «refused to connect»? Google bloqueó la edición embebida en este navegador:
-        usá el botón <strong>✏️ Editar en Google Sheets</strong> para abrirla en una pestaña.
+        Para editar acá adentro necesitás estar logueado en Google con permiso de edición sobre la hoja
+        y tener habilitadas las <strong>cookies de terceros</strong> para Google.
+        ¿Aparece en blanco o dice «refused to connect»? Usá <strong>✏️ Editar en Google Sheets</strong> para abrirla en una pestaña.
+        <div id="libreta-hint-readonly" style="display:none;margin-top:0.35rem;color:var(--warn)">
+          ⚠️ Esta URL es una hoja <strong>publicada (solo lectura)</strong>. Para editar inline pegá la URL de <strong>edición</strong> (<code>.../d/ID/edit</code>).
+        </div>
       </div>
-      <iframe id="libreta-iframe" src="about:blank" referrerpolicy="no-referrer" loading="lazy" allow="clipboard-read; clipboard-write; fullscreen" style="width:100%;height:70vh;border:1px solid var(--border2);border-radius:var(--r-md);background:var(--bg2)"></iframe>
+      <iframe id="libreta-iframe" src="about:blank" loading="lazy" allow="clipboard-read; clipboard-write; fullscreen" style="width:100%;height:70vh;border:1px solid var(--border2);border-radius:var(--r-md);background:var(--bg2)"></iframe>
     </div>
     <div id="admin-sub-flujo" class="admin-subpanel">
       <div class="admin-section-head">
