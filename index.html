@@ -1094,6 +1094,23 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 .rc-del-go:disabled { opacity: 0.5; cursor: not-allowed; }
 .rc-del-cancel { padding: 0.22rem 0.5rem; }
 
+/* ─── RESUMEN DATE PICKER ─── */
+.rp-section-label { font-size:0.7rem; text-transform:uppercase; letter-spacing:0.07em; color:var(--muted); margin-bottom:0.55rem; font-weight:600; }
+.rp-chips { display:flex; flex-wrap:wrap; gap:0.38rem; margin-bottom:1.3rem; }
+.rp-chip {
+  padding:0.3rem 0.82rem; border-radius:99px;
+  font-size:0.78rem; font-weight:600;
+  border:1px solid var(--border2); background:var(--surface2); color:var(--text);
+  cursor:pointer; transition:background 130ms ease, color 130ms ease, border-color 130ms ease, transform 110ms ease;
+  white-space:nowrap;
+}
+.rp-chip:hover { background:var(--surface3); color:var(--text-hi); border-color:var(--surface3); transform:translateY(-1px); }
+.rp-chip.active { background:#579dff; color:#1d2125; border-color:#579dff; }
+.rp-range { display:flex; align-items:flex-end; gap:0.6rem; }
+.rp-range .form-group { flex:1; margin-bottom:0; }
+.rp-range-sep { color:var(--muted); padding-bottom:0.52rem; font-size:1.15rem; flex-shrink:0; }
+.rp-desc { font-size:0.78rem; color:var(--muted); margin-top:0.9rem; min-height:1.1em; text-align:center; }
+
 /* ─── COLOR PICKER ─── */
 .color-picker { display: flex; gap: 0.38rem; flex-wrap: wrap; margin-bottom: 0.9rem; }
 .cp-swatch {
@@ -2763,7 +2780,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
       </div>
       <div id="cv-resumen" class="client-section-body collapsed">
         <div class="rc-toolbar">
-          <button class="btn btn-ghost btn-sm" onclick="downloadResumen()" style="margin-right:auto" title="Descargar resumen completo"><i class="ico-ph" data-ico="download"></i> Descargar resumen</button>
+          <button class="btn btn-ghost btn-sm" onclick="openResumenDatePicker()" style="margin-right:auto" title="Descargar resumen"><i class="ico-ph" data-ico="download"></i> Descargar resumen</button>
           <button class="btn btn-factura btn-sm" onclick="openMovementModalForCurrent('factura')" style="margin-right:0.4rem"><i class="ico-ph" data-ico="file"></i> Cargar factura</button>
           <button class="btn btn-pago btn-sm" onclick="openMovementModalForCurrent('pago')"><i class="ico-ph" data-ico="dollar"></i> Cargar pago</button>
         </div>
@@ -2771,6 +2788,48 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
           <div class="rc-empty">Sin movimientos cargados.</div>
         </div>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     RESUMEN DATE PICKER MODAL
+     ═══════════════════════════════════════════ -->
+<div id="resumen-picker-overlay" class="overlay" onclick="resumenPickerBg(event)">
+  <div class="modal" style="max-width:400px" onclick="event.stopPropagation()">
+    <div class="modal-head">
+      <i class="ico-ph" data-ico="calendar" style="font-size:1.15rem;color:var(--muted)"></i>
+      <span class="modal-head-title">Descargar resumen</span>
+      <button class="modal-close" onclick="closeResumenPicker()"><i class="ico-ph" data-ico="x"></i></button>
+    </div>
+    <div style="padding:1.3rem 1.4rem 1rem">
+      <div class="rp-section-label">Período rápido</div>
+      <div class="rp-chips">
+        <button class="rp-chip active" data-preset="all"       onclick="setResumenPreset('all')">Todo</button>
+        <button class="rp-chip"        data-preset="thisMonth" onclick="setResumenPreset('thisMonth')">Este mes</button>
+        <button class="rp-chip"        data-preset="lastMonth" onclick="setResumenPreset('lastMonth')">Mes anterior</button>
+        <button class="rp-chip"        data-preset="quarter"   onclick="setResumenPreset('quarter')">Últimos 3 meses</button>
+        <button class="rp-chip"        data-preset="year"      onclick="setResumenPreset('year')">Este año</button>
+      </div>
+      <div class="rp-section-label">O elegí un rango personalizado</div>
+      <div class="rp-range">
+        <div class="form-group">
+          <label class="form-label">Desde</label>
+          <input id="rp-desde" class="form-input" type="date" oninput="onResumenDateInput()" />
+        </div>
+        <div class="rp-range-sep">→</div>
+        <div class="form-group">
+          <label class="form-label">Hasta</label>
+          <input id="rp-hasta" class="form-input" type="date" oninput="onResumenDateInput()" />
+        </div>
+      </div>
+      <div id="rp-desc" class="rp-desc">Se incluirán todos los movimientos.</div>
+    </div>
+    <div class="modal-foot" style="justify-content:flex-end;gap:0.5rem">
+      <button class="btn btn-ghost btn-sm" onclick="closeResumenPicker()">Cancelar</button>
+      <button class="btn btn-primary btn-sm" onclick="confirmResumenDownload()">
+        <i class="ico-ph" data-ico="download"></i> Generar resumen
+      </button>
     </div>
   </div>
 </div>
@@ -3868,14 +3927,95 @@ function mvRemoveFile(id) {
   renderMvFilesChips();
 }
 
-function downloadResumen() {
+/* ── Resumen date picker ── */
+let _rpPreset = 'all';
+
+function openResumenDatePicker() {
+  if (!currentClientId) return;
+  _rpPreset = 'all';
+  $('rp-desde').value = '';
+  $('rp-hasta').value = '';
+  _updateRpChips();
+  _updateRpDesc();
+  $('resumen-picker-overlay').classList.add('open');
+}
+
+function closeResumenPicker() {
+  $('resumen-picker-overlay').classList.remove('open');
+}
+
+function resumenPickerBg(e) {
+  if (e.target === $('resumen-picker-overlay')) closeResumenPicker();
+}
+
+function setResumenPreset(preset) {
+  _rpPreset = preset;
+  const now = new Date();
+  let desde = '', hasta = '';
+  if (preset === 'thisMonth') {
+    desde = `${now.getFullYear()}-${pad2(now.getMonth()+1)}-01`;
+    hasta = toISODate(new Date(now.getFullYear(), now.getMonth()+1, 0));
+  } else if (preset === 'lastMonth') {
+    desde = toISODate(new Date(now.getFullYear(), now.getMonth()-1, 1));
+    hasta = toISODate(new Date(now.getFullYear(), now.getMonth(), 0));
+  } else if (preset === 'quarter') {
+    const d = new Date(now); d.setMonth(d.getMonth()-3);
+    desde = toISODate(d);
+    hasta = toISODate(now);
+  } else if (preset === 'year') {
+    desde = `${now.getFullYear()}-01-01`;
+    hasta = toISODate(now);
+  } else {
+    desde = ''; hasta = '';
+  }
+  $('rp-desde').value = desde;
+  $('rp-hasta').value = hasta;
+  _updateRpChips();
+  _updateRpDesc();
+}
+
+function onResumenDateInput() {
+  _rpPreset = 'custom';
+  _updateRpChips();
+  _updateRpDesc();
+}
+
+function _updateRpChips() {
+  document.querySelectorAll('.rp-chip').forEach(el => {
+    el.classList.toggle('active', el.dataset.preset === _rpPreset);
+  });
+}
+
+function _updateRpDesc() {
+  const desde = $('rp-desde').value;
+  const hasta  = $('rp-hasta').value;
+  const el = $('rp-desc');
+  if (!el) return;
+  if (!desde && !hasta) {
+    el.textContent = 'Se incluirán todos los movimientos.';
+  } else {
+    const fmt = iso => iso ? iso.split('-').reverse().join('/') : '—';
+    el.textContent = `Del ${fmt(desde)} al ${fmt(hasta)}`;
+  }
+}
+
+function confirmResumenDownload() {
+  const desde = $('rp-desde').value;
+  const hasta  = $('rp-hasta').value;
+  closeResumenPicker();
+  downloadResumen(desde, hasta);
+}
+
+function downloadResumen(desde, hasta) {
   if (!currentClientId) return;
   const c = clientsCache.find(x => x.id === currentClientId);
   if (!c) return;
-  const movements = (movementsCache[currentClientId] || []).slice().sort((a, b) => {
+  let movements = (movementsCache[currentClientId] || []).slice().sort((a, b) => {
     if (a.fecha !== b.fecha) return a.fecha < b.fecha ? -1 : 1;
     return (a.creadoEn || 0) - (b.creadoEn || 0);
   });
+  if (desde) movements = movements.filter(m => m.fecha >= desde);
+  if (hasta)  movements = movements.filter(m => m.fecha <= hasta);
 
   let saldo = 0;
   let totalFacturado = 0;
@@ -3914,6 +4054,10 @@ function downloadResumen() {
 
   const hoy = new Date().toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit', year:'numeric' });
   const nombre = [c.nombreFantasia, c.razonSocial].filter(Boolean).join(' / ');
+  const fmtIso = iso => iso ? iso.split('-').reverse().join('/') : null;
+  const periodoStr = (desde || hasta)
+    ? `Período: ${fmtIso(desde) || 'inicio'} al ${fmtIso(hasta) || hoy}`
+    : 'Período completo';
 
   const html = `<!DOCTYPE html>
 <html lang="es">
@@ -3945,7 +4089,7 @@ function downloadResumen() {
 </head>
 <body>
   <h1>Resumen de cuenta</h1>
-  <div class="sub">Generado el ${hoy} · Consultoria Digital</div>
+  <div class="sub">Generado el ${hoy} · Consultoria Digital · <strong>${periodoStr}</strong></div>
 
   <div class="info-grid">
     <div class="info-row"><span class="info-label">Nombre / Fantasía</span><span class="info-val">${c.nombreFantasia || '—'}</span></div>
