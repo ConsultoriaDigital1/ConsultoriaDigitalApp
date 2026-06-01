@@ -249,6 +249,17 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 }
 .clients-search-clear:hover { color: var(--text-hi); background: var(--surface3); }
 
+/* Filtros de clientes (Todos / Activos / Inactivos) */
+.clients-filter-group { display: flex; gap: 0.25rem; align-items: center; }
+.btn-filter {
+  padding: 0.3rem 0.75rem; border-radius: 99px; border: 1px solid var(--border);
+  background: transparent; color: var(--muted); font-size: 0.78rem; cursor: pointer;
+  transition: background 120ms, color 120ms, border-color 120ms;
+  white-space: nowrap;
+}
+.btn-filter:hover { background: var(--surface3); color: var(--text); }
+.btn-filter.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
 .nav-tabs { display: flex; gap: 0.15rem; }
 .nav-tab {
   position: relative;
@@ -591,7 +602,21 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
   padding: 1.05rem 1.1rem 0.9rem;
   position: relative; overflow: hidden;
   display: flex; flex-direction: column; gap: 0.18rem;
+  cursor: pointer;
+  transition: border-color 140ms, background 140ms, transform 120ms cubic-bezier(.34,1.56,.64,1);
+  user-select: none;
 }
+.admin-metric:hover { background: rgba(30,36,44,0.95); border-color: rgba(255,255,255,0.14); transform: translateY(-1px); }
+.admin-metric:active { transform: translateY(0) scale(0.985); }
+.admin-metric.active {
+  border-color: rgba(255,255,255,0.28);
+  background: rgba(30,36,44,0.98);
+  box-shadow: 0 0 0 1.5px rgba(255,255,255,0.1);
+}
+.metric-ingresos.active  { border-color: rgba(231,255,79,0.5);  box-shadow: 0 0 0 1.5px rgba(231,255,79,0.15); }
+.metric-cobrados.active  { border-color: rgba(74,222,128,0.5);  box-shadow: 0 0 0 1.5px rgba(74,222,128,0.15); }
+.metric-pendientes.active{ border-color: rgba(251,146,60,0.5);  box-shadow: 0 0 0 1.5px rgba(251,146,60,0.15); }
+.metric-vencidos.active  { border-color: rgba(248,113,113,0.5); box-shadow: 0 0 0 1.5px rgba(248,113,113,0.15); }
 .admin-metric::before {
   content: ''; position: absolute;
   bottom: 0; left: 0; right: 0; height: 2px;
@@ -1058,10 +1083,12 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 }
 .rc-totals .rc-saldo-final { color: var(--text-hi); font-weight: 800; }
 
-/* Borrar movimiento (con espera de 5s) */
+/* Borrar / editar movimiento */
 .rc-table td.rc-actions, .rc-table th.rc-actions { text-align: right; white-space: nowrap; width: 1%; }
 .rc-del-btn { opacity: 0.55; padding: 0.22rem 0.5rem; }
 .rc-del-btn:hover { opacity: 1; }
+.rc-edit-btn { opacity: 0.55; padding: 0.22rem 0.5rem; margin-right: 0.15rem; }
+.rc-edit-btn:hover { opacity: 1; }
 .rc-del-confirm { display: inline-flex; gap: 0.3rem; align-items: center; justify-content: flex-end; }
 .rc-del-go { padding: 0.22rem 0.6rem; min-width: 38px; }
 .rc-del-go:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -2736,6 +2763,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
       </div>
       <div id="cv-resumen" class="client-section-body collapsed">
         <div class="rc-toolbar">
+          <button class="btn btn-ghost btn-sm" onclick="downloadResumen()" style="margin-right:auto" title="Descargar resumen completo"><i class="ico-ph" data-ico="download"></i> Descargar resumen</button>
           <button class="btn btn-factura btn-sm" onclick="openMovementModalForCurrent('factura')" style="margin-right:0.4rem"><i class="ico-ph" data-ico="file"></i> Cargar factura</button>
           <button class="btn btn-pago btn-sm" onclick="openMovementModalForCurrent('pago')"><i class="ico-ph" data-ico="dollar"></i> Cargar pago</button>
         </div>
@@ -2772,6 +2800,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
             <option value="cheque">Cheque</option>
             <option value="echeque">E-cheque</option>
             <option value="tarjeta">Tarjeta</option>
+            <option value="canje">Canje</option>
           </select>
         </div>
       </div>
@@ -2899,6 +2928,8 @@ const ICONS = {
   'eye-off':'<path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/>',
   lock:'<rect width="11" height="11" x="6.5" y="11" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
   shield:'<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+  upload:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/>',
+  download:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>',
 };
 function icon(name, cls) {
   const body = ICONS[name];
@@ -3013,7 +3044,9 @@ let adminSubTab        = 'clientes';
 let clientsCache       = [];
 let clientsTrashCache  = [];
 let clientsView        = 'active';  // 'active' | 'trash'
+let clientsFilter      = 'todos';   // 'todos' | 'activos' | 'inactivos'
 let clientsSearchTerm  = '';        // término del buscador de clientes
+let clientsDashFilter  = null;      // null | 'ingresos' | 'cobrados' | 'pendientes' | 'vencidos'
 let movementsCache     = {};       // { [clientId]: [movements...] }
 let currentClientId    = null;
 let editingClientId    = null;     // id si el modal de cliente está editando; null = creando
@@ -3031,7 +3064,7 @@ let adminAutoHideTimer = null;
 
 const MEDIO_PAGO_LABEL = {
   efectivo: 'Efectivo', transferencia: 'Transferencia',
-  cheque: 'Cheque', echeque: 'E-cheque', tarjeta: 'Tarjeta',
+  cheque: 'Cheque', echeque: 'E-cheque', tarjeta: 'Tarjeta', canje: 'Canje',
 };
 
 function switchAdminSubTab(tab) {
@@ -3149,12 +3182,27 @@ function renderClientesSubTab() {
   const trashCount = (clientsTrashCache || []).length;
 
   cont.innerHTML = `
-    <div class="admin-section-head">
-      <div>
+    <div class="admin-section-head" style="flex-wrap:wrap;gap:0.6rem;align-items:center">
+      <div style="min-width:0">
         <div class="admin-section-title">${inTrash ? 'Papelera de clientes' : 'Clientes'}</div>
         <div class="admin-section-sub" id="clients-sub"></div>
       </div>
-      <div style="display:flex;gap:0.5rem">
+      ${!inTrash ? `
+        <div class="clients-search" style="flex:1;min-width:150px;max-width:260px;margin:0">
+          <span class="clients-search-ico">${icon('search')}</span>
+          <input class="clients-search-inp" id="clients-search-inp" type="text"
+            placeholder="Buscar cliente…"
+            value="${esc(clientsSearchTerm)}"
+            oninput="onClientsSearch(this.value)">
+          ${clientsSearchTerm ? `<button class="clients-search-clear" onclick="clearClientsSearch()" title="Limpiar">${icon('x')}</button>` : ''}
+        </div>
+        <div class="clients-filter-group">
+          <button class="btn-filter ${clientsFilter==='todos'?'active':''}" onclick="setClientsFilter('todos')">Todos</button>
+          <button class="btn-filter ${clientsFilter==='activos'?'active':''}" onclick="setClientsFilter('activos')">Activos</button>
+          <button class="btn-filter ${clientsFilter==='inactivos'?'active':''}" onclick="setClientsFilter('inactivos')">Inactivos</button>
+        </div>
+      ` : ''}
+      <div style="display:flex;gap:0.5rem;margin-left:auto">
         ${inTrash ? `
           <button class="btn btn-ghost btn-sm" onclick="switchClientsView('active')">${icon('back')} Volver a Clientes</button>
         ` : `
@@ -3179,12 +3227,30 @@ function renderClientsResults() {
     clientDisplayName(a).localeCompare(clientDisplayName(b), 'es')
   );
   const term = normTxt(clientsSearchTerm).trim();
+
+  // Aplicar filtro activos/inactivos (solo en vista normal)
+  const afterEstado = (!inTrash && clientsFilter !== 'todos')
+    ? all.filter(c => (c.estadoCliente || 'activo') === (clientsFilter === 'activos' ? 'activo' : 'inactivo'))
+    : all;
+
+  // Aplicar filtro de tarjeta del dashboard
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const afterFilter = (!inTrash && clientsDashFilter)
+    ? afterEstado.filter(c => {
+        const saldo = Number(c.saldo || 0);
+        if (clientsDashFilter === 'cobrados')   return saldo <= 0;
+        if (clientsDashFilter === 'pendientes') return saldo > 0;
+        if (clientsDashFilter === 'vencidos')   return saldo > 0 && c.vence && c.vence < todayStr;
+        return true; // 'ingresos' → todos
+      })
+    : afterEstado;
+
   const list = term
-    ? all.filter(c =>
+    ? afterFilter.filter(c =>
         normTxt(clientDisplayName(c)).includes(term) ||
         normTxt(c.razonSocial).includes(term) ||
         normTxt(c.cuit).includes(term))
-    : all;
+    : afterFilter;
 
   // Subtítulo con conteo en vivo
   const sub = $('clients-sub');
@@ -3194,7 +3260,9 @@ function renderClientsResults() {
     } else if (inTrash) {
       sub.textContent = `${list.length} cliente${list.length === 1 ? '' : 's'} en la papelera.`;
     } else {
-      sub.textContent = `${list.length} cliente${list.length === 1 ? '' : 's'} activo${list.length === 1 ? '' : 's'}.`;
+      const totalActivos   = all.filter(c => (c.estadoCliente || 'activo') === 'activo').length;
+      const totalInactivos = all.filter(c => (c.estadoCliente || 'activo') === 'inactivo').length;
+      sub.textContent = `${totalActivos} activo${totalActivos === 1 ? '' : 's'} · ${totalInactivos} inactivo${totalInactivos === 1 ? '' : 's'}`;
     }
   }
 
@@ -3263,8 +3331,31 @@ function clearClientsSearch() {
   if (inp) inp.focus();
 }
 
+function setClientsFilter(f) {
+  clientsFilter = f;
+  renderClientesSubTab();
+}
+
+function setDashFilter(key) {
+  // Toggle: clic en el mismo activo lo desactiva
+  clientsDashFilter = (clientsDashFilter === key) ? null : key;
+  // Actualizar estado visual de las tarjetas
+  document.querySelectorAll('.admin-metric[data-dash-filter]').forEach(el => {
+    el.classList.toggle('active', el.dataset.dashFilter === clientsDashFilter);
+  });
+  // Al activar un filtro, cambiar al tab de clientes si no estamos ahí
+  if (clientsDashFilter !== null && adminSubTab !== 'clientes') {
+    switchAdminSubTab('clientes');
+  } else {
+    renderClientsResults();
+  }
+}
+
 function switchClientsView(view) {
   clientsView = view === 'trash' ? 'trash' : 'active';
+  clientsFilter = 'todos';
+  clientsDashFilter = null;
+  document.querySelectorAll('.admin-metric[data-dash-filter]').forEach(el => el.classList.remove('active'));
   renderClientesSubTab();
 }
 
@@ -3602,6 +3693,8 @@ function renderClientMovements(movements) {
         <td class="num rc-saldo">${formatMoney(saldo)}</td>
         <td><span class="ct-chip ${impago ? 'impago' : 'pagado'}">${impago ? 'Factura emitida' : 'Pago efectuado'}</span></td>
         <td class="rc-actions">
+          <button class="btn btn-ghost btn-sm rc-edit-btn" title="Editar movimiento"
+            onclick="openMovementModalForEdit('${m.id}')">${icon('edit')}</button>
           <button class="btn btn-danger btn-sm rc-del-btn" title="Eliminar movimiento"
             onclick="startMovDelete('${clientId}','${m.id}', this)">${icon('trash')}</button>
         </td>
@@ -3737,8 +3830,9 @@ async function deleteClientFromModal() {
 }
 
 /* ── Factura / Pago ── */
-let movementMode = 'factura'; // 'factura' | 'pago'
-let mvFilesState = []; // { id, name, type, size, data (base64) }
+let movementMode  = 'factura'; // 'factura' | 'pago'
+let editingMovId  = null;      // id del movimiento que se está editando, null = crear
+let mvFilesState  = []; // { id, name, type, size, data (base64) }
 
 function mvFilesChanged(input) {
   const files = Array.from(input.files || []);
@@ -3772,6 +3866,139 @@ function renderMvFilesChips() {
 function mvRemoveFile(id) {
   mvFilesState = mvFilesState.filter(f => f.id !== id);
   renderMvFilesChips();
+}
+
+function downloadResumen() {
+  if (!currentClientId) return;
+  const c = clientsCache.find(x => x.id === currentClientId);
+  if (!c) return;
+  const movements = (movementsCache[currentClientId] || []).slice().sort((a, b) => {
+    if (a.fecha !== b.fecha) return a.fecha < b.fecha ? -1 : 1;
+    return (a.creadoEn || 0) - (b.creadoEn || 0);
+  });
+
+  let saldo = 0;
+  let totalFacturado = 0;
+  let totalPagado    = 0;
+
+  const filas = movements.map(m => {
+    saldo          += Number(m.montoFactura || 0) - Number(m.haber || 0);
+    totalFacturado += Number(m.montoFactura || 0);
+    totalPagado    += Number(m.haber        || 0);
+    const impago = m.haber > 0 ? false : true;
+    const extras = [
+      m.medioPago ? (MEDIO_PAGO_LABEL[m.medioPago] || m.medioPago) : '',
+      m.banco  || '',
+      m.detalle|| '',
+    ].filter(Boolean).join(' · ');
+    const archivosStr = (m.archivos || []).length
+      ? (m.archivos || []).map(f => f.name).join(', ')
+      : '';
+    return `<tr>
+      <td>${m.fecha ? m.fecha.split('-').reverse().join('/') : '—'}</td>
+      <td>${m.montoFactura > 0 ? fmtResumen(m.montoFactura) : '—'}</td>
+      <td>${m.debe  > 0 ? fmtResumen(m.debe)  : '—'}</td>
+      <td>${m.haber > 0 ? fmtResumen(m.haber) : '—'}</td>
+      <td style="font-weight:700;color:${saldo > 0 ? '#e53e3e' : '#276749'}">${fmtResumen(saldo)}</td>
+      <td>${impago ? 'Factura emitida' : 'Pago efectuado'}</td>
+      <td style="color:#666;font-size:0.82em">${extras}${archivosStr ? '<br><em>Adj: ' + archivosStr + '</em>' : ''}</td>
+    </tr>`;
+  }).join('');
+
+  function fmtResumen(n) {
+    const num = Number(n || 0);
+    const abs = Math.abs(num).toFixed(2);
+    const [ip, dec] = abs.split('.');
+    return `${num < 0 ? '-' : ''}$ ${ip.replace(/\B(?=(\d{3})+(?!\d))/g, '.')},${dec}`;
+  }
+
+  const hoy = new Date().toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit', year:'numeric' });
+  const nombre = [c.nombreFantasia, c.razonSocial].filter(Boolean).join(' / ');
+
+  const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Resumen de cuenta — ${nombre}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 13px; color: #1a202c; padding: 32px 40px; }
+  h1 { font-size: 1.5rem; color: #1a202c; margin-bottom: 4px; }
+  .sub { color: #718096; font-size: 0.85rem; margin-bottom: 20px; }
+  .info-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px 24px; margin-bottom: 24px; background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; }
+  .info-row { display: flex; flex-direction: column; gap: 2px; }
+  .info-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: #718096; }
+  .info-val { font-weight: 600; color: #2d3748; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+  thead tr { background: #2d3748; color: #fff; }
+  th { padding: 8px 10px; text-align: left; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap; }
+  td { padding: 8px 10px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+  tr:nth-child(even) td { background: #f7fafc; }
+  .totals { display: flex; justify-content: flex-end; gap: 32px; padding: 14px 10px; background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 20px; }
+  .total-item { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+  .total-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: #718096; }
+  .total-val { font-size: 1.1rem; font-weight: 800; }
+  .saldo-ok { color: #276749; } .saldo-mal { color: #e53e3e; }
+  .footer { color: #a0aec0; font-size: 0.75rem; border-top: 1px solid #e2e8f0; padding-top: 12px; }
+  @media print { body { padding: 16px; } }
+</style>
+</head>
+<body>
+  <h1>Resumen de cuenta</h1>
+  <div class="sub">Generado el ${hoy} · Consultoria Digital</div>
+
+  <div class="info-grid">
+    <div class="info-row"><span class="info-label">Nombre / Fantasía</span><span class="info-val">${c.nombreFantasia || '—'}</span></div>
+    <div class="info-row"><span class="info-label">Razón social</span><span class="info-val">${c.razonSocial || '—'}</span></div>
+    <div class="info-row"><span class="info-label">CUIT</span><span class="info-val">${c.cuit || '—'}</span></div>
+    <div class="info-row"><span class="info-label">Dirección</span><span class="info-val">${c.direccion || '—'}</span></div>
+    <div class="info-row"><span class="info-label">Tel. administración</span><span class="info-val">${c.telAdmin || '—'}</span></div>
+    <div class="info-row"><span class="info-label">Tel. dueño</span><span class="info-val">${c.telDueno || '—'}</span></div>
+    <div class="info-row"><span class="info-label">E-mail 1</span><span class="info-val">${c.mail1 || '—'}</span></div>
+    <div class="info-row"><span class="info-label">E-mail 2</span><span class="info-val">${c.mail2 || '—'}</span></div>
+    <div class="info-row"><span class="info-label">Vencimiento</span><span class="info-val">${c.vence ? c.vence.split('-').reverse().join('/') : '—'}</span></div>
+  </div>
+
+  ${movements.length === 0 ? '<p style="color:#718096;text-align:center;padding:24px">Sin movimientos registrados.</p>' : `
+  <table>
+    <thead>
+      <tr>
+        <th>Fecha</th>
+        <th>Monto factura</th>
+        <th>Debe</th>
+        <th>Haber</th>
+        <th>Saldo acum.</th>
+        <th>Estado</th>
+        <th>Detalle</th>
+      </tr>
+    </thead>
+    <tbody>${filas}</tbody>
+  </table>
+
+  <div class="totals">
+    <div class="total-item">
+      <span class="total-label">Total facturado</span>
+      <span class="total-val">${fmtResumen(totalFacturado)}</span>
+    </div>
+    <div class="total-item">
+      <span class="total-label">Total pagado</span>
+      <span class="total-val saldo-ok">${fmtResumen(totalPagado)}</span>
+    </div>
+    <div class="total-item">
+      <span class="total-label">Saldo final</span>
+      <span class="total-val ${saldo > 0 ? 'saldo-mal' : 'saldo-ok'}">${fmtResumen(saldo)}</span>
+    </div>
+  </div>`}
+
+  <div class="footer">Consultoria Digital · Resumen generado el ${hoy}</div>
+  <script>window.onload = () => window.print();<\/script>
+</body>
+</html>`;
+
+  const win = window.open('', '_blank');
+  if (!win) { toast('Activá las ventanas emergentes para descargar el resumen.', 'error'); return; }
+  win.document.write(html);
+  win.document.close();
 }
 
 function openMovArchivo(movId, archivoId) {
@@ -3832,8 +4059,46 @@ function openMovementModalForCurrent(mode = 'factura') {
   if (currentClientId) openMovementModal(currentClientId, mode);
 }
 
-function closeMovementModal() { closeOverlay('movement-overlay'); }
+function closeMovementModal() {
+  editingMovId = null;
+  closeOverlay('movement-overlay');
+}
 function movementBg(e) { if (e.target.id === 'movement-overlay') closeMovementModal(); }
+
+function openMovementModalForEdit(movId) {
+  if (!currentClientId) return;
+  const movements = movementsCache[currentClientId] || [];
+  const m = movements.find(x => x.id === movId);
+  if (!m) { toast('Movimiento no encontrado.', 'error'); return; }
+
+  const c = clientsCache.find(x => x.id === currentClientId);
+  editingMovId  = movId;
+  movementMode  = m.haber > 0 ? 'pago' : 'factura';
+
+  $('mv-title').textContent     = movementMode === 'pago' ? 'Editar pago' : 'Editar factura';
+  $('mv-submit-btn').textContent = movementMode === 'pago' ? 'Guardar pago' : 'Guardar factura';
+  $('mv-submit-btn').className   = 'btn btn-sm ' + (movementMode === 'pago' ? 'btn-pago' : 'btn-factura');
+
+  $('mv-cliente-info').innerHTML =
+    (movementMode === 'pago' ? 'Editar pago de ' : 'Editar factura de ') +
+    `<strong style="color:var(--text-hi)">${c ? esc(clientDisplayName(c)) : ''}</strong>`;
+
+  document.querySelectorAll('.mv-only-factura').forEach(el => el.style.display = movementMode === 'factura' ? '' : 'none');
+  document.querySelectorAll('.mv-only-pago').forEach(el => el.style.display    = movementMode === 'pago'    ? '' : 'none');
+
+  $('mv-fecha').value   = m.fecha   || '';
+  $('mv-medio').value   = m.medioPago || '';
+  $('mv-banco').value   = m.banco   || '';
+  $('mv-detalle').value = m.detalle || '';
+  $('mv-monto').value   = m.montoFactura > 0 ? m.montoFactura : '';
+  $('mv-haber').value   = m.haber   > 0 ? m.haber : '';
+
+  // Precargar archivos existentes (con data si están disponibles)
+  mvFilesState = (m.archivos || []).filter(f => f.data).map(f => ({ ...f }));
+  renderMvFilesChips();
+  hideErr('mv-err');
+  openOverlay('movement-overlay');
+}
 
 async function submitMovement() {
   if (!currentClientId) { closeMovementModal(); return; }
@@ -3868,14 +4133,17 @@ async function submitMovement() {
 
   body.archivos = mvFilesState;
 
+  const isEdit = !!editingMovId;
+  const url = '/api/admin/clients/' + encodeURIComponent(currentClientId) + '/movements'
+    + (isEdit ? '/' + encodeURIComponent(editingMovId) : '');
+
   try {
-    await api('/api/admin/clients/' + encodeURIComponent(currentClientId) + '/movements', {
-      method: 'POST',
-      body: JSON.stringify(body),
-    });
+    await api(url, { method: isEdit ? 'PATCH' : 'POST', body: JSON.stringify(body) });
     closeMovementModal();
     await loadMovementsForClient(currentClientId);
-    toast(movementMode === 'pago' ? 'Pago registrado.' : 'Factura cargada.', 'success');
+    toast(isEdit
+      ? 'Movimiento actualizado.'
+      : (movementMode === 'pago' ? 'Pago registrado.' : 'Factura cargada.'), 'success');
   } catch (err) {
     showErr('mv-err', err.message || 'No se pudo guardar.');
   }
@@ -4649,22 +4917,22 @@ function renderAdminTable(board, cards, _users) {
       </button>
     </div>
     <div class="admin-summary" id="admin-summary">
-      <div class="admin-metric metric-ingresos" style="--mi:0">
+      <div class="admin-metric metric-ingresos" style="--mi:0" data-dash-filter="ingresos" onclick="setDashFilter('ingresos')">
         <div class="admin-metric-icon">${icon('dollar')}</div>
         <div class="admin-metric-label">Ingresos totales del mes</div>
         <div class="admin-metric-value" id="adash-ingresos">—</div>
       </div>
-      <div class="admin-metric metric-cobrados" style="--mi:1">
+      <div class="admin-metric metric-cobrados" style="--mi:1" data-dash-filter="cobrados" onclick="setDashFilter('cobrados')">
         <div class="admin-metric-icon">${icon('check')}</div>
         <div class="admin-metric-label">Cobrados</div>
         <div class="admin-metric-value" id="adash-cobrados">—</div>
       </div>
-      <div class="admin-metric metric-pendientes" style="--mi:2">
+      <div class="admin-metric metric-pendientes" style="--mi:2" data-dash-filter="pendientes" onclick="setDashFilter('pendientes')">
         <div class="admin-metric-icon">${icon('zap')}</div>
         <div class="admin-metric-label">Pendientes de cobro</div>
         <div class="admin-metric-value" id="adash-pendientes">—</div>
       </div>
-      <div class="admin-metric metric-vencidos" style="--mi:3">
+      <div class="admin-metric metric-vencidos" style="--mi:3" data-dash-filter="vencidos" onclick="setDashFilter('vencidos')">
         <div class="admin-metric-icon">${icon('warn')}</div>
         <div class="admin-metric-label">Vencidos</div>
         <div class="admin-metric-value" id="adash-vencidos">—</div>
@@ -4691,6 +4959,13 @@ function renderAdminTable(board, cards, _users) {
   applyAdminSubTab();
   renderClientesSubTab();
   loadAdminDashboard();
+
+  // Restaurar estado activo de las tarjetas del dashboard
+  if (clientsDashFilter) {
+    document.querySelectorAll('.admin-metric[data-dash-filter]').forEach(el => {
+      el.classList.toggle('active', el.dataset.dashFilter === clientsDashFilter);
+    });
+  }
 
   // Aplicar estado actual de visibilidad y arrancar timer si los números están visibles
   applyAdminNumbersState();

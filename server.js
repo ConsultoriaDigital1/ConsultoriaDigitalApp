@@ -386,7 +386,7 @@ async function getClientById(id) {
   return rows[0] || null;
 }
 
-const ALLOWED_MEDIO_PAGO = new Set(['efectivo', 'transferencia', 'cheque', 'echeque', 'tarjeta', '']);
+const ALLOWED_MEDIO_PAGO = new Set(['efectivo', 'transferencia', 'cheque', 'echeque', 'tarjeta', 'canje', '']);
 
 function cleanMoney(value) {
   if (value == null || value === '') return 0;
@@ -942,8 +942,8 @@ app.get('/api/admin/dashboard', requireAdmin, async (req, res, next) => {
     const [ingresosRes, pendientesRes] = await Promise.all([
       pool.query(
         `SELECT
-           COALESCE(SUM(monto_factura), 0) AS ingresos_totales,
-           COALESCE(SUM(haber), 0)         AS cobrados
+           COALESCE(SUM(monto_factura) FILTER (WHERE COALESCE(cm.medio_pago,'') != 'canje'), 0) AS ingresos_totales,
+           COALESCE(SUM(haber)         FILTER (WHERE COALESCE(cm.medio_pago,'') != 'canje'), 0) AS cobrados
          FROM client_movements cm
          JOIN clients c ON c.id = cm.client_id
          WHERE c.deleted_at IS NULL
@@ -955,7 +955,9 @@ app.get('/api/admin/dashboard', requireAdmin, async (req, res, next) => {
            COALESCE(SUM(GREATEST(bal.saldo, 0)), 0)        AS pendientes,
            COUNT(*) FILTER (WHERE bal.saldo > 0 AND c.vence != '' AND c.vence < $1) AS vencidos
          FROM (
-           SELECT client_id, SUM(monto_factura) - SUM(haber) AS saldo
+           SELECT client_id,
+             COALESCE(SUM(monto_factura) FILTER (WHERE COALESCE(medio_pago,'') != 'canje'), 0) -
+             COALESCE(SUM(haber)         FILTER (WHERE COALESCE(medio_pago,'') != 'canje'), 0) AS saldo
            FROM client_movements GROUP BY client_id
          ) bal
          JOIN clients c ON c.id = bal.client_id
@@ -1042,6 +1044,41 @@ app.post('/api/admin/clients/:id/movements', requireAdmin, async (req, res, next
       ]
     );
     res.status(201).json({ ok: true, id });
+  } catch (err) { next(err); }
+});
+
+app.patch('/api/admin/clients/:id/movements/:movId', requireAdmin, async (req, res, next) => {
+  try {
+    const { rows: ex } = await pool.query(
+      'SELECT * FROM client_movements WHERE id = $1 AND client_id = $2',
+      [req.params.movId, req.params.id]
+    );
+    if (!ex[0]) return res.status(404).json({ error: 'Movimiento no encontrado.' });
+    const b = req.body || {};
+    const fecha = cleanDate(b.fecha);
+    if (!fecha) return res.status(400).json({ error: 'Fecha invalida (YYYY-MM-DD).' });
+    const medioPago = String(b.medioPago || '').toLowerCase().trim();
+    if (!ALLOWED_MEDIO_PAGO.has(medioPago)) return res.status(400).json({ error: 'Medio de pago invalido.' });
+    const debe  = cleanMoney(b.debe);
+    const haber = cleanMoney(b.haber);
+    const monto = cleanMoney(b.montoFactura);
+    if (debe === 0 && haber === 0) return res.status(400).json({ error: 'Ingresa al menos un monto en Debe o Haber.' });
+    const archivos = cleanArchivosMovementWithData(b.archivos || []);
+    await pool.query(
+      `UPDATE client_movements SET
+         fecha=$1, medio_pago=$2, banco=$3, detalle=$4,
+         monto_factura=$5, debe=$6, haber=$7, archivos=$8::jsonb
+       WHERE id=$9 AND client_id=$10`,
+      [
+        fecha, medioPago,
+        String(b.banco   || '').trim(),
+        String(b.detalle || '').trim(),
+        monto, debe, haber,
+        JSON.stringify(archivos),
+        req.params.movId, req.params.id,
+      ]
+    );
+    res.json({ ok: true });
   } catch (err) { next(err); }
 });
 
