@@ -55,24 +55,95 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 
 /* ─── BUTTONS ─── */
 .btn {
+  position: relative; overflow: hidden;
   display: inline-flex; align-items: center; justify-content: center;
-  gap: 0.4rem; padding: 0.55rem 1.2rem;
+  gap: 0.45rem; padding: 0.55rem 1.2rem;
   border-radius: var(--r-sm); font-family: var(--font-body);
   font-size: 0.85rem; font-weight: 600; border: none;
-  cursor: pointer; transition: all 150ms ease; white-space: nowrap;
+  cursor: pointer; white-space: nowrap; user-select: none;
+  transition: background-color 140ms ease, color 140ms ease,
+              border-color 140ms ease, box-shadow 160ms ease,
+              transform 120ms cubic-bezier(.34,1.56,.64,1);
+  -webkit-tap-highlight-color: transparent;
 }
+.btn:active     { transform: translateY(1px) scale(0.985); }
+.btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px rgba(87,157,255,0.65);
+}
+.btn:disabled, .btn.is-loading { opacity: 0.55; cursor: not-allowed; pointer-events: none; }
+.btn .ico { width: 1.05em; height: 1.05em; }
+
 .btn-primary { background: #579dff; color: #1d2125; }
-.btn-primary:hover { background: #85b8ff; }
+.btn-primary:hover { background: #85b8ff; box-shadow: 0 3px 12px rgba(87,157,255,0.32); transform: translateY(-1px); }
+.btn-primary:active { transform: translateY(0) scale(0.985); box-shadow: 0 1px 4px rgba(87,157,255,0.3); }
 .btn-lime    { background: var(--lime); color: #1d2125; }
-.btn-lime:hover { background: var(--lime-d); }
+.btn-lime:hover { background: var(--lime-d); box-shadow: 0 3px 12px rgba(231,255,79,0.28); transform: translateY(-1px); }
+.btn-lime:active { transform: translateY(0) scale(0.985); }
 .btn-ghost   { background: transparent; color: var(--text); border: 1px solid var(--border2); }
-.btn-ghost:hover { background: var(--surface2); color: var(--text-hi); }
+.btn-ghost:hover { background: var(--surface2); color: var(--text-hi); border-color: var(--surface3); }
 .btn-danger  { background: rgba(248,113,104,0.15); color: var(--danger); border: 1px solid rgba(248,113,104,0.25); }
-.btn-danger:hover { background: var(--danger); color: #1d2125; }
+.btn-danger:hover { background: var(--danger); color: #1d2125; box-shadow: 0 3px 12px rgba(248,113,104,0.3); transform: translateY(-1px); }
+.btn-danger:active { transform: translateY(0) scale(0.985); }
 .btn-subtle  { background: rgba(166,197,226,0.08); color: var(--text); border: none; }
 .btn-subtle:hover { background: rgba(166,197,226,0.15); color: var(--text-hi); }
-.btn-sm      { padding: 0.32rem 0.75rem; font-size: 0.78rem; }
+.btn-sm      { padding: 0.32rem 0.75rem; font-size: 0.78rem; gap: 0.35rem; }
 .btn-full    { width: 100%; }
+
+/* press ripple */
+.btn .ripple {
+  position: absolute; border-radius: 50%; transform: scale(0);
+  background: currentColor; opacity: 0.28; pointer-events: none;
+  animation: btn-ripple 520ms ease-out forwards;
+}
+/* loading spinner inside button */
+.btn.is-loading { color: transparent !important; }
+.btn.is-loading::after {
+  content: ''; position: absolute; width: 1.05em; height: 1.05em;
+  border: 2px solid currentColor; border-right-color: transparent;
+  border-radius: 50%; animation: btn-spin 600ms linear infinite;
+  color: #1d2125;
+}
+.btn-ghost.is-loading::after, .btn-danger.is-loading::after, .btn-subtle.is-loading::after { color: var(--text-hi); }
+
+/* ─── ICON SYSTEM (inline SVG, currentColor) ─── */
+.ico {
+  width: 1em; height: 1em; flex-shrink: 0;
+  display: inline-block; vertical-align: -0.14em;
+  fill: none; stroke: currentColor; stroke-width: 2;
+  stroke-linecap: round; stroke-linejoin: round;
+  pointer-events: none;
+}
+.ico-fill { fill: currentColor; stroke: none; }
+
+/* ─── MOTION SYSTEM ─── */
+@keyframes btn-ripple { to { transform: scale(2.6); opacity: 0; } }
+@keyframes btn-spin   { to { transform: rotate(360deg); } }
+@keyframes fade-in    { from { opacity: 0; } to { opacity: 1; } }
+@keyframes pop-in {
+  0%   { opacity: 0; transform: translateY(8px) scale(0.97); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes slide-in-right {
+  0%   { opacity: 0; transform: translateX(24px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+@keyframes rise-in {
+  0%   { opacity: 0; transform: translateY(10px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.anim-pop  { animation: pop-in 220ms cubic-bezier(.34,1.4,.5,1) both; }
+.anim-rise { animation: rise-in 360ms cubic-bezier(.22,1,.36,1) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .btn:hover, .btn:active { transform: none !important; }
+}
 
 /* ─── FORMS ─── */
 .form-group  { margin-bottom: 0.9rem; }
@@ -180,14 +251,22 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 
 .nav-tabs { display: flex; gap: 0.15rem; }
 .nav-tab {
+  position: relative;
   padding: 0.42rem 0.95rem; border-radius: var(--r-sm);
   font-size: 0.82rem; font-weight: 700; font-family: var(--font-disp);
   color: var(--muted); cursor: pointer;
-  transition: all 150ms ease; letter-spacing: 0.05em;
-  border: none; background: transparent;
+  transition: background-color 150ms ease, color 150ms ease;
+  letter-spacing: 0.05em; border: none; background: transparent;
+}
+.nav-tab::after {
+  content: ''; position: absolute; left: 50%; bottom: 2px;
+  width: 0; height: 2px; border-radius: 2px; background: var(--lime);
+  transform: translateX(-50%);
+  transition: width 220ms cubic-bezier(.22,1,.36,1);
 }
 .nav-tab:hover { background: var(--surface2); color: var(--text-hi); }
 .nav-tab.active { background: var(--surface3); color: var(--text-hi); }
+.nav-tab.active::after { width: 60%; }
 
 .topnav-right { display: flex; align-items: center; gap: 0.55rem; margin-left: auto; }
 
@@ -244,15 +323,45 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 .dd-item.danger:hover  { background: rgba(248,113,104,0.15); }
 
 /* ─── MAIN LAYOUT ─── */
-.main-layout { display: flex; height: calc(100vh - var(--topnav-h)); }
+.main-layout { display: flex; height: calc(100vh - var(--topnav-h)); position: relative; }
+
+/* ─── HAMBURGER BUTTON ─── */
+.hamburger-btn {
+  background: transparent; border: none; cursor: pointer;
+  color: var(--text); padding: 0.4rem 0.45rem;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  border-radius: var(--r-sm); flex-shrink: 0; margin-right: 0.15rem;
+  transition: background 150ms ease;
+}
+.hamburger-btn:hover { background: var(--surface2); color: var(--text-hi); }
+.hamburger-btn span {
+  display: block; width: 18px; height: 2px;
+  background: currentColor; border-radius: 2px;
+  transition: transform 200ms ease, opacity 200ms ease;
+}
+.hamburger-btn.open span:nth-child(1) { transform: translateY(6px) rotate(45deg); }
+.hamburger-btn.open span:nth-child(2) { opacity: 0; }
+.hamburger-btn.open span:nth-child(3) { transform: translateY(-6px) rotate(-45deg); }
 
 /* ─── SIDEBAR ─── */
 .sidebar {
   width: 195px; min-width: 195px;
   background: var(--bg2); border-right: 1px solid var(--border);
   padding: 0.85rem 0.6rem; display: flex; flex-direction: column;
-  overflow-y: auto; gap: 0.12rem;
+  overflow-y: auto; overflow-x: hidden; gap: 0.12rem;
+  position: absolute; top: 0; left: 0; bottom: 0; z-index: 200;
+  transform: translateX(-100%);
+  transition: transform 220ms cubic-bezier(.22,1,.36,1);
+  box-shadow: 4px 0 20px rgba(0,0,0,0.35);
 }
+.sidebar.open { transform: translateX(0); }
+
+.sidebar-overlay {
+  display: none; position: absolute; inset: 0; z-index: 199;
+  background: rgba(0,0,0,0.42); cursor: pointer;
+}
+.sidebar-overlay.show { display: block; }
+
 .sb-label {
   font-size: 0.6rem; font-weight: 900; letter-spacing: 0.12em;
   color: var(--muted); text-transform: uppercase;
@@ -264,6 +373,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
   color: var(--text); cursor: pointer;
   transition: all 150ms ease; font-size: 0.83rem; font-weight: 500;
   border: none; background: transparent; width: 100%; text-align: left;
+  white-space: nowrap; overflow: hidden;
 }
 .sb-btn:hover  { background: var(--surface2); color: var(--text-hi); }
 .sb-btn.active { background: var(--surface3); color: var(--text-hi); }
@@ -288,7 +398,8 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 .cbar-sub   { font-size: 0.72rem; color: var(--muted); margin-top: 0.04rem; }
 
 .tab-panel { display: none; flex: 1; overflow: hidden; flex-direction: column; }
-.tab-panel.active { display: flex; }
+.tab-panel.active { display: flex; animation: tab-enter 280ms cubic-bezier(.22,1,.36,1) both; }
+@keyframes tab-enter { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 
 /* ═══════════════════════════════════════════
    KANBAN
@@ -340,12 +451,18 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 .kcard {
   background: var(--surface2); border-radius: var(--r-sm);
   cursor: pointer;
-  transition: background 150ms ease;
+  transition: background 150ms ease, border-color 150ms ease,
+              box-shadow 180ms ease, transform 180ms cubic-bezier(.22,1,.36,1);
   border: 1px solid transparent;
   position: relative;
   min-height: 36px;
 }
-.kcard:hover { background: var(--surface3); border-color: var(--border2); }
+.kcard:hover {
+  background: var(--surface3); border-color: var(--border2);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.35);
+}
+.kcard:active { transform: translateY(0) scale(0.995); }
 
 /* ── SortableJS: placeholder (donde caera la card) ── */
 .kcard.kcard-ghost {
@@ -465,20 +582,39 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 }
 .admin-summary {
   display: grid; grid-template-columns: repeat(4, minmax(130px, 1fr));
-  gap: 0.65rem; margin-bottom: 0.75rem;
+  gap: 0.75rem; margin-bottom: 1.1rem;
 }
 .admin-metric {
-  background: rgba(22,27,34,0.72); border: 1px solid var(--border);
-  border-left: 3px solid rgba(231,255,79,0.55);
-  border-radius: var(--r-xs); padding: 0.7rem 0.85rem;
+  background: rgba(14,18,24,0.88);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: var(--r-sm);
+  padding: 1.05rem 1.1rem 0.9rem;
+  position: relative; overflow: hidden;
+  display: flex; flex-direction: column; gap: 0.18rem;
 }
+.admin-metric::before {
+  content: ''; position: absolute;
+  bottom: 0; left: 0; right: 0; height: 2px;
+}
+.metric-ingresos::before { background: linear-gradient(90deg,#e7ff4f,rgba(231,255,79,0.1)); }
+.metric-cobrados::before { background: linear-gradient(90deg,#4ade80,rgba(74,222,128,0.1)); }
+.metric-pendientes::before { background: linear-gradient(90deg,#fb923c,rgba(251,146,60,0.1)); }
+.metric-vencidos::before { background: linear-gradient(90deg,#f87171,rgba(248,113,113,0.1)); }
+.admin-metric-icon {
+  width: 1.25rem; height: 1.25rem; margin-bottom: 0.45rem; opacity: 0.75;
+}
+.metric-ingresos .admin-metric-icon { color: #e7ff4f; }
+.metric-cobrados .admin-metric-icon { color: #4ade80; }
+.metric-pendientes .admin-metric-icon { color: #fb923c; }
+.metric-vencidos .admin-metric-icon { color: #f87171; }
 .admin-metric-label {
-  color: var(--muted); font-size: 0.64rem; font-weight: 900;
-  text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--muted); font-size: 0.6rem; font-weight: 800;
+  text-transform: uppercase; letter-spacing: 0.1em;
 }
 .admin-metric-value {
   color: var(--text-hi); font-family: var(--font-disp);
-  font-size: 1.25rem; font-weight: 900; margin-top: 0.2rem;
+  font-size: 1.3rem; font-weight: 900; margin-top: 0.15rem;
+  line-height: 1.1;
 }
 .admin-table-panel {
   background: transparent; border: none; border-radius: 0; overflow: auto;
@@ -772,6 +908,24 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
   transition: background 120ms;
 }
 .admin-month-nav-btn:hover { background: var(--surface2); color: var(--text-hi); }
+@keyframes metricIn {
+  from { opacity: 0; transform: translateY(14px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0)    scale(1);    }
+}
+.admin-summary.dash-animate .admin-metric {
+  animation: metricIn 0.4s cubic-bezier(0.22,1,0.36,1) both;
+  animation-delay: calc(var(--mi, 0) * 75ms);
+}
+.admin-numbers-hidden .admin-metric-value,
+.admin-numbers-hidden .admin-money,
+.admin-numbers-hidden .ct-money,
+.admin-numbers-hidden .ct-vence {
+  filter: blur(6px);
+  user-select: none;
+  pointer-events: none;
+  transition: filter 250ms;
+}
+.admin-metric-value, .admin-money, .ct-money, .ct-vence { transition: filter 250ms; }
 .admin-month-label {
   font-size: 0.82rem; font-weight: 700; color: var(--text-hi);
   min-width: 100px; text-align: center;
@@ -906,13 +1060,13 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
   background: rgba(0,0,0,0.72); backdrop-filter: blur(3px);
   display: none; align-items: center; justify-content: center; padding: 1rem;
 }
-.overlay.open { display: flex; }
+.overlay.open { display: flex; animation: fade-in 160ms ease both; }
 
 @keyframes modalIn {
-  from { opacity: 0; transform: translateY(8px) scale(0.985); }
-  to   { opacity: 1; transform: translateY(0)   scale(1); }
+  from { opacity: 0; transform: translateY(14px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0)    scale(1); }
 }
-.overlay.open > .modal { animation: modalIn 180ms cubic-bezier(.4,.0,.2,1); }
+.overlay.open > .modal { animation: modalIn 240ms cubic-bezier(.34,1.4,.5,1) both; }
 
 .modal {
   background: var(--surface); border-radius: var(--r-xl);
@@ -1036,7 +1190,10 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 }
 .trello-action:hover { background: var(--surface3); color: var(--text-hi); }
 .trello-action.has-due {
-  background: rgba(87,157,255,0.14); border-color: rgba(87,157,255,0.45); color: #85b8ff;
+  background: rgba(75,206,151,0.14); border-color: rgba(75,206,151,0.45); color: var(--success);
+}
+.trello-action.is-active {
+  background: rgba(75,206,151,0.14); border-color: rgba(75,206,151,0.45); color: var(--success);
 }
 .trello-action.has-pauta {
   background: rgba(231,255,79,0.14); border-color: rgba(231,255,79,0.45); color: var(--lime);
@@ -1324,14 +1481,52 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 }
 .kcard-checklist.done { color: var(--success); }
 .kcard-checklist-icon { width: 12px; height: 12px; border-radius: 2px; }
-.client-details {
+.client-details-section {
   margin-left: 2.05rem; border-top: 1px solid var(--border); padding-top: 0.65rem;
 }
-.client-details summary {
-  cursor: pointer; color: var(--text-hi); font-weight: 900; font-size: 0.7rem;
-  margin-bottom: 0.55rem;
+.client-details-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.8rem;
+  color: var(--text-hi); font-weight: 900; font-size: 0.7rem; margin-bottom: 0.55rem;
 }
 .client-detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 0.55rem; }
+
+/* ─── ARCHIVOS ADJUNTOS ─── */
+.attachments-section {
+  margin-left: 2.05rem; border-top: 1px solid var(--border); padding-top: 0.65rem;
+}
+.attachments-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.8rem;
+  color: var(--text-hi); font-weight: 900; font-size: 0.7rem; margin-bottom: 0.55rem;
+}
+.attachments-upload-btn {
+  border: 1px dashed var(--border2); background: var(--surface2); color: var(--muted);
+  border-radius: var(--r-sm); padding: 0.55rem 1rem; font-size: 0.68rem; font-weight: 600;
+  cursor: pointer; display: flex; align-items: center; gap: 0.4rem;
+  transition: background 140ms, border-color 140ms, color 140ms; width: 100%;
+}
+.attachments-upload-btn:hover { background: var(--surface3); color: var(--text-hi); border-color: var(--surface3); }
+.attachment-list { display: flex; flex-direction: column; gap: 0.45rem; margin-bottom: 0.55rem; }
+.attachment-item {
+  display: flex; align-items: center; gap: 0.55rem;
+  background: var(--surface2); border: 1px solid var(--border); border-radius: var(--r-sm);
+  padding: 0.42rem 0.7rem;
+}
+.attachment-icon {
+  width: 28px; height: 28px; border-radius: 6px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--surface3); font-size: 0.72rem; font-weight: 900; color: var(--text-hi);
+}
+.attachment-info { flex: 1; min-width: 0; }
+.attachment-name { font-size: 0.7rem; font-weight: 700; color: var(--text-hi); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.attachment-meta { font-size: 0.6rem; color: var(--muted); margin-top: 0.08rem; }
+.attachment-actions { display: flex; gap: 0.3rem; flex-shrink: 0; }
+.attachment-btn {
+  border: 1px solid var(--border2); background: transparent; color: var(--text);
+  border-radius: 5px; padding: 0.22rem 0.45rem; font-size: 0.6rem; font-weight: 700;
+  cursor: pointer; white-space: nowrap;
+}
+.attachment-btn:hover { background: var(--surface3); color: var(--text-hi); }
+.attachment-btn.del:hover { background: var(--danger); color: #1d2125; border-color: var(--danger); }
 .activity-head {
   display: flex; align-items: center; justify-content: space-between; gap: 0.8rem;
   color: var(--text-hi); font-weight: 900; font-size: 0.7rem; margin-bottom: 0.55rem;
@@ -1391,7 +1586,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
   .card-detail-main, .card-detail-activity { padding: 0.8rem; }
   .card-title-row { gap: 0.55rem; }
   .card-title-input { font-size: 0.98rem; min-height: 44px; }
-  .card-subtitle, .card-action-row, .card-props, .trello-section, .client-details { margin-left: 0; }
+  .card-subtitle, .card-action-row, .card-props, .trello-section, .client-details-section, .attachments-section { margin-left: 0; }
   .checklist-item { grid-template-columns: 18px 20px minmax(0, 1fr) 24px; }
   .checklist-user-select { grid-column: 3 / 5; grid-row: 2; }
   .checklist-item-del { grid-column: 4; grid-row: 1; }
@@ -1511,42 +1706,134 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
    NOTAS
    ═══════════════════════════════════════════ */
 .notas-wrap {
-  flex: 1; padding: 1rem 1.1rem; overflow-y: auto;
-  display: grid; grid-template-columns: repeat(auto-fit,minmax(260px,1fr));
-  gap: 0.82rem; align-content: start;
+  flex: 1; padding: 1.2rem 1.4rem; overflow-y: auto;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.1rem; align-content: start;
 }
 .note-panel {
-  min-height: 320px; background: var(--surface); border: 1px solid var(--border);
-  border-radius: var(--r-lg); display: flex; flex-direction: column; overflow: hidden;
+  min-height: 380px; background: var(--surface);
+  border: 1px solid var(--border); border-radius: var(--r-lg);
+  display: flex; flex-direction: column; overflow: hidden;
+  position: relative;
+  transition: border-color 200ms, box-shadow 200ms;
+}
+.note-panel::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  background: var(--na, var(--border2));
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+  pointer-events: none;
+}
+.note-panel:focus-within {
+  border-color: var(--border2);
+  box-shadow: var(--shadow);
 }
 .note-head {
-  padding: 0.85rem 0.95rem; border-bottom: 1px solid var(--border);
-  display: flex; align-items: center; justify-content: space-between; gap: 0.8rem;
+  padding: 1rem 1.1rem 0.9rem; border-bottom: 1px solid var(--border);
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 0.8rem;
+  padding-top: 1.1rem;
 }
-.note-title { color: var(--text-hi); font-weight: 800; font-size: 0.9rem; }
-.note-sub { color: var(--muted); font-size: 0.72rem; margin-top: 0.16rem; }
-.note-status { color: var(--muted); font-size: 0.68rem; white-space: nowrap; }
+.note-head-left { display: flex; align-items: center; gap: 0.7rem; }
+.note-ico {
+  width: 34px; height: 34px; border-radius: var(--r-sm); flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(255,255,255,0.07);
+  color: var(--na, var(--text));
+}
+.note-ico .ico { width: 15px; height: 15px; stroke-width: 2; }
+.note-title { color: var(--text-hi); font-weight: 800; font-size: 0.88rem; }
+.note-sub   { color: var(--muted); font-size: 0.7rem; margin-top: 0.1rem; }
+.note-status {
+  display: flex; align-items: center; gap: 0.35rem;
+  color: var(--muted); font-size: 0.65rem; white-space: nowrap; padding-top: 3px;
+}
+.note-status-dot {
+  width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+  background: var(--success); transition: background 300ms;
+}
+.note-status-dot.saving { background: var(--warn); animation: pulse-dot 1s infinite; }
+.note-status-dot.error  { background: var(--danger); animation: none; }
+@keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.35} }
 .note-textarea {
-  flex: 1; width: 100%; min-height: 240px; padding: 0.95rem;
-  border: 0; resize: vertical; outline: none; background: transparent;
-  color: var(--text); font: 0.86rem/1.5 var(--font-body);
+  flex: 1; width: 100%; min-height: 280px;
+  padding: 1rem 1.1rem; border: 0; resize: none; outline: none;
+  background: transparent; color: var(--text);
+  font: 0.85rem/1.65 var(--font-body);
+  transition: background 150ms;
 }
-.note-textarea::placeholder { color: var(--muted); }
+.note-textarea:focus { background: rgba(255,255,255,0.018); }
+.note-textarea::placeholder { color: var(--muted); opacity: 0.6; }
+.note-footer {
+  padding: 0.42rem 1.1rem; border-top: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: flex-end;
+}
+.note-charcount { color: var(--muted); font-size: 0.63rem; opacity: 0.65; }
+
+/* ─── Note chat (team / admin) ─── */
+.note-chat {
+  flex: 1; overflow-y: auto; padding: 0.75rem 1rem;
+  display: flex; flex-direction: column; gap: 0.55rem; min-height: 200px;
+}
+.note-msg { display: flex; flex-direction: column; max-width: 82%; }
+.note-msg.mine  { align-self: flex-end;   align-items: flex-end; }
+.note-msg.other { align-self: flex-start; align-items: flex-start; }
+.note-bubble {
+  padding: 0.45rem 0.75rem; border-radius: 11px;
+  font: 0.84rem/1.55 var(--font-body); word-break: break-word; white-space: pre-wrap;
+}
+.note-msg.mine  .note-bubble {
+  background: var(--surface2);
+  border-bottom-right-radius: 3px;
+  border-left: 2px solid var(--na, #60a5fa);
+}
+.note-msg.other .note-bubble {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--border);
+  border-bottom-left-radius: 3px;
+}
+.note-msg-author { font-size: 0.61rem; color: var(--muted); margin-top: 0.18rem; padding: 0 0.2rem; }
+.note-chat-empty {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  color: var(--muted); font-size: 0.78rem; opacity: 0.45; font-style: italic;
+}
+.note-input-row {
+  display: flex; gap: 0.5rem; padding: 0.65rem 1rem;
+  border-top: 1px solid var(--border); align-items: flex-end;
+}
+.note-chat-input {
+  flex: 1; background: var(--surface2); border: 1px solid var(--border);
+  border-radius: var(--r-sm); padding: 0.45rem 0.7rem;
+  color: var(--text); font: 0.84rem/1.5 var(--font-body);
+  outline: none; resize: none; min-height: 34px; max-height: 110px;
+  transition: border-color 150ms;
+}
+.note-chat-input:focus { border-color: var(--border2); }
+.note-chat-input::placeholder { color: var(--muted); opacity: 0.55; }
+.note-send-btn {
+  background: var(--na, #60a5fa); color: #000; border: none;
+  border-radius: var(--r-sm); padding: 0 0.9rem; height: 34px;
+  font: 700 0.78rem var(--font-body); cursor: pointer;
+  flex-shrink: 0; transition: opacity 150ms; white-space: nowrap;
+}
+.note-send-btn:hover { opacity: 0.82; }
 
 /* ═══════════════════════════════════════════
    TOAST
    ═══════════════════════════════════════════ */
 #toast {
   position: fixed; bottom: 1.3rem; right: 1.3rem; z-index: 999;
+  display: flex; align-items: center; gap: 0.5rem;
   background: var(--surface2); color: var(--text-hi); padding: 0.68rem 1rem;
   border-radius: var(--r-sm); font-size: 0.82rem; font-weight: 600;
   box-shadow: var(--shadow-lg); border: 1px solid var(--border2);
-  pointer-events: none; opacity: 0; transform: translateY(12px);
-  transition: opacity 220ms ease, transform 220ms ease;
+  pointer-events: none; opacity: 0; transform: translateX(24px) scale(0.96);
+  transition: opacity 260ms ease, transform 320ms cubic-bezier(.34,1.4,.5,1);
 }
-#toast.on         { opacity: 1; transform: translateY(0); }
+#toast.on         { opacity: 1; transform: translateX(0) scale(1); }
+#toast .ico       { width: 1.05rem; height: 1.05rem; flex-shrink: 0; }
 #toast.success    { border-left: 3px solid var(--success); }
+#toast.success .ico { color: var(--success); }
 #toast.error      { border-left: 3px solid var(--danger); }
+#toast.error .ico { color: var(--danger); }
 
 /* ─── Scrollbar ─── */
 ::-webkit-scrollbar       { width: 5px; height: 5px; }
@@ -1637,6 +1924,9 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 <div id="app">
   <!-- Top Nav -->
   <nav class="topnav">
+    <button class="hamburger-btn" id="hamburger-btn" onclick="toggleSidebar()" title="Filtrar por equipo" aria-label="Abrir panel de equipos">
+      <span></span><span></span><span></span>
+    </button>
     <div class="brand">
       <img class="brand-logo-img" src="logo.webp" alt="consultor&iacute;a digital" aria-label="Ir a clientes" role="button" tabindex="0" onclick="goClientesHome()" onkeydown="onBrandLogoKeydown(event)" />
       <div class="brand-icon">
@@ -1656,10 +1946,6 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
       <button class="nav-tab"        data-tab="talentos"   onclick="switchTab('talentos')">TALENTOS</button>
     </div>
     <div class="topnav-right">
-      <div class="nav-search">
-        <span class="nav-search-ico">🔍</span>
-        <input type="search" id="search-inp" placeholder="Buscar..." oninput="onSearch(this.value)" />
-      </div>
       <div class="user-pill" id="user-pill" onclick="toggleDD()">
         <div class="upill-ava" id="pill-ava"></div>
         <span id="pill-name"></span>
@@ -1673,15 +1959,16 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
       <div class="dd-name"  id="dd-name"></div>
       <div class="dd-email" id="dd-email"></div>
     </div>
-    <button class="dd-item" onclick="openProfileModal()">👤&nbsp; Mi perfil</button>
+    <button class="dd-item" onclick="openProfileModal()"><i class="ico-ph" data-ico="user"></i> Mi perfil</button>
     <hr style="border:none;border-top:1px solid var(--border);margin:0.2rem 0">
-    <button class="dd-item danger" onclick="doLogout()">↩&nbsp; Cerrar sesión</button>
+    <button class="dd-item danger" onclick="doLogout()"><i class="ico-ph" data-ico="logout"></i> Cerrar sesión</button>
   </div>
 
   <!-- Main Layout -->
   <div class="main-layout">
+    <div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
     <!-- Sidebar -->
-    <aside class="sidebar">
+    <aside class="sidebar" id="main-sidebar">
       <div class="sb-label">Equipos</div>
       <button class="sb-btn"        data-team="all"        onclick="filterTeam('all')">
         <span class="sb-dot d-all"></span> Todos
@@ -1712,24 +1999,21 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 
       <!-- ── CLIENTES TAB ── -->
       <div id="tab-clientes" class="tab-panel active">
-        <div class="cbar">
+        <div class="cbar" id="clientes-cbar">
           <div>
             <div class="cbar-title" id="clientes-title">Gestión de Clientes</div>
             <div class="cbar-sub" id="clientes-sub">Tablero Kanban — Todos los equipos</div>
           </div>
-          <div style="margin-left:auto;display:flex;gap:0.4rem;flex-wrap:wrap;justify-content:flex-end">
+          <div style="display:flex;gap:0.4rem;flex-wrap:wrap;justify-content:flex-end;margin-left:auto">
             <button id="btn-cards-trash" class="btn btn-trash btn-sm" onclick="switchCardsView('trash')" title="Ver tarjetas en la papelera">
-              🗑️ Papelera <span id="cards-trash-count" class="trash-count" style="display:none"></span>
+              <i class="ico-ph" data-ico="trash"></i> Papelera <span id="cards-trash-count" class="trash-count" style="display:none"></span>
             </button>
             <button id="btn-my-clients" class="btn btn-trash btn-sm" onclick="toggleMyClients()" title="Mostrar solo las tarjetas en las que sos miembro" aria-pressed="false">
-              👤 Ver mis clientes
+              <i class="ico-ph" data-ico="user"></i> Ver mis clientes
             </button>
-            <button id="btn-autosave" class="btn btn-trash btn-sm" onclick="toggleAutosave()" title="Alterna entre guardar al apretar Guardar o guardar automáticamente al salir de cada campo" aria-pressed="false">
-              ✋ Guardado manual
-            </button>
-            <button id="btn-cards-active" class="btn btn-ghost btn-sm" onclick="switchCardsView('active')" style="display:none" title="Volver al tablero">← Volver al tablero</button>
+            <button id="btn-cards-active" class="btn btn-ghost btn-sm" onclick="switchCardsView('active')" style="display:none" title="Volver al tablero"><i class="ico-ph" data-ico="back"></i> Volver al tablero</button>
             <button id="btn-new-card" class="btn btn-subtle btn-sm" onclick="openNewCard()">
-              + Nueva tarjeta
+              <i class="ico-ph" data-ico="plus"></i> Nueva tarjeta
             </button>
           </div>
         </div>
@@ -1744,7 +2028,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
             <div class="cbar-sub" id="cal-sub"></div>
           </div>
           <div style="margin-left:auto;display:flex;gap:0.4rem;flex-wrap:wrap;justify-content:flex-end">
-            <button id="cal-gcal-btn" class="btn btn-ghost btn-sm" onclick="openGcalConfigModal()" title="Configurar Google Calendar">⚙ Google Cal</button>
+            <button id="cal-gcal-btn" class="btn btn-ghost btn-sm" onclick="openGcalConfigModal()" title="Configurar Google Calendar"><i class="ico-ph" data-ico="settings"></i> Google Cal</button>
             <button id="cal-add-event-btn" class="btn btn-primary btn-sm" onclick="openEventModal()">+ Evento</button>
             <button id="cal-prev-btn" class="btn btn-ghost btn-sm" onclick="changeMonth(-1)">‹</button>
             <button id="cal-next-btn" class="btn btn-ghost btn-sm" onclick="changeMonth(1)">›</button>
@@ -1803,7 +2087,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
         <span class="modal-head-title sr-only" id="modal-title">Nueva tarjeta</span>
         <div class="card-window-actions">
           <button class="card-icon-btn cover-menu-btn" onclick="toggleCoverMenu(event)" title="Imagen y color">...</button>
-          <button class="card-icon-btn modal-close" onclick="closeModal()" title="Cerrar">x</button>
+          <button class="card-icon-btn modal-close" onclick="closeModal()" title="Cerrar"><i class="ico-ph" data-ico="x"></i></button>
           <input id="f-cover" class="cover-file" type="file" accept="image/*" onchange="loadCoverImage(this)" />
           <div id="cover-menu" class="cover-menu" onclick="event.stopPropagation()">
             <div class="cover-menu-actions">
@@ -1825,14 +2109,16 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
         <div id="modal-card-subtitle" class="card-subtitle">en Iniciada</div>
 
         <div class="card-action-row">
-          <button class="trello-action" onclick="openChecklistSection()"><span class="checklist-action-icon"></span> Checklist</button>
-          <button id="due-action-btn" class="trello-action" onclick="openDuePopover(event)">Vencimiento</button>
+          <button id="checklist-action-btn" class="trello-action" onclick="openChecklistSection()"><span class="checklist-action-icon"></span> Checklist</button>
+          <button id="due-action-btn" class="trello-action" onclick="openDuePopover(event)">Evento</button>
           <button id="pauta-action-btn" class="trello-action" onclick="openPautaModal()" style="display:none">PAUTA</button>
+          <button id="client-details-action-btn" class="trello-action" onclick="toggleClientDetailsSection()">Datos del cliente</button>
+          <button id="attachments-action-btn" class="trello-action" onclick="toggleAttachmentsSection()">Archivos</button>
           <input id="f-pauta-url" type="hidden" />
         </div>
 
         <div class="card-props">
-          <div class="card-prop">
+          <div class="card-prop" id="card-prop-equipo" style="display:none">
             <span class="card-prop-label">Equipo asignado</span>
             <select id="f-equipo" class="card-select" onchange="onCardTeamChange()">
               <option value="marketing">Equipo de Marketing</option>
@@ -1886,8 +2172,11 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
           <button id="checklist-add-toggle" class="btn btn-ghost btn-sm" type="button" onclick="showChecklistInput()">Anade un elemento</button>
         </section>
 
-        <details id="client-details" class="client-details">
-          <summary>Datos del cliente</summary>
+        <section id="client-details-section" class="trello-section client-details-section" style="display:none">
+          <div class="client-details-head">
+            <span>Datos del cliente</span>
+            <button class="btn btn-ghost btn-sm" type="button" onclick="toggleClientDetailsSection()">Cerrar</button>
+          </div>
           <div class="client-detail-grid">
             <div class="form-group">
               <label class="form-label">R.S. - Razon Social</label>
@@ -1930,7 +2219,19 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
               <input id="f-vence-hora" type="hidden" />
             </div>
           </div>
-        </details>
+        </section>
+
+        <section id="attachments-section" class="trello-section attachments-section" style="display:none">
+          <div class="attachments-head">
+            <span>Archivos adjuntos</span>
+            <button class="btn btn-ghost btn-sm" type="button" onclick="toggleAttachmentsSection()">Cerrar</button>
+          </div>
+          <div id="attachment-list" class="attachment-list"></div>
+          <label class="attachments-upload-btn" for="f-attachment-input">
+            + Subir archivo
+          </label>
+          <input id="f-attachment-input" type="file" multiple style="display:none" onchange="handleFileUpload(this)" />
+        </section>
       </main>
 
       <aside class="card-detail-activity">
@@ -1943,7 +2244,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
     </div>
 
     <div class="modal-foot card-modal-foot">
-      <button id="btn-del" class="btn btn-danger btn-sm" onclick="deleteCard()" style="display:none;margin-right:auto" title="Mueve la tarjeta a la papelera">🗑️ Mover a papelera</button>
+      <button id="btn-del" class="btn btn-danger btn-sm" onclick="deleteCard()" style="display:none;margin-right:auto" title="Mueve la tarjeta a la papelera"><i class="ico-ph" data-ico="trash"></i> Mover a papelera</button>
       <button id="btn-cancel-card" class="btn btn-ghost btn-sm" onclick="closeModal()">Cancelar</button>
       <button id="btn-save-card" class="btn btn-primary btn-sm" onclick="saveCard()">Guardar</button>
     </div>
@@ -1960,8 +2261,8 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
         <span class="pauta-title">PAUTA</span>
         <span id="pauta-client-name" class="pauta-sub">Cliente</span>
       </div>
-      <a id="pauta-open-link" class="btn btn-ghost btn-sm" href="#" target="_blank" rel="noopener" style="display:none">Abrir en pestaña nueva ↗</a>
-      <button class="modal-close" onclick="closePautaModal()" title="Cerrar">x</button>
+      <a id="pauta-open-link" class="btn btn-ghost btn-sm" href="#" target="_blank" rel="noopener" style="display:none">Abrir en pestaña nueva <i class="ico-ph" data-ico="external"></i></a>
+      <button class="modal-close" onclick="closePautaModal()" title="Cerrar"><i class="ico-ph" data-ico="x"></i></button>
     </div>
     <div class="pauta-url-bar">
       <input id="pauta-url-input" class="form-input" type="text" placeholder="Pegá la URL del embed (Google Sheets, Looker, etc.) o el <iframe> completo" />
@@ -2040,7 +2341,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
   <div class="modal" style="max-width:400px" onclick="event.stopPropagation()">
     <div class="modal-head">
       <span class="modal-head-title">Mi perfil</span>
-      <button class="modal-close" onclick="closeProfileModal()">✕</button>
+      <button class="modal-close" onclick="closeProfileModal()"><i class="ico-ph" data-ico="x"></i></button>
     </div>
     <div style="padding:1.2rem 1.4rem;display:flex;flex-direction:column;gap:0.85rem">
       <div style="display:flex;align-items:center;gap:0.9rem">
@@ -2084,7 +2385,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
   <div class="modal" style="max-width:440px" onclick="event.stopPropagation()">
     <div class="modal-head">
       <span class="modal-head-title">Agregar usuario</span>
-      <button class="modal-close" onclick="closeUserModal()">x</button>
+      <button class="modal-close" onclick="closeUserModal()"><i class="ico-ph" data-ico="x"></i></button>
     </div>
     <div style="padding:1.2rem 1.4rem">
       <div class="form-row">
@@ -2127,7 +2428,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
   <div class="modal" style="max-width:460px" onclick="event.stopPropagation()">
     <div class="modal-head">
       <span class="modal-head-title" id="event-modal-title">Nuevo evento</span>
-      <button class="modal-close" onclick="closeEventModal()">x</button>
+      <button class="modal-close" onclick="closeEventModal()"><i class="ico-ph" data-ico="x"></i></button>
     </div>
     <div style="padding:1.2rem 1.4rem">
       <input type="hidden" id="ev-id" />
@@ -2182,7 +2483,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
   <div class="modal" style="max-width:500px" onclick="event.stopPropagation()">
     <div class="modal-head">
       <span class="modal-head-title">Configurar Google Calendar</span>
-      <button class="modal-close" onclick="closeGcalModal()">x</button>
+      <button class="modal-close" onclick="closeGcalModal()"><i class="ico-ph" data-ico="x"></i></button>
     </div>
     <div style="padding:1.2rem 1.4rem">
       <div class="form-group" id="gcal-team-group">
@@ -2219,7 +2520,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
   <div class="modal" style="max-width:440px" onclick="event.stopPropagation()">
     <div class="modal-head">
       <span class="modal-head-title">Editar usuario</span>
-      <button class="modal-close" onclick="closeEditUserModal()">x</button>
+      <button class="modal-close" onclick="closeEditUserModal()"><i class="ico-ph" data-ico="x"></i></button>
     </div>
     <div style="padding:1.2rem 1.4rem">
       <input type="hidden" id="eu-id" />
@@ -2265,7 +2566,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
   <div class="modal" style="max-width:520px" onclick="event.stopPropagation()">
     <div class="modal-head">
       <span class="modal-head-title" id="nc-modal-title">Nuevo cliente</span>
-      <button class="modal-close" onclick="closeNewClientModal()">✕</button>
+      <button class="modal-close" onclick="closeNewClientModal()"><i class="ico-ph" data-ico="x"></i></button>
     </div>
     <div style="padding:1.2rem 1.4rem">
       <div class="form-group">
@@ -2342,15 +2643,15 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
         <div class="modal-head-title" id="cv-title">Cliente</div>
         <div id="cv-sub" style="font-size:0.78rem;color:var(--muted);margin-top:0.15rem"></div>
       </div>
-      <button class="btn btn-edit btn-sm" onclick="openEditClientModal()" style="margin-right:0.4rem" title="Editar datos del cliente">✏️ Editar</button>
-      <button class="btn btn-danger btn-sm" id="cv-delete-btn" onclick="deleteClientFromModal()" style="margin-right:0.4rem" title="Mueve el cliente a la papelera">🗑️ Mover a papelera</button>
-      <button class="modal-close" onclick="closeClientModal()">✕</button>
+      <button class="btn btn-edit btn-sm" onclick="openEditClientModal()" style="margin-right:0.4rem" title="Editar datos del cliente"><i class="ico-ph" data-ico="edit"></i> Editar</button>
+      <button class="btn btn-danger btn-sm" id="cv-delete-btn" onclick="deleteClientFromModal()" style="margin-right:0.4rem" title="Mueve el cliente a la papelera"><i class="ico-ph" data-ico="trash"></i> Mover a papelera</button>
+      <button class="modal-close" onclick="closeClientModal()"><i class="ico-ph" data-ico="x"></i></button>
     </div>
 
     <!-- Sección 1: Datos generales -->
     <div class="client-modal-section">
       <div class="client-section-head open" onclick="toggleClientSection('cv-datos')">
-        <span class="chev">▶</span>
+        <span class="chev"><i class="ico-ph" data-ico="chevron"></i></span>
         <h3>Datos generales</h3>
       </div>
       <div id="cv-datos" class="client-section-body">
@@ -2398,14 +2699,14 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
     <!-- Sección 2: Resumen de cuenta (colapsable) -->
     <div class="client-modal-section">
       <div class="client-section-head" onclick="toggleClientSection('cv-resumen')">
-        <span class="chev">▶</span>
+        <span class="chev"><i class="ico-ph" data-ico="chevron"></i></span>
         <h3>Resumen de cuenta</h3>
         <span id="cv-saldo-head" style="margin-left:auto;font-size:0.82rem;color:var(--muted)"></span>
       </div>
       <div id="cv-resumen" class="client-section-body collapsed">
         <div class="rc-toolbar">
-          <button class="btn btn-factura btn-sm" onclick="openMovementModalForCurrent('factura')" style="margin-right:0.4rem">📄 Cargar factura</button>
-          <button class="btn btn-pago btn-sm" onclick="openMovementModalForCurrent('pago')">💵 Cargar pago</button>
+          <button class="btn btn-factura btn-sm" onclick="openMovementModalForCurrent('factura')" style="margin-right:0.4rem"><i class="ico-ph" data-ico="file"></i> Cargar factura</button>
+          <button class="btn btn-pago btn-sm" onclick="openMovementModalForCurrent('pago')"><i class="ico-ph" data-ico="dollar"></i> Cargar pago</button>
         </div>
         <div id="cv-movements-wrap">
           <div class="rc-empty">Sin movimientos cargados.</div>
@@ -2422,7 +2723,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
   <div class="modal" style="max-width:520px" onclick="event.stopPropagation()">
     <div class="modal-head">
       <span class="modal-head-title" id="mv-title">Cargar factura</span>
-      <button class="modal-close" onclick="closeMovementModal()">✕</button>
+      <button class="modal-close" onclick="closeMovementModal()"><i class="ico-ph" data-ico="x"></i></button>
     </div>
     <div style="padding:1.2rem 1.4rem">
       <div id="mv-cliente-info" style="font-size:0.82rem;color:var(--muted);margin-bottom:0.85rem"></div>
@@ -2525,6 +2826,71 @@ const AVA_COLORS = [
 ];
 
 /* ─────────────────────────────────────────
+   ICON SYSTEM  (Lucide-style inline SVG, themeable via currentColor)
+───────────────────────────────────────── */
+const ICONS = {
+  search:'<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+  user:'<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+  users:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  logout:'<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/>',
+  trash:'<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/>',
+  settings:'<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
+  external:'<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
+  x:'<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  edit:'<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
+  chevron:'<path d="m9 18 6-6-6-6"/>',
+  file:'<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/>',
+  dollar:'<line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
+  restore:'<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>',
+  expand:'<path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/>',
+  book:'<path d="M2 6h4"/><path d="M2 10h4"/><path d="M2 14h4"/><path d="M2 18h4"/><rect width="16" height="20" x="4" y="2" rx="2"/><path d="M16 2v20"/>',
+  receipt:'<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 17.5v-11"/>',
+  save:'<path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/>',
+  hand:'<path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2"/><path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/>',
+  zap:'<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>',
+  calendar:'<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>',
+  arrowLeft:'<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>',
+  arrowRight:'<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
+  check:'<path d="M20 6 9 17l-4-4"/>',
+  plus:'<path d="M5 12h14"/><path d="M12 5v14"/>',
+  dot:'<circle cx="12" cy="12" r="5" class="ico-fill"/>',
+  warn:'<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+  back:'<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>',
+  eye:'<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>',
+  'eye-off':'<path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/>',
+  lock:'<rect width="11" height="11" x="6.5" y="11" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+  shield:'<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+};
+function icon(name, cls) {
+  const body = ICONS[name];
+  if (!body) return '';
+  return '<svg class="ico' + (cls ? ' ' + cls : '') + '" viewBox="0 0 24 24" '
+       + 'aria-hidden="true" focusable="false">' + body + '</svg>';
+}
+// Replace <i data-ico="name"> placeholders in static markup with real SVG.
+function hydrateIcons(root) {
+  (root || document).querySelectorAll('[data-ico]').forEach(el => {
+    const extra = (el.getAttribute('class') || '').replace(/\bico-ph\b/, '').trim();
+    el.outerHTML = icon(el.getAttribute('data-ico'), extra);
+  });
+}
+// Material-ish press ripple on any .btn
+document.addEventListener('pointerdown', (e) => {
+  const btn = e.target.closest('.btn');
+  if (!btn || btn.disabled || btn.classList.contains('is-loading')) return;
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const r = btn.getBoundingClientRect();
+  const size = Math.max(r.width, r.height);
+  const span = document.createElement('span');
+  span.className = 'ripple';
+  span.style.width = span.style.height = size + 'px';
+  span.style.left = (e.clientX - r.left - size / 2) + 'px';
+  span.style.top  = (e.clientY - r.top  - size / 2) + 'px';
+  btn.appendChild(span);
+  span.addEventListener('animationend', () => span.remove());
+});
+
+/* ─────────────────────────────────────────
    STORAGE
 ───────────────────────────────────────── */
 let usersCache = [];
@@ -2621,6 +2987,8 @@ const _now = new Date();
 let adminDashYear  = _now.getFullYear();
 let adminDashMonth = _now.getMonth() + 1;
 let adminDashData  = null;
+let adminNumbersHidden = false;
+let adminAutoHideTimer = null;
 
 const MEDIO_PAGO_LABEL = {
   efectivo: 'Efectivo', transferencia: 'Transferencia',
@@ -2642,6 +3010,19 @@ function applyAdminSubTab() {
   document.querySelectorAll('.admin-subpanel').forEach(p => {
     p.classList.toggle('active', p.id === 'admin-sub-' + adminSubTab);
   });
+  const dash = $('admin-dash-section');
+  if (dash) {
+    const show = adminSubTab === 'clientes';
+    dash.style.display = show ? '' : 'none';
+    if (show) {
+      const summary = $('admin-summary');
+      if (summary) {
+        summary.classList.remove('dash-animate');
+        void summary.offsetWidth;
+        summary.classList.add('dash-animate');
+      }
+    }
+  }
 }
 
 async function loadAdminDashboard() {
@@ -2664,6 +3045,30 @@ function updateAdminDashUI(data) {
   set('adash-cobrados',   formatMoney(data.cobrados));
   set('adash-pendientes', formatMoney(data.pendientes));
   set('adash-vencidos',   String(data.vencidos));
+}
+
+function applyAdminNumbersState() {
+  const board = $('kanban-board');
+  if (!board) return;
+  board.classList.toggle('admin-numbers-hidden', adminNumbersHidden);
+  const btn = $('admin-hide-btn');
+  if (btn) {
+    btn.innerHTML = adminNumbersHidden
+      ? icon('eye') + ' Mostrar'
+      : icon('eye-off') + ' Ocultar';
+  }
+}
+
+function toggleAdminNumbers() {
+  adminNumbersHidden = !adminNumbersHidden;
+  applyAdminNumbersState();
+  if (adminAutoHideTimer) { clearTimeout(adminAutoHideTimer); adminAutoHideTimer = null; }
+  if (!adminNumbersHidden) {
+    adminAutoHideTimer = setTimeout(() => {
+      adminNumbersHidden = true;
+      applyAdminNumbersState();
+    }, 5 * 60 * 1000);
+  }
 }
 
 function changeAdminDashMonth(delta) {
@@ -2709,21 +3114,14 @@ function renderClientesSubTab() {
       </div>
       <div style="display:flex;gap:0.5rem">
         ${inTrash ? `
-          <button class="btn btn-ghost btn-sm" onclick="switchClientsView('active')">← Volver a Clientes</button>
+          <button class="btn btn-ghost btn-sm" onclick="switchClientsView('active')">${icon('back')} Volver a Clientes</button>
         ` : `
           <button class="btn btn-lime btn-sm" onclick="openNewClientModal()">+ Nuevo cliente</button>
           <button class="btn btn-trash btn-sm" onclick="switchClientsView('trash')" title="Ver clientes eliminados">
-            🗑️ Papelera ${trashCount > 0 ? `<span class="trash-count">${trashCount}</span>` : ''}
+            ${icon('trash')} Papelera ${trashCount > 0 ? `<span class="trash-count">${trashCount}</span>` : ''}
           </button>
         `}
       </div>
-    </div>
-    <div class="clients-search">
-      <span class="clients-search-ico">🔍</span>
-      <input type="search" id="clients-search-inp" class="clients-search-inp"
-             placeholder="Buscar cliente por nombre, razón social o CUIT…"
-             value="${esc(clientsSearchTerm)}" oninput="onClientsSearch(this.value)" autocomplete="off" />
-      ${clientsSearchTerm ? `<button class="clients-search-clear" onclick="clearClientsSearch()" title="Limpiar búsqueda">✕</button>` : ''}
     </div>
     <div id="clients-results"></div>
   `;
@@ -2808,7 +3206,7 @@ function onClientsSearch(value) {
     clearBtn = document.createElement('button');
     clearBtn.className = 'clients-search-clear';
     clearBtn.title = 'Limpiar búsqueda';
-    clearBtn.textContent = '✕';
+    clearBtn.innerHTML = icon('x');
     clearBtn.onclick = clearClientsSearch;
     wrap.appendChild(clearBtn);
   } else if (!clientsSearchTerm && clearBtn) {
@@ -2841,7 +3239,7 @@ function clientRowHTML(c) {
       <td>${c.razonSocial ? esc(c.razonSocial) : '<span class="ct-sub">—</span>'}</td>
       <td>${c.cuit ? esc(c.cuit) : '<span class="ct-sub">—</span>'}</td>
       <td><span class="ct-money ${moneyCls}">${formatMoney(saldo)}</span></td>
-      <td>${formatDate(c.vence)}</td>
+      <td><span class="ct-vence">${formatDate(c.vence)}</span></td>
       <td>
         <span class="ct-chip ${estadoCli}" onclick="event.stopPropagation();toggleClientEstado('${c.id}')" title="Cambiar estado" style="cursor:pointer">
           ${estadoCli === 'activo' ? 'Activo' : 'Inactivo'}
@@ -2849,8 +3247,8 @@ function clientRowHTML(c) {
       </td>
       <td onclick="event.stopPropagation()">
         <div class="ct-actions">
-          <button class="btn btn-factura btn-sm" onclick="openMovementModal('${c.id}','factura')" title="Cargar una nueva factura">📄 Cargar factura</button>
-          <button class="btn btn-pago btn-sm" onclick="openMovementModal('${c.id}','pago')" title="Registrar un pago recibido">💵 Cargar pago</button>
+          <button class="btn btn-factura btn-sm" onclick="openMovementModal('${c.id}','factura')" title="Cargar una nueva factura">${icon('file')} Cargar factura</button>
+          <button class="btn btn-pago btn-sm" onclick="openMovementModal('${c.id}','pago')" title="Registrar un pago recibido">${icon('dollar')} Cargar pago</button>
         </div>
       </td>
     </tr>`;
@@ -2881,7 +3279,7 @@ function trashRowHTML(c) {
       <td>
         <div class="ct-actions">
           <div class="ct-deleted-at">${deletedTxt}</div>
-          <button class="btn btn-restore btn-sm" onclick="restoreClient('${c.id}')" title="Restaurar a Clientes">♻️ Restaurar</button>
+          <button class="btn btn-restore btn-sm" onclick="restoreClient('${c.id}')" title="Restaurar a Clientes">${icon('restore')} Restaurar</button>
         </div>
       </td>
     </tr>`;
@@ -3160,10 +3558,10 @@ function renderClientMovements(movements) {
         <td class="num rc-debe">${m.debe ? formatMoney(m.debe) : '—'}</td>
         <td class="num rc-haber">${m.haber ? formatMoney(m.haber) : '—'}</td>
         <td class="num rc-saldo">${formatMoney(saldo)}</td>
-        <td><span class="ct-chip ${impago ? 'impago' : 'pagado'}">${impago ? 'IMPAGO' : 'PAGADO'}</span></td>
+        <td><span class="ct-chip ${impago ? 'impago' : 'pagado'}">${impago ? 'Factura emitida' : 'Pago efectuado'}</span></td>
         <td class="rc-actions">
           <button class="btn btn-danger btn-sm rc-del-btn" title="Eliminar movimiento"
-            onclick="startMovDelete('${clientId}','${m.id}', this)">🗑️</button>
+            onclick="startMovDelete('${clientId}','${m.id}', this)">${icon('trash')}</button>
         </td>
       </tr>
       ${m.detalle || m.medioPago || m.banco ? `
@@ -3207,7 +3605,7 @@ function startMovDelete(clientId, movId, btn) {
   cell.innerHTML = `
     <div class="rc-del-confirm">
       <button class="btn btn-danger btn-sm rc-del-go" disabled>${remaining}s</button>
-      <button class="btn btn-ghost btn-sm rc-del-cancel" title="Cancelar">✕</button>
+      <button class="btn btn-ghost btn-sm rc-del-cancel" title="Cancelar">${icon('x')}</button>
     </div>`;
   const goBtn = cell.querySelector('.rc-del-go');
   const cancelBtn = cell.querySelector('.rc-del-cancel');
@@ -3219,7 +3617,7 @@ function startMovDelete(clientId, movId, btn) {
     } else {
       clearInterval(timer);
       goBtn.disabled = false;
-      goBtn.textContent = '🗑️ Eliminar';
+      goBtn.innerHTML = icon('trash') + ' Eliminar';
       goBtn.onclick = () => confirmMovDelete(clientId, movId, goBtn);
     }
   }, 1000);
@@ -3595,7 +3993,7 @@ function buildColorPicker() {
   const cp = $('color-picker');
   if (!cp) return;
   cp.innerHTML =
-    `<div class="cp-none sel" id="cp-none" onclick="pickColor('none')" title="Sin color">✕</div>` +
+    `<div class="cp-none sel" id="cp-none" onclick="pickColor('none')" title="Sin color">${icon('x')}</div>` +
     COLORS.map(c =>
       `<div class="cp-swatch" id="cp-${c.key}" style="background:${c.bg}" onclick="pickColor('${c.key}')" title="${c.key}"></div>`
     ).join('');
@@ -3887,6 +4285,7 @@ function renderChecklist() {
     empty.style.display = stats.total && !visibleItems.length ? '' : (stats.total ? 'none' : '');
     empty.textContent = stats.total && !visibleItems.length ? 'Elementos marcados ocultos.' : 'Sin elementos todavia.';
   }
+  syncChecklistButton();
 }
 
 /* ─────────────────────────────────────────
@@ -3913,11 +4312,28 @@ function onBrandLogoKeydown(event) {
   }
 }
 
+function toggleSidebar() {
+  const sb = document.getElementById('main-sidebar');
+  const ov = document.getElementById('sidebar-overlay');
+  const btn = document.getElementById('hamburger-btn');
+  const isOpen = sb.classList.toggle('open');
+  ov.classList.toggle('show', isOpen);
+  btn.classList.toggle('open', isOpen);
+}
+function closeSidebar() {
+  document.getElementById('main-sidebar').classList.remove('open');
+  document.getElementById('sidebar-overlay').classList.remove('show');
+  document.getElementById('hamburger-btn').classList.remove('open');
+}
+
 function filterTeam(team) {
   if (!canViewTeam(team)) { toast('No tenés permiso para ese equipo', 'error'); return; }
   activeTeam = team;
+  closeSidebar();
   document.querySelectorAll('.sb-btn[data-team]').forEach(b => b.classList.toggle('active', b.dataset.team === team));
   $('clientes-sub').textContent = (team === 'admin' ? 'Tabla de control — ' : 'Tablero Kanban — ') + (TEAMS[team] || 'Todos');
+  const cbar = $('clientes-cbar');
+  if (cbar) cbar.style.display = team === 'admin' ? 'none' : '';
   const newCardBtn = $('btn-new-card');
   if (newCardBtn) newCardBtn.style.display = team === 'admin' ? 'none' : '';
   renderBoard();
@@ -3986,8 +4402,8 @@ function renderBoard() {
           : colCards.map(c => cardHTML(c, users)).join('')}
       </div>
       <button class="add-card-btn" onclick="openNewCard('${status}')">
-        <span style="font-size:0.9rem">+</span> Añade una tarjeta
-        <span class="add-card-expand">⊞</span>
+        ${icon('plus')} Añade una tarjeta
+        <span class="add-card-expand">${icon('expand')}</span>
       </button>`;
     board.appendChild(col);
   });
@@ -4103,84 +4519,62 @@ function adminMonthLabel(year, month) {
 
 function renderAdminTable(board, cards, _users) {
   board.innerHTML = `
+    <nav class="admin-subnav" role="tablist">
+      <button class="admin-subnav-btn" data-subtab="clientes"  onclick="switchAdminSubTab('clientes')">
+        <span class="as-ico"><i class="ico-ph" data-ico="users"></i></span> Clientes
+      </button>
+      <button class="admin-subnav-btn" data-subtab="libreta"   onclick="switchAdminSubTab('libreta')">
+        <span class="as-ico"><i class="ico-ph" data-ico="book"></i></span> Libreta
+      </button>
+      <button class="admin-subnav-btn" data-subtab="flujo"     onclick="switchAdminSubTab('flujo')">
+        <span class="as-ico"><i class="ico-ph" data-ico="dollar"></i></span> Flujo de fondos
+      </button>
+      <button class="admin-subnav-btn" data-subtab="cobranzas" onclick="switchAdminSubTab('cobranzas')">
+        <span class="as-ico"><i class="ico-ph" data-ico="receipt"></i></span> Cobranzas
+      </button>
+    </nav>
+
+    <div id="admin-dash-section">
     <div class="admin-dash-header">
       <div class="admin-month-nav">
         <button class="admin-month-nav-btn" onclick="changeAdminDashMonth(-1)">&#8592;</button>
         <span class="admin-month-label" id="admin-dash-month-label">${adminMonthLabel(adminDashYear, adminDashMonth)}</span>
         <button class="admin-month-nav-btn" onclick="changeAdminDashMonth(1)">&#8594;</button>
       </div>
+      <button class="btn btn-ghost btn-sm" id="admin-hide-btn" onclick="toggleAdminNumbers()" title="Ocultar/mostrar cifras">
+        ${icon('eye-off')} Ocultar
+      </button>
     </div>
-    <div class="admin-summary">
-      <div class="admin-metric">
+    <div class="admin-summary" id="admin-summary">
+      <div class="admin-metric metric-ingresos" style="--mi:0">
+        <div class="admin-metric-icon">${icon('dollar')}</div>
         <div class="admin-metric-label">Ingresos totales del mes</div>
         <div class="admin-metric-value" id="adash-ingresos">—</div>
       </div>
-      <div class="admin-metric">
+      <div class="admin-metric metric-cobrados" style="--mi:1">
+        <div class="admin-metric-icon">${icon('check')}</div>
         <div class="admin-metric-label">Cobrados</div>
         <div class="admin-metric-value" id="adash-cobrados">—</div>
       </div>
-      <div class="admin-metric">
+      <div class="admin-metric metric-pendientes" style="--mi:2">
+        <div class="admin-metric-icon">${icon('zap')}</div>
         <div class="admin-metric-label">Pendientes de cobro</div>
         <div class="admin-metric-value" id="adash-pendientes">—</div>
       </div>
-      <div class="admin-metric">
+      <div class="admin-metric metric-vencidos" style="--mi:3">
+        <div class="admin-metric-icon">${icon('warn')}</div>
         <div class="admin-metric-label">Vencidos</div>
         <div class="admin-metric-value" id="adash-vencidos">—</div>
       </div>
     </div>
-
-    <nav class="admin-subnav" role="tablist">
-      <button class="admin-subnav-btn" data-subtab="clientes"  onclick="switchAdminSubTab('clientes')">
-        <span class="as-ico">👥</span> Clientes
-      </button>
-      <button class="admin-subnav-btn" data-subtab="libreta"   onclick="switchAdminSubTab('libreta')">
-        <span class="as-ico">📓</span> Libreta
-      </button>
-      <button class="admin-subnav-btn" data-subtab="flujo"     onclick="switchAdminSubTab('flujo')">
-        <span class="as-ico">💸</span> Flujo de fondos
-      </button>
-      <button class="admin-subnav-btn" data-subtab="cobranzas" onclick="switchAdminSubTab('cobranzas')">
-        <span class="as-ico">🧾</span> Cobranzas
-      </button>
-    </nav>
+    </div>
 
     <div id="admin-sub-clientes"  class="admin-subpanel"></div>
     <div id="admin-sub-libreta"   class="admin-subpanel">
-      <div class="admin-section-head">
-        <div>
-          <div class="admin-section-title">Libreta</div>
-          <div class="admin-section-sub">Hoja de cálculo de Google. Con la URL de edición podés editarla acá mismo.</div>
-        </div>
-        <a id="libreta-open" class="btn btn-lime btn-sm" href="#" target="_blank" rel="noopener" style="display:none">✏️ Editar en Google Sheets ↗</a>
-      </div>
-      <div id="libreta-empty" class="admin-placeholder" style="display:none">
-        <strong>Libreta no configurada</strong>
-        Definí <code>LIBRETA_URL</code> en el archivo <code>.env</code> con la URL de edición de la hoja
-        (<code>.../spreadsheets/d/ID/edit</code>), compartila como «Editor – cualquiera con el enlace» y reiniciá el server.
-      </div>
-      <div id="libreta-hint" style="display:none;margin-bottom:0.6rem;font-size:0.8rem;color:var(--muted)">
-        Para editar acá adentro necesitás estar logueado en Google con permiso de edición sobre la hoja
-        y tener habilitadas las <strong>cookies de terceros</strong> para Google.
-        ¿Aparece en blanco o dice «refused to connect»? Usá <strong>✏️ Editar en Google Sheets</strong> para abrirla en una pestaña.
-        <div id="libreta-hint-readonly" style="display:none;margin-top:0.35rem;color:var(--warn)">
-          ⚠️ Esta URL es una hoja <strong>publicada (solo lectura)</strong>. Para editar inline pegá la URL de <strong>edición</strong> (<code>.../d/ID/edit</code>).
-        </div>
-      </div>
-      <iframe id="libreta-iframe" src="about:blank" loading="lazy" allow="clipboard-read; clipboard-write; fullscreen" style="width:100%;height:70vh;border:1px solid var(--border2);border-radius:var(--r-md);background:var(--bg2)"></iframe>
+      <iframe id="libreta-iframe" src="about:blank" loading="lazy" allow="clipboard-read; clipboard-write; fullscreen" style="width:100%;height:calc(100vh - var(--topnav-h) - 220px);border:1px solid var(--border2);border-radius:var(--r-md);background:var(--bg2)"></iframe>
     </div>
     <div id="admin-sub-flujo" class="admin-subpanel">
-      <div class="admin-section-head">
-        <div>
-          <div class="admin-section-title">Flujo de fondos</div>
-          <div class="admin-section-sub">Hoja de cálculo embebida.</div>
-        </div>
-        <a id="flujo-open" class="btn btn-ghost btn-sm" href="#" target="_blank" rel="noopener" style="display:none">Abrir en pestaña nueva ↗</a>
-      </div>
-      <div id="flujo-empty" class="admin-placeholder" style="display:none">
-        <strong>Flujo de fondos no configurado</strong>
-        Definí <code>FLUJO_FONDOS_URL</code> en el archivo <code>.env</code> y reiniciá el server.
-      </div>
-      <iframe id="flujo-iframe" src="about:blank" referrerpolicy="no-referrer" loading="lazy" style="width:100%;height:70vh;border:1px solid var(--border2);border-radius:var(--r-md);background:var(--bg2)"></iframe>
+      <iframe id="flujo-iframe" src="about:blank" referrerpolicy="no-referrer" loading="lazy" style="width:100%;height:calc(100vh - var(--topnav-h) - 220px);border:1px solid var(--border2);border-radius:var(--r-md);background:var(--bg2)"></iframe>
     </div>
     <div id="admin-sub-cobranzas" class="admin-subpanel">
       <div class="admin-placeholder">
@@ -4194,6 +4588,16 @@ function renderAdminTable(board, cards, _users) {
   applyAdminSubTab();
   renderClientesSubTab();
   loadAdminDashboard();
+
+  // Aplicar estado actual de visibilidad y arrancar timer si los números están visibles
+  applyAdminNumbersState();
+  if (!adminNumbersHidden) {
+    if (adminAutoHideTimer) clearTimeout(adminAutoHideTimer);
+    adminAutoHideTimer = setTimeout(() => {
+      adminNumbersHidden = true;
+      applyAdminNumbersState();
+    }, 5 * 60 * 1000);
+  }
 }
 
 function clientName(c) {
@@ -4471,8 +4875,40 @@ function syncDueButton() {
   const value = $('f-vence') ? $('f-vence').value : '';
   const hora  = $('f-vence-hora') ? $('f-vence-hora').value : '';
   if (!value && $('f-vence-hora')) $('f-vence-hora').value = '';
-  btn.textContent = value ? 'Vencimiento: ' + formatDueDate(value, hora) : 'Vencimiento';
+  btn.textContent = value ? 'Evento: ' + formatDueDate(value, hora) : 'Evento';
   btn.classList.toggle('has-due', !!value);
+}
+
+function syncChecklistButton() {
+  const btn = $('checklist-action-btn');
+  if (!btn) return;
+  btn.classList.toggle('is-active', modalChecklist.length > 0);
+}
+
+function syncClientDataButton() {
+  const btn = $('client-details-action-btn');
+  if (!btn) return;
+  const fields = ['f-rs','f-cuit','f-ca','f-ntel','f-t','f-ta'];
+  const hasData = fields.some(id => { const el = $(id); return el && el.value.trim(); });
+  btn.classList.toggle('is-active', hasData);
+}
+
+function syncAttachmentsButton() {
+  const btn = $('attachments-action-btn');
+  if (!btn) return;
+  btn.classList.toggle('is-active', modalAttachments.length > 0);
+}
+
+function syncEquipoVisibility() {
+  const prop = $('card-prop-equipo');
+  if (prop) prop.style.display = isAdmin() ? '' : 'none';
+}
+
+function syncAllActionButtons() {
+  syncChecklistButton();
+  syncClientDataButton();
+  syncAttachmentsButton();
+  syncEquipoVisibility();
 }
 
 /* ── PAUTA: iframe configurable por cliente ── */
@@ -4507,7 +4943,7 @@ function syncPautaButton() {
   btn.style.display = '';
   const has = !!($('f-pauta-url') && $('f-pauta-url').value);
   btn.classList.toggle('has-pauta', has);
-  btn.textContent = has ? 'PAUTA ●' : 'PAUTA';
+  btn.innerHTML = has ? 'PAUTA ' + icon('dot') : 'PAUTA';
 }
 
 function renderPautaFrame() {
@@ -4694,6 +5130,7 @@ function openNewCard(status = 'iniciada') {
   membersPopoverOpen = false;
   membersSearch = '';
   modalChecklist = [];
+  modalAttachments = [];
   checklistHideDone = false;
   if ($('checklist-section')) $('checklist-section').dataset.open = 'false';
   $('modal-title').textContent = 'Nueva tarjeta';
@@ -4709,7 +5146,10 @@ function openNewCard(status = 'iniciada') {
   renderChecklist();
   hideChecklistInput(true);
   setCardDetailsOpen(true);
+  if ($('attachments-section')) $('attachments-section').style.display = 'none';
+  renderAttachments();
   syncPautaButton();
+  syncAllActionButtons();
   syncModalPreview();
   applyModalSaveMode();
   openOverlay('card-overlay');
@@ -4747,9 +5187,13 @@ function openCard(id) {
   syncPautaButton();
   populateUsers(cardUserIds(c));
   $('activity-comment').value = '';
+  modalAttachments = Array.isArray(c.attachments) ? c.attachments : [];
   renderChecklist();
   hideChecklistInput(true);
   setCardDetailsOpen(false);
+  if ($('attachments-section')) $('attachments-section').style.display = 'none';
+  renderAttachments();
+  syncAllActionButtons();
   syncModalPreview();
   applyModalSaveMode();
   openOverlay('card-overlay');
@@ -4877,6 +5321,7 @@ function onCardTeamChange() {
 function clearForm() {
   ['f-nf','f-rs','f-cuit','f-ca','f-ntel','f-t','f-ta','f-c','f-monto','f-vence','f-vence-hora','f-pauta-url'].forEach(id => { if ($(id)) $(id).value = ''; });
   if ($('f-cover')) $('f-cover').value = '';
+  if ($('f-attachment-input')) $('f-attachment-input').value = '';
   if ($('checklist-new-text')) $('checklist-new-text').value = '';
   $('f-debe').value = 'no';
   syncDueButton();
@@ -4904,15 +5349,24 @@ function statusText(s) {
 }
 
 function setCardDetailsOpen(open) {
-  const details = $('client-details');
-  if (!details) return;
-  details.open = open;
+  const section = $('client-details-section');
+  if (!section) return;
+  section.style.display = open ? '' : 'none';
 }
 
-function toggleCardDetails() {
-  const details = $('client-details');
-  if (!details) return;
-  details.open = !details.open;
+function toggleClientDetailsSection() {
+  const section = $('client-details-section');
+  if (!section) return;
+  const isOpen = section.style.display !== 'none';
+  section.style.display = isOpen ? 'none' : '';
+}
+
+function toggleAttachmentsSection() {
+  const section = $('attachments-section');
+  if (!section) return;
+  const isOpen = section.style.display !== 'none';
+  section.style.display = isOpen ? 'none' : '';
+  if (!isOpen) renderAttachments();
 }
 
 function syncModalPreview() {
@@ -4924,6 +5378,7 @@ function syncModalPreview() {
   if (subtitle) subtitle.textContent = 'en ' + statusText(modalStatus) + (team ? ' - ' + team : '');
   const card = editingId ? getCards().find(x => x.id === editingId) : null;
   renderActivity(card);
+  syncClientDataButton();
 }
 
 function autoGrowTitle() {
@@ -5028,16 +5483,96 @@ function collectCardData() {
     usuario: usuarios[0] || null,
     usuarios,
     checklist: normalizeChecklist(modalChecklist),
+    attachments: modalAttachments,
   };
+}
+
+/* ─── ARCHIVOS ADJUNTOS ─── */
+let modalAttachments = [];
+
+function renderAttachments() {
+  const list = $('attachment-list');
+  if (!list) return;
+  syncAttachmentsButton();
+  if (!modalAttachments.length) {
+    list.innerHTML = '<div style="color:var(--muted);font-size:0.66rem;margin-bottom:0.4rem">Sin archivos adjuntos.</div>';
+    return;
+  }
+  list.innerHTML = modalAttachments.map(att => `
+    <div class="attachment-item" data-att-id="${att.id}">
+      <div class="attachment-icon">${fileExt(att.name)}</div>
+      <div class="attachment-info">
+        <div class="attachment-name" title="${esc(att.name)}">${esc(att.name)}</div>
+        <div class="attachment-meta">${fmtBytes(att.size)} · ${fmtActivityDate(att.uploadedAt)}</div>
+      </div>
+      <div class="attachment-actions">
+        <button class="attachment-btn" type="button" onclick="downloadAttachment('${att.id}')">Descargar</button>
+        <button class="attachment-btn del" type="button" onclick="deleteAttachment('${att.id}')">Quitar</button>
+      </div>
+    </div>`).join('');
+}
+
+function fileExt(name) {
+  const m = String(name || '').match(/\.([^.]{1,5})$/);
+  return m ? m[1].toUpperCase() : 'FILE';
+}
+
+function fmtBytes(bytes) {
+  const b = Number(bytes) || 0;
+  if (b < 1024) return b + ' B';
+  if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
+  return (b / 1048576).toFixed(1) + ' MB';
+}
+
+function handleFileUpload(input) {
+  const files = Array.from(input.files || []);
+  input.value = '';
+  if (!files.length) return;
+  const MAX_FILE_MB = 5;
+  files.forEach(file => {
+    if (file.size > MAX_FILE_MB * 1024 * 1024) {
+      toast(`"${file.name}" supera el límite de ${MAX_FILE_MB} MB`, 'error');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = e => {
+      modalAttachments = [...modalAttachments, {
+        id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        name: file.name,
+        type: file.type,
+        size: file.size,
+        data: e.target.result,
+        uploadedAt: Date.now(),
+        uploadedBy: currentUser ? currentUser.id : null,
+      }];
+      renderAttachments();
+      autosaveCardIfEnabled();
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function deleteAttachment(id) {
+  modalAttachments = modalAttachments.filter(a => a.id !== id);
+  renderAttachments();
+  autosaveCardIfEnabled();
+}
+
+function downloadAttachment(id) {
+  const att = modalAttachments.find(a => a.id === id);
+  if (!att) return;
+  const a = document.createElement('a');
+  a.href = att.data;
+  a.download = att.name;
+  a.click();
 }
 
 // Ajusta los botones del footer segun el modo de guardado y si la tarjeta ya existe.
 function applyModalSaveMode() {
   const saveBtn = $('btn-save-card');
   const cancelBtn = $('btn-cancel-card');
-  const auto = !!(currentUser && currentUser.autosaveCards);
-  // Autoguardado solo aplica a tarjetas ya creadas; en "nueva" se mantiene Guardar.
-  const autoActive = auto && !!editingId;
+  // Autoguardado siempre activo; solo aplica a tarjetas ya creadas.
+  const autoActive = !!editingId;
   if (saveBtn) saveBtn.style.display = autoActive ? 'none' : '';
   if (cancelBtn) cancelBtn.textContent = autoActive ? 'Cerrar' : 'Cancelar';
 }
@@ -5070,8 +5605,9 @@ let autosaveTimer = null;
 const AUTOSAVE_DELAY_MS = 1500;
 
 function autosaveCardIfEnabled() {
-  if (!(currentUser && currentUser.autosaveCards)) return;
+  if (!currentUser) return;
   if (!editingId) return; // las tarjetas nuevas se crean con Guardar
+  syncClientDataButton();
   if (autosaveTimer) clearTimeout(autosaveTimer);
   autosaveTimer = setTimeout(() => { autosaveTimer = null; runAutosaveCard(); }, AUTOSAVE_DELAY_MS);
 }
@@ -5081,11 +5617,11 @@ function flushAutosaveCard() {
   if (!autosaveTimer) return;
   clearTimeout(autosaveTimer);
   autosaveTimer = null;
-  if (currentUser && currentUser.autosaveCards && editingId) runAutosaveCard();
+  if (currentUser && editingId) runAutosaveCard();
 }
 
 async function runAutosaveCard() {
-  if (!(currentUser && currentUser.autosaveCards)) return;
+  if (!currentUser) return;
   if (!editingId) return;
   const data = collectCardData();
   if (!data.nf && !data.rs) return; // no autoguardar sin titulo valido
@@ -5157,7 +5693,7 @@ function syncAutosaveBtn() {
   const on = !!(currentUser && currentUser.autosaveCards);
   btn.classList.toggle('is-active', on);
   btn.setAttribute('aria-pressed', on ? 'true' : 'false');
-  btn.innerHTML = on ? '💾 Guardado automático' : '✋ Guardado manual';
+  btn.innerHTML = on ? icon('zap') + ' Guardado automático' : icon('hand') + ' Guardado manual';
 }
 
 async function toggleAutosave() {
@@ -5199,10 +5735,10 @@ function syncCardsViewToolbar() {
     mineBtn.style.display = (inTrash || activeTeam === 'admin') ? 'none' : '';
     mineBtn.classList.toggle('is-active', !!myClientsOnly);
     mineBtn.setAttribute('aria-pressed', myClientsOnly ? 'true' : 'false');
-    mineBtn.innerHTML = myClientsOnly ? '👤 Mostrando mis clientes' : '👤 Ver mis clientes';
+    mineBtn.innerHTML = myClientsOnly ? icon('user') + ' Mostrando mis clientes' : icon('user') + ' Ver mis clientes';
   }
-  const autoBtn = $('btn-autosave');
-  if (autoBtn) autoBtn.style.display = inTrash ? 'none' : '';
+  const cbar = $('clientes-cbar');
+  if (cbar) cbar.style.display = activeTeam === 'admin' ? 'none' : '';
   syncAutosaveBtn();
   if (backBtn)  backBtn.style.display  = inTrash ? '' : 'none';
   if (titleEl)  titleEl.textContent    = inTrash ? 'Papelera de tarjetas' : 'Gestión de Clientes';
@@ -5227,7 +5763,7 @@ function renderCardsTrash(board, users) {
   if (!list.length) {
     board.innerHTML = `
       <div class="admin-empty" style="padding:2rem;text-align:center;color:var(--muted)">
-        <div style="font-size:2rem;margin-bottom:0.4rem">🗑️</div>
+        <div style="font-size:2rem;margin-bottom:0.4rem">${icon('trash')}</div>
         <strong>Papelera vacía</strong>
         <div style="font-size:0.85rem;margin-top:0.3rem">No hay tarjetas eliminadas.</div>
       </div>`;
@@ -5268,7 +5804,7 @@ function renderCardsTrash(board, users) {
               <td>${esc(statusText(c.estado))}</td>
               <td>${deletedTxt}</td>
               <td>
-                <button class="btn btn-restore btn-sm" onclick="restoreCardFromTrash('${c.id}')" title="Restaurar al tablero">♻️ Restaurar</button>
+                <button class="btn btn-restore btn-sm" onclick="restoreCardFromTrash('${c.id}')" title="Restaurar al tablero">${icon('restore')} Restaurar</button>
               </td>
             </tr>`;
         }).join('')}
@@ -5514,12 +6050,12 @@ function renderAllGoogleCalendars() {
       <div class="google-cal-title">
         <span class="sb-dot ${TEAM_DOT[team]||'d-all'}" style="display:inline-block"></span>
         ${esc(TEAMS[team]||team)}
-        <button class="btn btn-ghost btn-sm" style="margin-left:auto;font-size:0.7rem;padding:0.1rem 0.5rem" onclick="openGcalConfigForTeam('${team}')" title="Configurar Google Calendar">⚙</button>
+        <button class="btn btn-ghost btn-sm" style="margin-left:auto;font-size:0.7rem;padding:0.1rem 0.5rem" onclick="openGcalConfigForTeam('${team}')" title="Configurar Google Calendar">${icon('settings')}</button>
       </div>
       ${url
         ? `<iframe class="google-cal-frame" src="${esc(url)}" loading="lazy"></iframe>`
         : `<div class="google-cal-empty" style="cursor:pointer;gap:0.4rem;flex-direction:column" onclick="openGcalConfigForTeam('${team}')">
-            <span style="font-size:1.2rem">📅</span>
+            <span style="font-size:1.2rem">${icon('calendar')}</span>
             <span>Sin Google Calendar — click para configurar</span>
           </div>`}
     </div>`;
@@ -5642,6 +6178,31 @@ function noteDefs() {
   return defs;
 }
 
+function noteAuthorName() {
+  return currentUser ? currentUser.nombre : 'Desconocido';
+}
+
+function parseNoteMessages(content) {
+  if (!content) return [];
+  try {
+    const parsed = JSON.parse(content);
+    if (Array.isArray(parsed)) return parsed;
+  } catch (_) {}
+  return content.trim() ? [{ author: 'Sistema', text: content, time: new Date(0).toISOString() }] : [];
+}
+
+function buildChatHtml(msgs) {
+  if (!msgs.length) return `<div class="note-chat-empty">Sin mensajes aún...</div>`;
+  const me = noteAuthorName();
+  return msgs.map(m => {
+    const mine = m.author === me;
+    return `<div class="note-msg ${mine ? 'mine' : 'other'}">
+      <div class="note-bubble">${esc(m.text).replace(/\n/g, '<br>')}</div>
+      <div class="note-msg-author">${esc(m.author)}</div>
+    </div>`;
+  }).join('');
+}
+
 function renderNotas() {
   const wrap = $('notas-wrap');
   if (!wrap) return;
@@ -5650,33 +6211,114 @@ function renderNotas() {
   $('notas-sub').textContent = isAdmin()
     ? 'Privadas, ' + (TEAMS[team] || team) + ' y administracion'
     : 'Privadas y ' + (TEAMS[team] || team);
+  const TEAM_ACCENT  = { marketing:'#60a5fa', desarrollo:'#4ade80' };
+  const SCOPE_ACCENT = { personal:'#e7ff4f', admin:'#f5cd47' };
+  const SCOPE_ICON   = { personal:'lock', team:'users', admin:'shield' };
   wrap.innerHTML = defs.map(def => {
-    const id = noteDomId(def.scope, def.team);
-    const st = noteStatusId(def.scope, def.team);
-    return `<section class="note-panel">
-      <div class="note-head">
+    const id     = noteDomId(def.scope, def.team);
+    const st     = noteStatusId(def.scope, def.team);
+    const accent = def.scope === 'team'
+      ? (TEAM_ACCENT[def.team] || '#60a5fa')
+      : (SCOPE_ACCENT[def.scope] || '#60a5fa');
+    const ico    = SCOPE_ICON[def.scope] || 'book';
+    const head   = `<div class="note-head">
+      <div class="note-head-left">
+        <div class="note-ico">${icon(ico)}</div>
         <div>
           <div class="note-title">${esc(def.title)}</div>
           <div class="note-sub">${esc(def.sub)}</div>
         </div>
-        <div class="note-status" id="${st}">Guardado</div>
       </div>
-      <textarea id="${id}" class="note-textarea" placeholder="${esc(def.placeholder)}" oninput="onNoteInput('${def.scope}','${def.team}')">${esc(getNoteContent(def.scope, def.team))}</textarea>
+      <div class="note-status">
+        <span class="note-status-dot" id="${st}-dot"></span>
+        <span id="${st}">Guardado</span>
+      </div>
+    </div>`;
+
+    if (def.scope === 'personal') {
+      const content = getNoteContent(def.scope, def.team);
+      return `<section class="note-panel" style="--na:${accent}">
+        ${head}
+        <textarea id="${id}" class="note-textarea" placeholder="${esc(def.placeholder)}" oninput="onNoteInput('${def.scope}','${def.team}')">${esc(content)}</textarea>
+        <div class="note-footer">
+          <span class="note-charcount" id="${id}-cc">${content.length} car.</span>
+        </div>
+      </section>`;
+    }
+
+    // Chat mode (team / admin)
+    const msgs = parseNoteMessages(getNoteContent(def.scope, def.team));
+    return `<section class="note-panel" style="--na:${accent}">
+      ${head}
+      <div class="note-chat" id="${id}-chat">${buildChatHtml(msgs)}</div>
+      <div class="note-input-row">
+        <textarea class="note-chat-input" id="${id}-input" placeholder="${esc(def.placeholder)}"
+          onkeydown="onNoteChatKey(event,'${def.scope}','${def.team}')"></textarea>
+        <button class="note-send-btn" onclick="sendNoteMessage('${def.scope}','${def.team}')">Enviar</button>
+      </div>
     </section>`;
   }).join('');
+
+  // Scroll chats to bottom after render
+  defs.filter(d => d.scope !== 'personal').forEach(def => {
+    const chat = $(noteDomId(def.scope, def.team) + '-chat');
+    if (chat) chat.scrollTop = chat.scrollHeight;
+  });
+}
+
+function onNoteChatKey(e, scope, team) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendNoteMessage(scope, team); }
+}
+
+async function sendNoteMessage(scope, team) {
+  const id    = noteDomId(scope, team);
+  const input = $(id + '-input');
+  const chat  = $(id + '-chat');
+  const st    = $(noteStatusId(scope, team));
+  const dot   = $(noteStatusId(scope, team) + '-dot');
+  if (!input) return;
+  const text = input.value.trim();
+  if (!text) return;
+
+  input.value = '';
+  const existing = parseNoteMessages(getNoteContent(scope, team));
+  const msgs = [...existing, { author: noteAuthorName(), text, time: new Date().toISOString() }];
+
+  if (chat) { chat.innerHTML = buildChatHtml(msgs); chat.scrollTop = chat.scrollHeight; }
+  if (dot)  { dot.classList.add('saving'); dot.classList.remove('error'); }
+  if (st)   st.textContent = 'Enviando...';
+
+  try {
+    const body = { content: JSON.stringify(msgs) };
+    if (team) body.equipo = team;
+    const data = await api('/api/notes/' + scope, { method: 'PUT', body: JSON.stringify(body) });
+    setNoteCache(data.note);
+    if (dot) { dot.classList.remove('saving', 'error'); }
+    if (st)  st.textContent = 'Guardado';
+  } catch (err) {
+    if (dot) { dot.classList.remove('saving'); dot.classList.add('error'); }
+    if (st)  st.textContent = 'Error';
+    toast(err.message, 'error');
+  }
 }
 
 function onNoteInput(scope, team) {
-  const key = scope + ':' + (team || '');
-  const status = $(noteStatusId(scope, team));
-  if (status) status.textContent = 'Guardando...';
+  const key    = scope + ':' + (team || '');
+  const el     = $(noteDomId(scope, team));
+  const st     = $(noteStatusId(scope, team));
+  const dot    = $(noteStatusId(scope, team) + '-dot');
+  const cc     = $(noteDomId(scope, team) + '-cc');
+  if (dot) { dot.classList.add('saving'); dot.classList.remove('error'); }
+  if (st)  st.textContent = 'Guardando...';
+  if (cc && el) cc.textContent = el.value.length + ' car.';
   clearTimeout(noteSaveTimers[key]);
   noteSaveTimers[key] = setTimeout(() => saveNote(scope, team), 700);
 }
 
 async function saveNote(scope, team) {
-  const el = $(noteDomId(scope, team));
-  const status = $(noteStatusId(scope, team));
+  const el  = $(noteDomId(scope, team));
+  const st  = $(noteStatusId(scope, team));
+  const dot = $(noteStatusId(scope, team) + '-dot');
   if (!el) return;
   try {
     const body = { content: el.value };
@@ -5686,9 +6328,11 @@ async function saveNote(scope, team) {
       body: JSON.stringify(body),
     });
     setNoteCache(data.note);
-    if (status) status.textContent = 'Guardado';
+    if (dot) { dot.classList.remove('saving', 'error'); }
+    if (st)  st.textContent = 'Guardado';
   } catch (err) {
-    if (status) status.textContent = 'Error';
+    if (dot) { dot.classList.remove('saving'); dot.classList.add('error'); }
+    if (st)  st.textContent = 'Error';
     toast(err.message, 'error');
   }
 }
@@ -5950,7 +6594,8 @@ function fmtCuit(inp) {
 let toastTmr;
 function toast(msg, type='success') {
   const el = $('toast');
-  el.textContent = msg; el.className = 'on ' + type;
+  el.innerHTML = icon(type === 'error' ? 'warn' : 'check') + '<span>' + esc(msg) + '</span>';
+  el.className = 'on ' + type;
   clearTimeout(toastTmr);
   toastTmr = setTimeout(() => { el.className=''; }, 2800);
 }
@@ -5981,6 +6626,7 @@ function hideErr(id)    { $(id).style.display='none'; }
    BOOT
 ───────────────────────────────────────── */
 (async function boot() {
+  hydrateIcons();
   try {
     await loadAppData();
     startApp();

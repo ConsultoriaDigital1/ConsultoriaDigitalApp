@@ -24,6 +24,7 @@ if (process.env.NODE_ENV === 'production' && SESSION_SECRET === 'dev-only-change
 
 async function ensureDatabaseMigrations() {
   await pool.query("ALTER TABLE cards ADD COLUMN IF NOT EXISTS pauta_url TEXT NOT NULL DEFAULT ''");
+  await pool.query("ALTER TABLE cards ADD COLUMN IF NOT EXISTS attachments JSONB NOT NULL DEFAULT '[]'::jsonb");
   await pool.query(`
     CREATE TABLE IF NOT EXISTS app_notes (
       id TEXT PRIMARY KEY,
@@ -41,7 +42,7 @@ async function ensureDatabaseMigrations() {
   await pool.query("CREATE UNIQUE INDEX IF NOT EXISTS idx_app_notes_admin ON app_notes(scope) WHERE scope = 'admin'");
 }
 
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '25mb' }));
 
 function mkId() {
   return Date.now().toString(36) + crypto.randomBytes(4).toString('hex');
@@ -131,6 +132,7 @@ function cardDTO(row, descriptionHistory = []) {
     coverImage: row.cover_image,
     pautaUrl: row.pauta_url || '',
     checklist: cleanChecklist(row.checklist),
+    attachments: Array.isArray(row.attachments) ? row.attachments : [],
     dailyCheckDate: row.daily_check_date || '',
     position: row.position == null ? null : Number(row.position),
     deletedAt: row.deleted_at ? row.deleted_at.toISOString() : null,
@@ -464,6 +466,26 @@ function cleanChecklist(value) {
   }).filter(Boolean);
 }
 
+function cleanAttachments(value) {
+  let items = value;
+  if (typeof items === 'string') {
+    try { items = JSON.parse(items); } catch (_e) { items = []; }
+  }
+  if (!Array.isArray(items)) return [];
+  return items.slice(0, 50).map((item) => {
+    if (!item || typeof item !== 'object') return null;
+    const id = String(item.id || '').slice(0, 80);
+    const name = String(item.name || '').slice(0, 255);
+    const type = String(item.type || '').slice(0, 100);
+    const size = Number(item.size) || 0;
+    const data = String(item.data || '');
+    const uploadedAt = Number(item.uploadedAt) || 0;
+    const uploadedBy = item.uploadedBy ? String(item.uploadedBy).slice(0, 80) : null;
+    if (!id || !name || !data) return null;
+    return { id, name, type, size, data, uploadedAt, uploadedBy };
+  }).filter(Boolean);
+}
+
 function calendarUrlFromEnv(team) {
   const key = team.toUpperCase();
   const value = String(process.env[`GOOGLE_CALENDAR_${key}_ID`] || process.env[`GOOGLE_CALENDAR_${key}`] || '').trim();
@@ -546,6 +568,7 @@ function cardValues(body, user, existing = {}) {
       ? String(body.pautaUrl || '')
       : String(existing.pauta_url || ''),
     checklist: cleanChecklist(body.checklist ?? existing.checklist ?? []),
+    attachments: cleanAttachments(body.attachments ?? existing.attachments ?? []),
   };
 }
 
@@ -1176,14 +1199,15 @@ app.post('/api/cards', requireAuth, async (req, res, next) => {
       const { rows } = await client.query(
         `INSERT INTO cards (
           id, nf, rs, cuit, ca, ntel, t, ta, c, color, estado, equipo, usuario,
-          usuarios, creado_por, creado_en, debe, monto_deuda, vence, vence_hora, cover_image, checklist, pauta_url
+          usuarios, creado_por, creado_en, debe, monto_deuda, vence, vence_hora, cover_image, checklist, pauta_url, attachments
         )
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,$15,$16,$17,$18,$19,$20,$21,$22::jsonb,$23)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,$15,$16,$17,$18,$19,$20,$21,$22::jsonb,$23,$24::jsonb)
         RETURNING *`,
         [
           cardId, data.nf, data.rs, data.cuit, data.ca, data.ntel, data.t, data.ta, data.c,
           data.color, data.estado, data.equipo, data.usuario, JSON.stringify(data.usuarios), req.user.id, creadoEn,
           data.debe, data.montoDeuda, data.vence, data.venceHora, data.coverImage, JSON.stringify(data.checklist), data.pautaUrl,
+          JSON.stringify(data.attachments),
         ]
       );
       const history = [];
@@ -1262,13 +1286,14 @@ app.put('/api/cards/:id', requireAuth, async (req, res, next) => {
       `UPDATE cards SET
         nf=$1, rs=$2, cuit=$3, ca=$4, ntel=$5, t=$6, ta=$7, c=$8, color=$9,
         estado=$10, equipo=$11, usuario=$12, usuarios=$13::jsonb, debe=$14, monto_deuda=$15, vence=$16,
-        vence_hora=$17, cover_image=$18, checklist=$19::jsonb, pauta_url=$20, updated_at=NOW()
-       WHERE id=$21
+        vence_hora=$17, cover_image=$18, checklist=$19::jsonb, pauta_url=$20, attachments=$21::jsonb, updated_at=NOW()
+       WHERE id=$22
        RETURNING *`,
       [
         data.nf, data.rs, data.cuit, data.ca, data.ntel, data.t, data.ta, data.c, data.color,
         data.estado, data.equipo, data.usuario, JSON.stringify(data.usuarios), data.debe, data.montoDeuda, data.vence,
-        data.venceHora, data.coverImage, JSON.stringify(data.checklist), data.pautaUrl, req.params.id,
+        data.venceHora, data.coverImage, JSON.stringify(data.checklist), data.pautaUrl,
+        JSON.stringify(data.attachments), req.params.id,
       ]
     );
     if (String(data.c) !== String(current.rows[0].c || '')) {
