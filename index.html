@@ -2796,13 +2796,13 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
      RESUMEN DATE PICKER MODAL
      ═══════════════════════════════════════════ -->
 <div id="resumen-picker-overlay" class="overlay" onclick="resumenPickerBg(event)">
-  <div class="modal" style="max-width:400px" onclick="event.stopPropagation()">
+  <div class="modal" style="max-width:580px;width:100%" onclick="event.stopPropagation()">
     <div class="modal-head">
       <i class="ico-ph" data-ico="calendar" style="font-size:1.15rem;color:var(--muted)"></i>
       <span class="modal-head-title">Descargar resumen</span>
       <button class="modal-close" onclick="closeResumenPicker()"><i class="ico-ph" data-ico="x"></i></button>
     </div>
-    <div style="padding:1.3rem 1.4rem 1rem">
+    <div style="padding:1.6rem 1.8rem 1.2rem">
       <div class="rp-section-label">Período rápido</div>
       <div class="rp-chips">
         <button class="rp-chip active" data-preset="all"       onclick="setResumenPreset('all')">Todo</button>
