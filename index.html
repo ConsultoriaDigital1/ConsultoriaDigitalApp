@@ -820,6 +820,37 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 .btn-pago:hover::before { opacity: 1; }
 .btn-pago:active { transform: translateY(0); }
 
+/* Área de carga de archivos en modal factura/pago */
+.mv-files-drop {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.55rem 0.9rem; border-radius: 8px; cursor: pointer;
+  border: 1.5px dashed var(--border); color: var(--muted);
+  font-size: 0.82rem; transition: border-color 150ms, color 150ms;
+}
+.mv-files-drop:hover { border-color: var(--accent); color: var(--accent); }
+.mv-files-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.5rem; }
+.mv-file-chip {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 6px; padding: 0.25rem 0.5rem;
+  font-size: 0.75rem; color: var(--text-hi); max-width: 220px;
+}
+.mv-file-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mv-file-chip-rm {
+  background: none; border: none; cursor: pointer; padding: 0; line-height: 1;
+  color: var(--muted); flex-shrink: 0;
+}
+.mv-file-chip-rm:hover { color: var(--danger); }
+/* Archivos en tabla de movimientos */
+.rc-archivos { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.25rem; }
+.rc-archivo-link {
+  display: inline-flex; align-items: center; gap: 0.25rem;
+  font-size: 0.72rem; color: var(--accent); text-decoration: none;
+  background: rgba(96,165,250,0.1); border-radius: 4px; padding: 0.15rem 0.4rem;
+  cursor: pointer; border: none;
+}
+.rc-archivo-link:hover { background: rgba(96,165,250,0.22); }
+
 /* Editar cliente */
 .btn-edit {
   background: rgba(87, 157, 255, 0.12);
@@ -2764,6 +2795,14 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
         <label class="form-label">Detalle / descripción</label>
         <textarea id="mv-detalle" class="form-textarea" placeholder="Observación..."></textarea>
       </div>
+      <div class="form-group">
+        <label class="form-label">Archivos adjuntos</label>
+        <label class="mv-files-drop" for="mv-files-input">
+          <i class="ico-ph" data-ico="upload"></i> Adjuntar archivos (PDF, imagen, máx. 8 MB c/u)
+        </label>
+        <input id="mv-files-input" type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" multiple style="display:none" onchange="mvFilesChanged(this)">
+        <div id="mv-files-chips" class="mv-files-chips"></div>
+      </div>
       <div class="form-group mv-only-factura" data-mv-mode="factura">
         <label class="form-label" id="mv-monto-label" style="color:#f5cd47">Monto de la factura *</label>
         <input id="mv-monto" class="form-input" type="number" step="0.01" min="0" placeholder="0.00" />
@@ -3081,7 +3120,10 @@ function changeAdminDashMonth(delta) {
 
 function formatMoney(n) {
   const num = Number(n || 0);
-  return num.toLocaleString('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 2 });
+  const abs = Math.abs(num).toFixed(2);
+  const [intPart, dec] = abs.split('.');
+  const thousands = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return `${num < 0 ? '-' : ''}$ ${thousands},${dec}`;
 }
 
 function formatDate(s) {
@@ -3564,12 +3606,19 @@ function renderClientMovements(movements) {
             onclick="startMovDelete('${clientId}','${m.id}', this)">${icon('trash')}</button>
         </td>
       </tr>
-      ${m.detalle || m.medioPago || m.banco ? `
+      ${(m.detalle || m.medioPago || m.banco || (m.archivos && m.archivos.length)) ? `
         <tr>
           <td colspan="7" style="color:var(--muted);font-size:0.74rem;padding-top:0;padding-bottom:0.6rem">
             ${m.medioPago ? `<strong>${esc(MEDIO_PAGO_LABEL[m.medioPago] || m.medioPago)}</strong>` : ''}
             ${m.banco ? ` · ${esc(m.banco)}` : ''}
             ${m.detalle ? ` · ${esc(m.detalle)}` : ''}
+            ${(m.archivos && m.archivos.length) ? `
+              <div class="rc-archivos">
+                ${m.archivos.map(f => `
+                  <button class="rc-archivo-link" onclick="openMovArchivo('${m.id}','${f.id}')" title="${esc(f.name)}">
+                    ${icon('file')} ${esc(f.name)}
+                  </button>`).join('')}
+              </div>` : ''}
           </td>
         </tr>` : ''}
     `;
@@ -3689,6 +3738,56 @@ async function deleteClientFromModal() {
 
 /* ── Factura / Pago ── */
 let movementMode = 'factura'; // 'factura' | 'pago'
+let mvFilesState = []; // { id, name, type, size, data (base64) }
+
+function mvFilesChanged(input) {
+  const files = Array.from(input.files || []);
+  input.value = '';
+  const MAX_SIZE = 8 * 1024 * 1024;
+  const MAX_FILES = 10;
+  for (const file of files) {
+    if (mvFilesState.length >= MAX_FILES) { toast('Máximo ' + MAX_FILES + ' archivos por movimiento.', 'error'); break; }
+    if (file.size > MAX_SIZE) { toast(`"${file.name}" supera el límite de 8 MB.`, 'error'); continue; }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const id = Date.now().toString(36) + Math.random().toString(36).slice(2);
+      mvFilesState.push({ id, name: file.name, type: file.type, size: file.size, data: e.target.result });
+      renderMvFilesChips();
+    };
+    reader.readAsDataURL(file);
+  }
+}
+
+function renderMvFilesChips() {
+  const wrap = $('mv-files-chips');
+  if (!wrap) return;
+  wrap.innerHTML = mvFilesState.map(f => `
+    <div class="mv-file-chip" data-fid="${f.id}">
+      ${icon('file')}
+      <span title="${esc(f.name)}">${esc(f.name)}</span>
+      <button class="mv-file-chip-rm" onclick="mvRemoveFile('${f.id}')" title="Quitar">${icon('x')}</button>
+    </div>`).join('');
+}
+
+function mvRemoveFile(id) {
+  mvFilesState = mvFilesState.filter(f => f.id !== id);
+  renderMvFilesChips();
+}
+
+function openMovArchivo(movId, archivoId) {
+  const movements = movementsCache[currentClientId] || [];
+  const mov = movements.find(m => m.id === movId);
+  if (!mov) return;
+  const archivo = (mov.archivos || []).find(f => f.id === archivoId);
+  if (!archivo || !archivo.data) { toast('Archivo no disponible.', 'error'); return; }
+  const win = window.open('', '_blank');
+  if (!win) { toast('Activá las ventanas emergentes para ver el archivo.', 'error'); return; }
+  if (archivo.type === 'application/pdf') {
+    win.document.write(`<html><body style="margin:0"><embed src="${archivo.data}" type="application/pdf" width="100%" height="100%"></body></html>`);
+  } else {
+    win.document.write(`<html><body style="margin:0;background:#111;display:flex;justify-content:center;align-items:center;min-height:100vh"><img src="${archivo.data}" style="max-width:100%;max-height:100vh"></body></html>`);
+  }
+}
 
 function openMovementModal(clientId, mode = 'factura') {
   const c = clientsCache.find(x => x.id === clientId);
@@ -3718,6 +3817,8 @@ function openMovementModal(clientId, mode = 'factura') {
   $('mv-detalle').value = '';
   $('mv-monto').value   = '';
   $('mv-haber').value   = '';
+  mvFilesState = [];
+  renderMvFilesChips();
   hideErr('mv-err');
 
   openOverlay('movement-overlay');
@@ -3764,6 +3865,8 @@ async function submitMovement() {
       haber:        haber,
     };
   }
+
+  body.archivos = mvFilesState;
 
   try {
     await api('/api/admin/clients/' + encodeURIComponent(currentClientId) + '/movements', {

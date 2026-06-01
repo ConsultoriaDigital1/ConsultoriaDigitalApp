@@ -25,6 +25,7 @@ if (process.env.NODE_ENV === 'production' && SESSION_SECRET === 'dev-only-change
 async function ensureDatabaseMigrations() {
   await pool.query("ALTER TABLE cards ADD COLUMN IF NOT EXISTS pauta_url TEXT NOT NULL DEFAULT ''");
   await pool.query("ALTER TABLE cards ADD COLUMN IF NOT EXISTS attachments JSONB NOT NULL DEFAULT '[]'::jsonb");
+  await pool.query("ALTER TABLE client_movements ADD COLUMN IF NOT EXISTS archivos JSONB NOT NULL DEFAULT '[]'::jsonb");
   await pool.query(`
     CREATE TABLE IF NOT EXISTS app_notes (
       id TEXT PRIMARY KEY,
@@ -42,7 +43,7 @@ async function ensureDatabaseMigrations() {
   await pool.query("CREATE UNIQUE INDEX IF NOT EXISTS idx_app_notes_admin ON app_notes(scope) WHERE scope = 'admin'");
 }
 
-app.use(express.json({ limit: '25mb' }));
+app.use(express.json({ limit: '100mb' }));
 
 function mkId() {
   return Date.now().toString(36) + crypto.randomBytes(4).toString('hex');
@@ -270,7 +271,49 @@ function movementDTO(row, saldoAcumulado = null) {
     creadoPor:    row.creado_por || null,
     creadoEn:     Number(row.creado_en) || 0,
     saldoAcumulado: saldoAcumulado != null ? Number(saldoAcumulado) : null,
+    archivos:     Array.isArray(row.archivos) ? row.archivos : [],
   };
+}
+
+function cleanArchivosMovement(value) {
+  let items = value;
+  if (typeof items === 'string') {
+    try { items = JSON.parse(items); } catch (_e) { items = []; }
+  }
+  if (!Array.isArray(items)) return [];
+  return items.slice(0, 10).map((item) => {
+    if (!item || typeof item !== 'object') return null;
+    const id   = String(item.id   || '').slice(0, 80);
+    const name = String(item.name || '').slice(0, 255);
+    const type = String(item.type || '').slice(0, 100);
+    const size = Number(item.size) || 0;
+    const data = String(item.data || '');
+    if (!id || !name || !data) return null;
+    // Max ~8 MB en base64
+    if (data.length > 11_000_000) return null;
+    if (!/^data:(application\/pdf|image\/(png|jpeg|webp));base64,[A-Za-z0-9+/=]+$/.test(data)) return null;
+    return { id, name, type, size };
+  }).filter(Boolean);
+}
+
+function cleanArchivosMovementWithData(value) {
+  let items = value;
+  if (typeof items === 'string') {
+    try { items = JSON.parse(items); } catch (_e) { items = []; }
+  }
+  if (!Array.isArray(items)) return [];
+  return items.slice(0, 10).map((item) => {
+    if (!item || typeof item !== 'object') return null;
+    const id   = String(item.id   || '').slice(0, 80);
+    const name = String(item.name || '').slice(0, 255);
+    const type = String(item.type || '').slice(0, 100);
+    const size = Number(item.size) || 0;
+    const data = String(item.data || '');
+    if (!id || !name || !data) return null;
+    if (data.length > 11_000_000) return null;
+    if (!/^data:(application\/pdf|image\/(png|jpeg|webp));base64,[A-Za-z0-9+/=]+$/.test(data)) return null;
+    return { id, name, type, size, data };
+  }).filter(Boolean);
 }
 
 function noteDTO(row) {
@@ -948,9 +991,11 @@ app.get('/api/admin/clients/:id/movements', requireAdmin, async (req, res, next)
     );
     let saldo = 0;
     const movements = rows.map((r) => {
-      // Saldo acumulado = factura - haber
       saldo += Number(r.monto_factura || 0) - Number(r.haber || 0);
-      return movementDTO(r, saldo);
+      const dto = movementDTO(r, saldo);
+      // incluir data de archivos para mostrar en el cliente
+      dto.archivos = Array.isArray(r.archivos) ? r.archivos : [];
+      return dto;
     });
     res.json({
       client: clientDTO(client, { saldo }),
@@ -979,18 +1024,21 @@ app.post('/api/admin/clients/:id/movements', requireAdmin, async (req, res, next
       return res.status(400).json({ error: 'Ingresa al menos un monto en Debe o Haber.' });
     }
 
+    const archivos = cleanArchivosMovementWithData(b.archivos || []);
+
     const id = mkId();
     const creadoEn = Date.now();
     await pool.query(
       `INSERT INTO client_movements (
          id, client_id, fecha, medio_pago, banco, detalle,
-         monto_factura, debe, haber, creado_por, creado_en
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+         monto_factura, debe, haber, creado_por, creado_en, archivos
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb)`,
       [
         id, req.params.id, fecha, medioPago,
         String(b.banco || '').trim(),
         String(b.detalle || '').trim(),
         monto, debe, haber, req.user.id, creadoEn,
+        JSON.stringify(archivos),
       ]
     );
     res.status(201).json({ ok: true, id });
