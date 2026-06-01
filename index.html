@@ -31,11 +31,12 @@
   --font-body: "Aptos","Trebuchet MS","Segoe UI",sans-serif;
   --font-disp: "Bahnschrift","Aptos",sans-serif;
   --topnav-h: 58px;
+  --zoom: 0.8;
   --shadow:    0 4px 16px rgba(0,0,0,0.4);
   --shadow-lg: 0 16px 48px rgba(0,0,0,0.55);
 }
 
-html { font-size: 151.8%; zoom: 0.8; }
+html { font-size: 151.8%; zoom: var(--zoom); }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: var(--font-body); background: var(--bg); color: var(--text); min-height: 100vh; }
@@ -203,7 +204,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 /* ═══════════════════════════════════════════
    APP SHELL
    ═══════════════════════════════════════════ */
-#app { display: none; height: 100vh; flex-direction: column; overflow: hidden; }
+#app { display: none; height: calc(100vh / var(--zoom)); flex-direction: column; overflow: hidden; }
 
 /* ─── TOP NAV ─── */
 .topnav {
@@ -334,7 +335,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 .dd-item.danger:hover  { background: rgba(248,113,104,0.15); }
 
 /* ─── MAIN LAYOUT ─── */
-.main-layout { display: flex; height: calc(100vh - var(--topnav-h)); position: relative; }
+.main-layout { display: flex; height: calc(100vh / var(--zoom) - var(--topnav-h)); position: relative; }
 
 /* ─── HAMBURGER BUTTON ─── */
 .hamburger-btn {
@@ -421,7 +422,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 }
 
 .kanban-col {
-  min-width: 350px; width: 350px; height: 100%; flex-shrink: 0;
+  min-width: 380px; width: 380px; height: 100%; flex-shrink: 0;
   display: flex; flex-direction: column; gap: 0;
   background: var(--surface); border-radius: var(--r-md);
 }
@@ -1915,6 +1916,30 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
   border-bottom-left-radius: 3px;
 }
 .note-msg-author { font-size: 0.61rem; color: var(--muted); margin-top: 0.18rem; padding: 0 0.2rem; }
+.note-msg-actions { display: flex; gap: 0.25rem; opacity: 0; transition: opacity 120ms; margin-bottom: 0.15rem; }
+.note-msg:hover .note-msg-actions { opacity: 1; }
+.note-action-btn {
+  background: none; border: 1px solid var(--border); border-radius: 4px;
+  color: var(--muted); cursor: pointer; font-size: 0.62rem;
+  padding: 0.08rem 0.38rem; line-height: 1.5; transition: background 100ms, color 100ms, border-color 100ms;
+}
+.note-action-btn:hover { background: var(--surface2); color: var(--text); }
+.note-action-btn.del:hover { border-color: #f87171; color: #f87171; }
+.note-edit-wrap { display: flex; flex-direction: column; gap: 0.3rem; min-width: 180px; }
+.note-edit-input {
+  background: var(--surface2); border: 1px solid var(--na, #60a5fa);
+  border-radius: 8px; color: var(--text); font: 0.84rem/1.55 var(--font-body);
+  padding: 0.4rem 0.65rem; resize: vertical; min-height: 52px; width: 100%; box-sizing: border-box;
+}
+.note-edit-btns { display: flex; gap: 0.35rem; justify-content: flex-end; }
+.note-edit-save {
+  background: var(--na, #60a5fa); color: #000; border: none;
+  border-radius: 6px; padding: 0.22rem 0.75rem; font-size: 0.75rem; cursor: pointer;
+}
+.note-edit-cancel {
+  background: var(--surface2); color: var(--muted); border: 1px solid var(--border);
+  border-radius: 6px; padding: 0.22rem 0.75rem; font-size: 0.75rem; cursor: pointer;
+}
 .note-chat-empty {
   flex: 1; display: flex; align-items: center; justify-content: center;
   color: var(--muted); font-size: 0.78rem; opacity: 0.45; font-style: italic;
@@ -6811,12 +6836,19 @@ function parseNoteMessages(content) {
   return content.trim() ? [{ author: 'Sistema', text: content, time: new Date(0).toISOString() }] : [];
 }
 
-function buildChatHtml(msgs) {
+function buildChatHtml(msgs, scope, team) {
   if (!msgs.length) return `<div class="note-chat-empty">Sin mensajes aún...</div>`;
   const me = noteAuthorName();
-  return msgs.map(m => {
+  const sc = (scope || '').replace(/'/g, '');
+  const tm = (team  || '').replace(/'/g, '');
+  return msgs.map((m, idx) => {
     const mine = m.author === me;
+    const actions = mine ? `<div class="note-msg-actions">
+      <button class="note-action-btn" onclick="startEditNoteMessage('${sc}','${tm}',${idx})">Editar</button>
+      <button class="note-action-btn del" onclick="deleteNoteMessage('${sc}','${tm}',${idx})">Eliminar</button>
+    </div>` : '';
     return `<div class="note-msg ${mine ? 'mine' : 'other'}">
+      ${actions}
       <div class="note-bubble">${esc(m.text).replace(/\n/g, '<br>')}</div>
       <div class="note-msg-author">${esc(m.author)}</div>
     </div>`;
@@ -6870,7 +6902,7 @@ function renderNotas() {
     const msgs = parseNoteMessages(getNoteContent(def.scope, def.team));
     return `<section class="note-panel" style="--na:${accent}">
       ${head}
-      <div class="note-chat" id="${id}-chat">${buildChatHtml(msgs)}</div>
+      <div class="note-chat" id="${id}-chat">${buildChatHtml(msgs, def.scope, def.team)}</div>
       <div class="note-input-row">
         <textarea class="note-chat-input" id="${id}-input" placeholder="${esc(def.placeholder)}"
           onkeydown="onNoteChatKey(event,'${def.scope}','${def.team}')"></textarea>
@@ -6890,23 +6922,15 @@ function onNoteChatKey(e, scope, team) {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendNoteMessage(scope, team); }
 }
 
-async function sendNoteMessage(scope, team) {
-  const id    = noteDomId(scope, team);
-  const input = $(id + '-input');
-  const chat  = $(id + '-chat');
-  const st    = $(noteStatusId(scope, team));
-  const dot   = $(noteStatusId(scope, team) + '-dot');
-  if (!input) return;
-  const text = input.value.trim();
-  if (!text) return;
+async function persistNoteMessages(scope, team, msgs) {
+  const id  = noteDomId(scope, team);
+  const chat = $(id + '-chat');
+  const st   = $(noteStatusId(scope, team));
+  const dot  = $(noteStatusId(scope, team) + '-dot');
 
-  input.value = '';
-  const existing = parseNoteMessages(getNoteContent(scope, team));
-  const msgs = [...existing, { author: noteAuthorName(), text, time: new Date().toISOString() }];
-
-  if (chat) { chat.innerHTML = buildChatHtml(msgs); chat.scrollTop = chat.scrollHeight; }
+  if (chat) { chat.innerHTML = buildChatHtml(msgs, scope, team); chat.scrollTop = chat.scrollHeight; }
   if (dot)  { dot.classList.add('saving'); dot.classList.remove('error'); }
-  if (st)   st.textContent = 'Enviando...';
+  if (st)   st.textContent = 'Guardando...';
 
   try {
     const body = { content: JSON.stringify(msgs) };
@@ -6920,6 +6944,63 @@ async function sendNoteMessage(scope, team) {
     if (st)  st.textContent = 'Error';
     toast(err.message, 'error');
   }
+}
+
+async function sendNoteMessage(scope, team) {
+  const id    = noteDomId(scope, team);
+  const input = $(id + '-input');
+  if (!input) return;
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  const existing = parseNoteMessages(getNoteContent(scope, team));
+  const msgs = [...existing, { author: noteAuthorName(), text, time: new Date().toISOString() }];
+  await persistNoteMessages(scope, team, msgs);
+}
+
+async function deleteNoteMessage(scope, team, idx) {
+  if (!confirm('¿Eliminar este mensaje?')) return;
+  const msgs = parseNoteMessages(getNoteContent(scope, team));
+  if (idx < 0 || idx >= msgs.length) return;
+  msgs.splice(idx, 1);
+  await persistNoteMessages(scope, team, msgs);
+}
+
+function startEditNoteMessage(scope, team, idx) {
+  const id   = noteDomId(scope, team);
+  const chat = $(id + '-chat');
+  if (!chat) return;
+  const msgs = parseNoteMessages(getNoteContent(scope, team));
+  if (idx < 0 || idx >= msgs.length) return;
+  const msgEl = chat.querySelectorAll('.note-msg')[idx];
+  if (!msgEl) return;
+  const bubble = msgEl.querySelector('.note-bubble');
+  if (!bubble) return;
+  const sc = (scope || '').replace(/'/g, '');
+  const tm = (team  || '').replace(/'/g, '');
+  const editId = `note-edit-${sc}-${tm}-${idx}`;
+  bubble.outerHTML = `<div class="note-edit-wrap">
+    <textarea class="note-edit-input" id="${editId}">${esc(msgs[idx].text)}</textarea>
+    <div class="note-edit-btns">
+      <button class="note-edit-cancel" onclick="renderNotas()">Cancelar</button>
+      <button class="note-edit-save" onclick="saveEditNoteMessage('${sc}','${tm}',${idx})">Guardar</button>
+    </div>
+  </div>`;
+  const ta = $(editId);
+  if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
+}
+
+async function saveEditNoteMessage(scope, team, idx) {
+  const sc = (scope || '').replace(/'/g, '');
+  const tm = (team  || '').replace(/'/g, '');
+  const ta = $(`note-edit-${sc}-${tm}-${idx}`);
+  if (!ta) return;
+  const newText = ta.value.trim();
+  if (!newText) return;
+  const msgs = parseNoteMessages(getNoteContent(scope, team));
+  if (idx < 0 || idx >= msgs.length) return;
+  msgs[idx] = { ...msgs[idx], text: newText };
+  await persistNoteMessages(scope, team, msgs);
 }
 
 function onNoteInput(scope, team) {
