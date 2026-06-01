@@ -686,32 +686,6 @@ app.post('/api/auth/login', async (req, res, next) => {
   }
 });
 
-app.post('/api/auth/register', async (req, res, next) => {
-  try {
-    const username = cleanUsername(req.body.username);
-    const nombre = String(req.body.nombre || '').trim();
-    const apellido = String(req.body.apellido || '').trim();
-    const password = String(req.body.password || '');
-    const equipo = cleanTeam(req.body.equipo);
-    if (!username || !nombre || !password) return res.status(400).json({ error: 'Completa todos los campos.' });
-    if (password.length < 6) return res.status(400).json({ error: 'Contrasena minimo 6 caracteres.' });
-    if (!['marketing', 'desarrollo'].includes(equipo)) return res.status(400).json({ error: 'Equipo invalido.' });
-
-    const id = mkId();
-    const passwordHash = await bcrypt.hash(password, 12);
-    const { rows } = await pool.query(
-      `INSERT INTO users (id, username, nombre, apellido, password_hash, equipo)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING id, username, nombre, apellido, equipo`,
-      [id, username, nombre, apellido, passwordHash, equipo]
-    );
-    setSessionCookie(res, id);
-    res.status(201).json({ user: userDTO(rows[0]) });
-  } catch (err) {
-    if (err.code === '23505') return res.status(409).json({ error: 'Ya existe una cuenta con ese usuario.' });
-    next(err);
-  }
-});
 
 app.post('/api/auth/logout', (_req, res) => {
   clearSessionCookie(res);

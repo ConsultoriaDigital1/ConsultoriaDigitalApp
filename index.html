@@ -173,7 +173,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
    LOGIN / REGISTER
    ═══════════════════════════════════════════ */
 #login-screen {
-  min-height: 100vh; display: flex; align-items: center; justify-content: center;
+  min-height: calc(100vh / var(--zoom)); display: flex; align-items: center; justify-content: center;
   background: radial-gradient(ellipse at 60% 0%, rgba(87,157,255,0.12) 0%, transparent 55%),
               radial-gradient(ellipse at 10% 100%, rgba(124,58,237,0.08) 0%, transparent 50%),
               var(--bg);
@@ -2028,41 +2028,6 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
         <div id="li-err" class="form-error" style="display:none"></div>
       </div>
       <button class="btn btn-primary btn-full" onclick="doLogin()">Ingresar</button>
-      <div class="auth-footer">¿No tenés cuenta? <a onclick="showPane('register')">Registrarse</a></div>
-    </div>
-
-    <!-- REGISTER -->
-    <div id="pane-register" style="display:none">
-      <h2 class="auth-heading">Crear cuenta</h2>
-      <p class="auth-sub">Completá los datos para unirte al equipo</p>
-      <div class="form-row">
-        <div class="form-group">
-          <label class="form-label">Nombre</label>
-          <input id="rg-nombre" class="form-input" type="text" placeholder="Nombre" />
-        </div>
-        <div class="form-group">
-          <label class="form-label">Apellido</label>
-          <input id="rg-apellido" class="form-input" type="text" placeholder="Apellido" />
-        </div>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Usuario</label>
-        <input id="rg-username" class="form-input" type="text" placeholder="usuario" autocomplete="username" />
-      </div>
-      <div class="form-group">
-        <label class="form-label">Contraseña</label>
-        <input id="rg-pass" class="form-input" type="password" placeholder="Mínimo 6 caracteres" />
-      </div>
-      <div class="form-group">
-        <label class="form-label">Equipo</label>
-        <select id="rg-equipo" class="form-select">
-          <option value="marketing">Equipo de Marketing</option>
-          <option value="desarrollo">Equipo de Desarrollo</option>
-        </select>
-      </div>
-      <div id="rg-err" class="form-error" style="display:none"></div>
-      <button class="btn btn-primary btn-full" onclick="doRegister()">Crear cuenta</button>
-      <div class="auth-footer">¿Ya tenés cuenta? <a onclick="showPane('login')">Iniciar sesión</a></div>
     </div>
   </div>
 </div>
@@ -4512,27 +4477,6 @@ async function doLogin() {
   }
 }
 
-async function doRegister() {
-  const nombre   = $('rg-nombre').value.trim();
-  const apellido = $('rg-apellido').value.trim();
-  const username = $('rg-username').value.trim().toLowerCase();
-  const pass     = $('rg-pass').value;
-  const equipo   = $('rg-equipo').value;
-  if (!nombre || !username || !pass) { showErr('rg-err', 'Completá todos los campos.'); return; }
-  if (pass.length < 6) { showErr('rg-err', 'Contraseña mínimo 6 caracteres.'); return; }
-  try {
-    await api('/api/auth/register', {
-      method: 'POST',
-      body: JSON.stringify({ username, nombre, apellido, password: pass, equipo }),
-    });
-    hideErr('rg-err');
-    await loadAppData();
-    startApp();
-    toast('¡Bienvenido/a ' + nombre + '!', 'success');
-  } catch (err) {
-    showErr('rg-err', err.message);
-  }
-}
 
 async function doLogout() {
   await api('/api/auth/logout', { method: 'POST' }).catch(() => {});
@@ -4551,10 +4495,6 @@ async function doLogout() {
   closeDD();
 }
 
-function showPane(p) {
-  $('pane-login').style.display    = p === 'login'    ? '' : 'none';
-  $('pane-register').style.display = p === 'register' ? '' : 'none';
-}
 
 /* ─────────────────────────────────────────
    APP INIT
