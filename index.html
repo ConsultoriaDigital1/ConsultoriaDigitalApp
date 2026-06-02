@@ -6389,7 +6389,10 @@ function renderCardsTrash(board, users) {
               <td>${esc(statusText(c.estado))}</td>
               <td>${deletedTxt}</td>
               <td>
-                <button class="btn btn-restore btn-sm" onclick="restoreCardFromTrash('${c.id}')" title="Restaurar al tablero">${icon('restore')} Restaurar</button>
+                <div class="ct-actions">
+                  <button class="btn btn-restore btn-sm" onclick="restoreCardFromTrash('${c.id}')" title="Restaurar al tablero">${icon('restore')} Restaurar</button>
+                  <button class="btn btn-danger btn-sm" onclick="purgeCardFromTrash('${c.id}')" title="Eliminar definitivamente">${icon('trash')} Eliminar</button>
+                </div>
               </td>
             </tr>`;
         }).join('')}
@@ -6408,6 +6411,20 @@ async function restoreCardFromTrash(id) {
     toast('Tarjeta restaurada', 'success');
   } catch (err) {
     toast(err.message || 'No se pudo restaurar.', 'error');
+  }
+}
+
+async function purgeCardFromTrash(id) {
+  const c = (cardsTrashCache || []).find(x => x.id === id);
+  const title = c ? (c.nf || c.rs || 'esta tarjeta') : 'esta tarjeta';
+  if (!confirm(`¿Eliminar definitivamente "${title}"?\n\nEsta acción no se puede deshacer.`)) return;
+  try {
+    await api('/api/cards/' + encodeURIComponent(id) + '/purge', { method: 'DELETE' });
+    cardsTrashCache = cardsTrashCache.filter(c => c.id !== id);
+    renderBoard();
+    toast('Tarjeta eliminada definitivamente', 'success');
+  } catch (err) {
+    toast(err.message || 'No se pudo eliminar.', 'error');
   }
 }
 

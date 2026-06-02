@@ -1499,6 +1499,20 @@ app.post('/api/cards/:id/restore', requireAuth, async (req, res, next) => {
   }
 });
 
+// Eliminar definitivamente una tarjeta que ya esta en la papelera
+app.delete('/api/cards/:id/purge', requireAuth, async (req, res, next) => {
+  try {
+    const current = await pool.query('SELECT equipo, deleted_at FROM cards WHERE id = $1', [req.params.id]);
+    if (!current.rows[0]) return res.status(404).json({ error: 'Tarjeta no encontrada.' });
+    if (!canAccessTeam(req.user, current.rows[0].equipo)) return res.status(403).json({ error: 'Sin permiso.' });
+    if (!current.rows[0].deleted_at) return res.status(400).json({ error: 'La tarjeta no esta en la papelera.' });
+    await pool.query('DELETE FROM cards WHERE id = $1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
 app.use('/api', (_req, res) => {
   res.status(404).json({ error: 'Ruta API no encontrada.' });
 });
