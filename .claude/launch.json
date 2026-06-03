@@ -4,7 +4,9 @@
     {
       "name": "consultoria-digital",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["server.js"],
+      "runtimeArgs": [
+        "server.js"
+      ],
       "port": 3000
     }
   ]

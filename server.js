@@ -5,6 +5,7 @@ const path = require('path');
 const bcrypt = require('bcrypt');
 const express = require('express');
 const { Pool } = require('pg');
+const gcal = require('./google-calendar');
 
 const app = express();
 const pool = new Pool({
@@ -437,7 +438,42 @@ async function trashedCards(user) {
 
 async function visibleCalendars(user) {
   const teams = allowedTeams(user);
-  return Object.fromEntries(teams.map((team) => [team, calendarUrlFromEnv(team)]));
+  const { rows } = await pool.query(
+    'SELECT equipo, google_calendar_url FROM team_calendars WHERE equipo = ANY($1)',
+    [teams]
+  );
+  const fromDb = Object.fromEntries(rows.map((r) => [r.equipo, r.google_calendar_url || '']));
+  return Object.fromEntries(teams.map((team) => [team, fromDb[team] || calendarUrlFromEnv(team)]));
+}
+
+// Mapa { equipo: bool } indicando si el calendario del equipo es editable (hay
+// service account configurada Y se pudo derivar el ID del calendario).
+function calendarsEditableMap(calendars) {
+  const configured = gcal.isConfigured();
+  return Object.fromEntries(
+    Object.entries(calendars).map(([team, url]) => [team, configured && !!calendarIdFromUrl(url)])
+  );
+}
+
+// Extrae el ID del calendario (parametro ?src=...) de una URL de embed de Google.
+function calendarIdFromUrl(url) {
+  if (!url) return '';
+  try {
+    const parsed = new URL(url);
+    return (parsed.searchParams.get('src') || '').trim();
+  } catch (_e) {
+    return '';
+  }
+}
+
+// Resuelve el calendarId del equipo (DB primero, luego variables de entorno).
+async function resolveTeamCalendarId(team) {
+  const { rows } = await pool.query(
+    'SELECT google_calendar_url FROM team_calendars WHERE equipo = $1',
+    [team]
+  );
+  const url = (rows[0] && rows[0].google_calendar_url) || calendarUrlFromEnv(team);
+  return calendarIdFromUrl(url);
 }
 
 async function visibleEvents(user) {
@@ -695,12 +731,14 @@ app.post('/api/auth/logout', (_req, res) => {
 app.get('/api/bootstrap', requireAuth, async (req, res, next) => {
   try {
     const isAdmin = req.user.equipo === 'admin';
+    const calendars = await visibleCalendars(req.user);
     res.json({
       user: userDTO(req.user),
       users: await visibleUsers(req.user),
       cards: await visibleCards(req.user),
       cardsTrash: await trashedCards(req.user),
-      calendars: await visibleCalendars(req.user),
+      calendars,
+      calendarsEditable: calendarsEditableMap(calendars),
       events: await visibleEvents(req.user),
       notes: await visibleNotes(req.user),
       teams: allowedTeams(req.user),
@@ -1243,6 +1281,160 @@ app.delete('/api/events/:id', requireAuth, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+/* ─────────────────────────────────────────
+   GOOGLE CALENDAR (eventos editables via service account)
+───────────────────────────────────────── */
+
+// Colores de la app <-> colorId de Google Calendar.
+const COLOR_TO_GCAL = {
+  blue: '7', purple: '3', green: '10', red: '11',
+  orange: '6', pink: '4', teal: '2', yellow: '5',
+};
+const GCAL_TO_COLOR = {
+  1: 'purple', 2: 'teal', 3: 'purple', 4: 'pink', 5: 'yellow', 6: 'orange',
+  7: 'blue', 8: 'blue', 9: 'blue', 10: 'green', 11: 'red',
+};
+
+function hhmm(value) {
+  const m = /^(\d{1,2}):(\d{2})/.exec(String(value || '').trim());
+  if (!m) return '';
+  return `${m[1].padStart(2, '0')}:${m[2]}`;
+}
+
+function isoDate(value) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(value || '').trim()) ? value.trim() : '';
+}
+
+function addOneHour(time) {
+  const [h, m] = time.split(':').map(Number);
+  const total = (h * 60 + m + 60) % (24 * 60);
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+}
+
+function nextDay(dateStr) {
+  const d = new Date(`${dateStr}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
+// Construye el recurso de evento para la API de Google a partir del body del front.
+function buildGcalResource(body) {
+  const titulo = String(body.titulo || '').trim();
+  const descripcion = String(body.descripcion || '').trim();
+  const fecha = isoDate(body.fecha);
+  const horaInicio = hhmm(body.horaInicio);
+  const horaFin = hhmm(body.horaFin);
+  const color = COLOR_TO_GCAL[String(body.color || 'blue').trim()];
+
+  const resource = { summary: titulo, description: descripcion };
+  if (color) resource.colorId = color;
+
+  if (horaInicio) {
+    const end = horaFin || addOneHour(horaInicio);
+    resource.start = { dateTime: `${fecha}T${horaInicio}:00`, timeZone: GOOGLE_CALENDAR_CTZ };
+    resource.end = { dateTime: `${fecha}T${end}:00`, timeZone: GOOGLE_CALENDAR_CTZ };
+  } else {
+    resource.start = { date: fecha };
+    resource.end = { date: nextDay(fecha) };
+  }
+  return resource;
+}
+
+// Convierte un evento de Google al DTO que entiende el front.
+function gcalEventToDTO(ev, team) {
+  const startDT = ev.start && ev.start.dateTime;
+  const endDT = ev.end && ev.end.dateTime;
+  let fecha = '';
+  let horaInicio = '';
+  let horaFin = '';
+  if (startDT) {
+    fecha = startDT.slice(0, 10);
+    horaInicio = startDT.slice(11, 16);
+    if (endDT) horaFin = endDT.slice(11, 16);
+  } else {
+    fecha = (ev.start && ev.start.date) || '';
+  }
+  return {
+    id: ev.id,
+    titulo: ev.summary || '(sin titulo)',
+    descripcion: ev.description || '',
+    fecha,
+    horaInicio,
+    horaFin,
+    equipo: team,
+    color: GCAL_TO_COLOR[Number(ev.colorId)] || 'blue',
+    htmlLink: ev.htmlLink || '',
+    source: 'google',
+  };
+}
+
+// Rango [timeMin, timeMax) para un mes 'YYYY-MM' (con un dia de colchon por zona horaria).
+function monthRange(monthStr) {
+  const m = /^(\d{4})-(\d{1,2})$/.exec(String(monthStr || ''));
+  const now = new Date();
+  const year = m ? Number(m[1]) : now.getFullYear();
+  const month = m ? Number(m[2]) - 1 : now.getMonth();
+  const start = new Date(Date.UTC(year, month, 1));
+  start.setUTCDate(start.getUTCDate() - 1);
+  const end = new Date(Date.UTC(year, month + 1, 1));
+  end.setUTCDate(end.getUTCDate() + 1);
+  return { timeMin: start.toISOString(), timeMax: end.toISOString() };
+}
+
+// Middleware comun: valida equipo, acceso, config y resuelve el calendarId.
+async function gcalContext(req, res) {
+  const equipo = cleanTeam(req.params.team);
+  if (!equipo) { res.status(400).json({ error: 'Equipo invalido.' }); return null; }
+  if (!canAccessTeam(req.user, equipo)) { res.status(403).json({ error: 'Sin acceso a ese equipo.' }); return null; }
+  if (!gcal.isConfigured()) { res.status(503).json({ error: 'Google Calendar no esta configurado en el servidor.' }); return null; }
+  const calendarId = await resolveTeamCalendarId(equipo);
+  if (!calendarId) { res.status(400).json({ error: 'Este equipo no tiene un Google Calendar configurado.' }); return null; }
+  return { equipo, calendarId };
+}
+
+app.get('/api/gcal/:team/events', requireAuth, async (req, res, next) => {
+  try {
+    const ctx = await gcalContext(req, res);
+    if (!ctx) return;
+    const { timeMin, timeMax } = monthRange(req.query.month);
+    const items = await gcal.listEvents(ctx.calendarId, timeMin, timeMax);
+    res.json({ events: items.map((ev) => gcalEventToDTO(ev, ctx.equipo)) });
+  } catch (err) { next(err); }
+});
+
+app.post('/api/gcal/:team/events', requireAuth, async (req, res, next) => {
+  try {
+    const ctx = await gcalContext(req, res);
+    if (!ctx) return;
+    if (!String(req.body.titulo || '').trim() || !isoDate(req.body.fecha)) {
+      return res.status(400).json({ error: 'Titulo y fecha son requeridos.' });
+    }
+    const ev = await gcal.createEvent(ctx.calendarId, buildGcalResource(req.body));
+    res.status(201).json({ event: gcalEventToDTO(ev, ctx.equipo) });
+  } catch (err) { next(err); }
+});
+
+app.patch('/api/gcal/:team/events/:eventId', requireAuth, async (req, res, next) => {
+  try {
+    const ctx = await gcalContext(req, res);
+    if (!ctx) return;
+    if (!String(req.body.titulo || '').trim() || !isoDate(req.body.fecha)) {
+      return res.status(400).json({ error: 'Titulo y fecha son requeridos.' });
+    }
+    const ev = await gcal.updateEvent(ctx.calendarId, req.params.eventId, buildGcalResource(req.body));
+    res.json({ event: gcalEventToDTO(ev, ctx.equipo) });
+  } catch (err) { next(err); }
+});
+
+app.delete('/api/gcal/:team/events/:eventId', requireAuth, async (req, res, next) => {
+  try {
+    const ctx = await gcalContext(req, res);
+    if (!ctx) return;
+    await gcal.deleteEvent(ctx.calendarId, req.params.eventId);
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
 app.post('/api/cards', requireAuth, async (req, res, next) => {
   try {
     const data = cardValues(req.body, req.user);
@@ -1432,6 +1624,7 @@ app.put('/api/calendars/:team', requireAuth, async (req, res, next) => {
       calendar: {
         equipo: rows[0].equipo,
         googleCalendarUrl: rows[0].google_calendar_url,
+        editable: gcal.isConfigured() && !!calendarIdFromUrl(rows[0].google_calendar_url),
       },
     });
   } catch (err) {
