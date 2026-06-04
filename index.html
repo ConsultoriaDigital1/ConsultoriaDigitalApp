@@ -3357,7 +3357,8 @@ function updateAdminDashUI(data) {
   }
   set('adash-ingresos',   formatMoney(data.ingresosTotales));
   set('adash-cobrados',   formatMoney(data.cobrados));
-  set('adash-pendientes', formatMoney(data.pendientes));
+  // Pendiente de cobro este mes = Ingresos totales del mes − Cobrados
+  set('adash-pendientes', formatMoney(Number(data.ingresosTotales || 0) - Number(data.cobrados || 0)));
   // Pendiente de cobro total = todas las facturas emitidas − ingreso total = suma de saldos de todos los clientes
   const pendienteTotal = (clientsCache || []).reduce((s, c) => s + Number(c.saldo || 0), 0);
   set('adash-pendientes-total', formatMoney(pendienteTotal));
