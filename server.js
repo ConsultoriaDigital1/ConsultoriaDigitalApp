@@ -968,8 +968,7 @@ app.get('/api/admin/dashboard', requireAdmin, async (req, res, next) => {
            COUNT(*) FILTER (WHERE bal.saldo > 0 AND c.vence != '' AND c.vence < $1) AS vencidos
          FROM (
            SELECT client_id,
-             COALESCE(SUM(monto_factura) FILTER (WHERE COALESCE(medio_pago,'') != 'canje'), 0) -
-             COALESCE(SUM(haber)         FILTER (WHERE COALESCE(medio_pago,'') != 'canje'), 0) AS saldo
+             COALESCE(SUM(monto_factura), 0) - COALESCE(SUM(haber), 0) AS saldo
            FROM client_movements GROUP BY client_id
          ) bal
          JOIN clients c ON c.id = bal.client_id

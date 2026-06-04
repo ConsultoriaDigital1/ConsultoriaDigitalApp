@@ -3359,9 +3359,9 @@ function updateAdminDashUI(data) {
   set('adash-cobrados',   formatMoney(data.cobrados));
   // Pendiente de cobro este mes = Ingresos totales del mes − Cobrados
   set('adash-pendientes', formatMoney(Number(data.ingresosTotales || 0) - Number(data.cobrados || 0)));
-  // Pendiente de cobro total = todas las facturas emitidas − ingreso total = suma de saldos de todos los clientes
-  const pendienteTotal = (clientsCache || []).reduce((s, c) => s + Number(c.saldo || 0), 0);
-  set('adash-pendientes-total', formatMoney(pendienteTotal));
+  // Pendiente de cobro total = suma de saldos pendientes (incluye canje, excluye saldos a favor).
+  // Usa el cálculo único del backend para que coincida con la lista al filtrar por la tarjeta.
+  set('adash-pendientes-total', formatMoney(data.pendientes));
 }
 
 function applyAdminNumbersState() {
@@ -3394,6 +3394,8 @@ function changeAdminDashMonth(delta) {
   if (adminDashMonth < 1)  { adminDashMonth = 12; adminDashYear--; }
   updateAdminDashUI(null);
   loadAdminDashboard();
+  // Si está activo el filtro "este mes", recalcular la lista para el nuevo mes
+  if (clientsDashFilter === 'pendientes' && adminSubTab === 'clientes') renderClientsResults();
 }
 
 function formatMoney(n) {
@@ -3483,11 +3485,17 @@ function renderClientsResults() {
 
   // Aplicar filtro de tarjeta del dashboard
   const todayStr = new Date().toISOString().slice(0, 10);
+  const monthPrefix = `${adminDashYear}-${String(adminDashMonth).padStart(2, '0')}`;
   const afterFilter = (!inTrash && clientsDashFilter)
     ? afterEstado.filter(c => {
         const saldo = Number(c.saldo || 0);
         if (clientsDashFilter === 'cobrados')        return saldo <= 0;
-        if (clientsDashFilter === 'pendientes')      return saldo > 0;
+        if (clientsDashFilter === 'pendientes') {
+          // Clientes que deben Y tuvieron factura emitida en el mes seleccionado
+          if (saldo <= 0) return false;
+          const movs = movementsCache[c.id] || [];
+          return movs.some(m => Number(m.montoFactura || 0) > 0 && (m.fecha || '').startsWith(monthPrefix));
+        }
         if (clientsDashFilter === 'pendientes-total') return saldo > 0;
         if (clientsDashFilter === 'vencidos')        return saldo > 0 && c.vence && c.vence < todayStr;
         return true; // 'ingresos' → todos
@@ -3601,6 +3609,13 @@ function setDashFilter(key) {
     switchAdminSubTab('clientes');
   } else {
     renderClientsResults();
+  }
+  // "Pendiente de cobro este mes" necesita los movimientos de cada cliente
+  // para saber quién tuvo factura emitida en el mes seleccionado.
+  if (clientsDashFilter === 'pendientes') {
+    ensureAllMovementsLoaded().then(() => {
+      if (clientsDashFilter === 'pendientes') renderClientsResults();
+    });
   }
 }
 
@@ -4034,6 +4049,23 @@ async function confirmMovDelete(clientId, movId, goBtn) {
     toast(err.message || 'No se pudo eliminar el movimiento.', 'error');
     renderClientMovements(movementsCache[clientId] || []);
   }
+}
+
+// Carga en bloque los movimientos de todos los clientes que aún no estén en cache.
+// Necesario para filtrar por "factura emitida en el mes" sin abrir cada cliente.
+async function ensureAllMovementsLoaded() {
+  const missing = (clientsCache || []).filter(c => !movementsCache[c.id]);
+  if (!missing.length) return;
+  await Promise.all(missing.map(async c => {
+    try {
+      const data = await api('/api/admin/clients/' + encodeURIComponent(c.id) + '/movements');
+      movementsCache[c.id] = data.movements || [];
+      const idx = clientsCache.findIndex(x => x.id === c.id);
+      if (idx > -1 && data.client) clientsCache[idx] = data.client;
+    } catch (_e) {
+      movementsCache[c.id] = movementsCache[c.id] || [];
+    }
+  }));
 }
 
 async function loadMovementsForClient(clientId) {
