@@ -3489,7 +3489,11 @@ function renderClientsResults() {
   const afterFilter = (!inTrash && clientsDashFilter)
     ? afterEstado.filter(c => {
         const saldo = Number(c.saldo || 0);
-        if (clientsDashFilter === 'cobrados')        return saldo <= 0;
+        if (clientsDashFilter === 'cobrados') {
+          // Clientes con al menos un pago efectuado en el mes seleccionado
+          const movs = movementsCache[c.id] || [];
+          return movs.some(m => Number(m.haber || 0) > 0 && (m.fecha || '').startsWith(monthPrefix));
+        }
         if (clientsDashFilter === 'pendientes') {
           // Clientes que deben Y tuvieron factura emitida en el mes seleccionado
           if (saldo <= 0) return false;
@@ -3610,11 +3614,13 @@ function setDashFilter(key) {
   } else {
     renderClientsResults();
   }
-  // "Pendiente de cobro este mes" necesita los movimientos de cada cliente
-  // para saber quién tuvo factura emitida en el mes seleccionado.
-  if (clientsDashFilter === 'pendientes') {
+  // "Pendiente de cobro este mes" y "Cobrados" necesitan los movimientos de
+  // cada cliente para saber quién tuvo factura emitida / pago efectuado en el
+  // mes seleccionado.
+  if (clientsDashFilter === 'pendientes' || clientsDashFilter === 'cobrados') {
+    const activeKey = clientsDashFilter;
     ensureAllMovementsLoaded().then(() => {
-      if (clientsDashFilter === 'pendientes') renderClientsResults();
+      if (clientsDashFilter === activeKey) renderClientsResults();
     });
   }
 }
