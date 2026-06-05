@@ -3500,15 +3500,22 @@ function renderClientsResults() {
           return movs.some(m => Number(m.haber || 0) > 0 && (m.fecha || '').startsWith(monthPrefix));
         }
         if (clientsDashFilter === 'pendientes') {
-          // Pendiente de cobro de ESTE mes: facturas emitidas en el mes que no
-          // quedaron cubiertas por pagos del mismo mes (excluye canje, igual que
-          // la métrica del dashboard). Salta solo si debe por ese mes.
+          // Pendiente de cobro de ESTE mes: facturas emitidas en el mes (no las
+          // de meses siguientes) menos los pagos de este mes y los siguientes,
+          // porque hay clientes que pagan atrasados y, aunque el pago caiga en un
+          // mes posterior, la factura igual queda saldada. Excluye canje.
+          // Solo aparece quien efectivamente debe (saldo > 0).
+          if (saldo <= 0) return false;
           const movs = movementsCache[c.id] || [];
           let neto = 0;
           for (const m of movs) {
-            if (!(m.fecha || '').startsWith(monthPrefix)) continue;
             if ((m.medioPago || '') === 'canje') continue;
-            neto += Number(m.montoFactura || 0) - Number(m.haber || 0);
+            const ym = (m.fecha || '').slice(0, 7);
+            if (!ym) continue;
+            // Factura: solo la emitida en el mes seleccionado.
+            if (ym === monthPrefix) neto += Number(m.montoFactura || 0);
+            // Pago: este mes y los siguientes (cubre pagos atrasados).
+            if (ym >= monthPrefix) neto -= Number(m.haber || 0);
           }
           return neto > 0;
         }
@@ -3525,11 +3532,14 @@ function renderClientsResults() {
         normTxt(c.cuit).includes(term))
     : afterFilter;
 
-  // Orden por columna (Debe / Vence). Sin orden activo → se mantiene el orden
-  // alfabético por nombre que viene de `all`.
+  // Orden por columna (Cliente / Debe / Vence). Sin orden activo → se mantiene
+  // el orden alfabético por nombre que viene de `all`.
   const list = clientsSort.col
     ? filtered.slice().sort((a, b) => {
         const dir = clientsSort.dir === 'desc' ? -1 : 1;
+        if (clientsSort.col === 'cliente') {
+          return clientDisplayName(a).localeCompare(clientDisplayName(b), 'es') * dir;
+        }
         if (clientsSort.col === 'debe') {
           return (Number(a.saldo || 0) - Number(b.saldo || 0)) * dir;
         }
@@ -3578,7 +3588,7 @@ function renderClientsResults() {
       <table class="clients-table">
         <thead>
           <tr>
-            <th>Cliente</th>
+            <th class="th-sort" onclick="toggleClientsSort('cliente')" title="Ordenar por nombre">Cliente ${sortArrow('cliente')}</th>
             <th>RS</th>
             <th>CUIT</th>
             <th class="th-sort" onclick="toggleClientsSort('debe')" title="Ordenar por deuda">Debe ${sortArrow('debe')}</th>
