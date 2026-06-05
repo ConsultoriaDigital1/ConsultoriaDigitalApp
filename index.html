@@ -898,6 +898,10 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
   letter-spacing: 0.06em; text-transform: uppercase;
   background: var(--surface2);
 }
+.clients-table th.th-sort { cursor: pointer; user-select: none; white-space: nowrap; }
+.clients-table th.th-sort:hover { color: var(--text-hi); }
+.th-sort-arrow { font-size: 0.78rem; opacity: 0.4; margin-left: 0.15rem; }
+.th-sort-arrow.active { opacity: 1; color: var(--accent, var(--text-hi)); }
 .clients-table th:first-child { border-radius: var(--r-xs) 0 0 var(--r-xs); }
 .clients-table th:last-child  { border-radius: 0 var(--r-xs) var(--r-xs) 0; text-align: right; }
 .clients-table tbody td {
@@ -3289,6 +3293,7 @@ let clientsView        = 'active';  // 'active' | 'trash'
 let clientsFilter      = 'todos';   // 'todos' | 'activos' | 'inactivos'
 let clientsSearchTerm  = '';        // término del buscador de clientes
 let clientsDashFilter  = null;      // null | 'ingresos' | 'cobrados' | 'pendientes' | 'pendientes-total' | 'vencidos'
+let clientsSort        = { col: null, dir: null }; // col: 'debe' | 'vence' · dir: 'asc' | 'desc' | null (sin orden)
 let movementsCache     = {};       // { [clientId]: [movements...] }
 let currentClientId    = null;
 let editingClientId    = null;     // id si el modal de cliente está editando; null = creando
@@ -3495,10 +3500,17 @@ function renderClientsResults() {
           return movs.some(m => Number(m.haber || 0) > 0 && (m.fecha || '').startsWith(monthPrefix));
         }
         if (clientsDashFilter === 'pendientes') {
-          // Clientes que deben Y tuvieron factura emitida en el mes seleccionado
-          if (saldo <= 0) return false;
+          // Pendiente de cobro de ESTE mes: facturas emitidas en el mes que no
+          // quedaron cubiertas por pagos del mismo mes (excluye canje, igual que
+          // la métrica del dashboard). Salta solo si debe por ese mes.
           const movs = movementsCache[c.id] || [];
-          return movs.some(m => Number(m.montoFactura || 0) > 0 && (m.fecha || '').startsWith(monthPrefix));
+          let neto = 0;
+          for (const m of movs) {
+            if (!(m.fecha || '').startsWith(monthPrefix)) continue;
+            if ((m.medioPago || '') === 'canje') continue;
+            neto += Number(m.montoFactura || 0) - Number(m.haber || 0);
+          }
+          return neto > 0;
         }
         if (clientsDashFilter === 'pendientes-total') return saldo > 0;
         if (clientsDashFilter === 'vencidos')        return saldo > 0 && c.vence && c.vence < todayStr;
@@ -3506,12 +3518,29 @@ function renderClientsResults() {
       })
     : afterEstado;
 
-  const list = term
+  const filtered = term
     ? afterFilter.filter(c =>
         normTxt(clientDisplayName(c)).includes(term) ||
         normTxt(c.razonSocial).includes(term) ||
         normTxt(c.cuit).includes(term))
     : afterFilter;
+
+  // Orden por columna (Debe / Vence). Sin orden activo → se mantiene el orden
+  // alfabético por nombre que viene de `all`.
+  const list = clientsSort.col
+    ? filtered.slice().sort((a, b) => {
+        const dir = clientsSort.dir === 'desc' ? -1 : 1;
+        if (clientsSort.col === 'debe') {
+          return (Number(a.saldo || 0) - Number(b.saldo || 0)) * dir;
+        }
+        // 'vence': fechas vacías siempre al final, sin importar la dirección
+        const av = a.vence || '', bv = b.vence || '';
+        if (!av && !bv) return 0;
+        if (!av) return 1;
+        if (!bv) return -1;
+        return av.localeCompare(bv) * dir;
+      })
+    : filtered;
 
   // Subtítulo con conteo en vivo
   const sub = $('clients-sub');
@@ -3552,8 +3581,8 @@ function renderClientsResults() {
             <th>Cliente</th>
             <th>RS</th>
             <th>CUIT</th>
-            <th>Debe</th>
-            <th>Vence</th>
+            <th class="th-sort" onclick="toggleClientsSort('debe')" title="Ordenar por deuda">Debe ${sortArrow('debe')}</th>
+            <th class="th-sort" onclick="toggleClientsSort('vence')" title="Ordenar por vencimiento">Vence ${sortArrow('vence')}</th>
             <th>Estado</th>
             <th>${inTrash ? 'Eliminado' : 'Acciones'}</th>
           </tr>
@@ -3595,6 +3624,23 @@ function clearClientsSearch() {
 function setClientsFilter(f) {
   clientsFilter = f;
   renderClientesSubTab();
+}
+
+// Orden por columna: cicla ascendente → descendente → sin orden
+function toggleClientsSort(col) {
+  if (clientsSort.col !== col) {
+    clientsSort = { col, dir: 'asc' };
+  } else if (clientsSort.dir === 'asc') {
+    clientsSort.dir = 'desc';
+  } else {
+    clientsSort = { col: null, dir: null };
+  }
+  renderClientsResults();
+}
+
+function sortArrow(col) {
+  if (clientsSort.col !== col) return '<span class="th-sort-arrow">↕</span>';
+  return `<span class="th-sort-arrow active">${clientsSort.dir === 'asc' ? '↑' : '↓'}</span>`;
 }
 
 function setDashFilter(key) {
