@@ -42,6 +42,15 @@ async function ensureDatabaseMigrations() {
   await pool.query("CREATE UNIQUE INDEX IF NOT EXISTS idx_app_notes_personal ON app_notes(user_id) WHERE scope = 'personal'");
   await pool.query("CREATE UNIQUE INDEX IF NOT EXISTS idx_app_notes_team ON app_notes(equipo) WHERE scope = 'team'");
   await pool.query("CREATE UNIQUE INDEX IF NOT EXISTS idx_app_notes_admin ON app_notes(scope) WHERE scope = 'admin'");
+
+  // Ventas Check Constraints
+  await pool.query("ALTER TABLE cards DROP CONSTRAINT IF EXISTS cards_equipo_check");
+  await pool.query("ALTER TABLE cards ADD CONSTRAINT cards_equipo_check CHECK (equipo IN ('marketing', 'desarrollo', 'admin', 'ventas'))");
+  await pool.query("ALTER TABLE cards DROP CONSTRAINT IF EXISTS cards_estado_check");
+  await pool.query("ALTER TABLE cards ADD CONSTRAINT cards_estado_check CHECK (estado IN ('iniciada', 'en_proceso', 'finalizado', 'presupuestado', 'reunion', 'venta_exitosa', 'papelera'))");
+
+  // Migrate old sales cards in 'papelera' column status to actual soft-deleted cards
+  await pool.query("UPDATE cards SET deleted_at = NOW(), estado = 'presupuestado', updated_at = NOW() WHERE equipo = 'ventas' AND estado = 'papelera' AND deleted_at IS NULL");
 }
 
 app.use(express.json({ limit: '100mb' }));
@@ -199,7 +208,7 @@ function isAdmin(user) {
 }
 
 function allowedTeams(user) {
-  return isAdmin(user) ? ['marketing', 'desarrollo', 'admin'] : [user.equipo];
+  return isAdmin(user) ? ['marketing', 'desarrollo', 'admin', 'ventas'] : [user.equipo];
 }
 
 function canAccessTeam(user, team) {
@@ -494,7 +503,7 @@ function cleanUsername(value) {
 }
 
 function cleanTeam(value) {
-  return ['marketing', 'desarrollo', 'admin'].includes(value) ? value : '';
+  return ['marketing', 'desarrollo', 'admin', 'ventas'].includes(value) ? value : '';
 }
 
 function cleanUserIds(value) {
@@ -634,7 +643,14 @@ function cardValues(body, user, existing = {}) {
     ta: String(body.ta || ''),
     c: String(body.c || ''),
     color: String(body.color || 'none'),
-    estado: ['iniciada', 'en_proceso', 'finalizado'].includes(body.estado) ? body.estado : 'iniciada',
+    estado: (() => {
+      const isVentas = (equipo === 'ventas');
+      const validStatuses = isVentas
+        ? ['presupuestado', 'reunion', 'venta_exitosa', 'papelera']
+        : ['iniciada', 'en_proceso', 'finalizado'];
+      const defaultStatus = isVentas ? 'presupuestado' : 'iniciada';
+      return validStatuses.includes(body.estado) ? body.estado : defaultStatus;
+    })(),
     equipo,
     usuario: usuarios[0] || null,
     usuarios,
@@ -750,6 +766,75 @@ app.get('/api/bootstrap', requireAuth, async (req, res, next) => {
   } catch (err) {
     next(err);
   }
+});
+
+// ════════════════════════════════════════════
+// INTEGRACION WHATSAPP
+// ════════════════════════════════════════════
+const whatsappService = require('./whatsapp-service');
+
+app.get('/api/whatsapp/status', requireAuth, (req, res) => {
+  res.json({
+    status: whatsappService.getStatus(),
+    qrCode: whatsappService.getQrCode()
+  });
+});
+
+app.get('/api/whatsapp/chats/:phone/messages', requireAuth, async (req, res, next) => {
+  try {
+    const messages = await whatsappService.getChatHistory(req.params.phone);
+    res.json({ messages });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Error al obtener mensajes.' });
+  }
+});
+
+app.post('/api/whatsapp/chats/:phone/messages', requireAuth, async (req, res, next) => {
+  try {
+    const { message } = req.body;
+    if (!message || !message.trim()) {
+      return res.status(400).json({ error: 'El mensaje no puede estar vacío.' });
+    }
+    const sent = await whatsappService.sendMessage(req.params.phone, message);
+    res.json({ ok: true, message: sent });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Error al enviar mensaje.' });
+  }
+});
+
+app.post('/api/whatsapp/logout', requireAuth, async (req, res, next) => {
+  try {
+    await whatsappService.logout();
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Error al desconectar WhatsApp.' });
+  }
+});
+
+app.get('/api/whatsapp/sse', requireAuth, (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  // Send current status immediately
+  res.write(`event: status\ndata: ${JSON.stringify({ status: whatsappService.getStatus(), qrCode: whatsappService.getQrCode() })}\n\n`);
+
+  const onStatusChange = (statusData) => {
+    res.write(`event: status\ndata: ${JSON.stringify(statusData)}\n\n`);
+  };
+
+  const onMessage = (msg) => {
+    res.write(`event: message\ndata: ${JSON.stringify(msg)}\n\n`);
+  };
+
+  whatsappService.events.on('status', onStatusChange);
+  whatsappService.events.on('message', onMessage);
+
+  req.on('close', () => {
+    whatsappService.events.off('status', onStatusChange);
+    whatsappService.events.off('message', onMessage);
+  });
 });
 
 // ════════════════════════════════════════════
@@ -1493,7 +1578,11 @@ app.put('/api/cards/reorder', requireAuth, async (req, res, next) => {
     const estado = String(req.body.estado || '');
     const ids    = Array.isArray(req.body.ids) ? req.body.ids.map(String) : [];
     if (!equipo) return res.status(400).json({ error: 'Equipo invalido.' });
-    if (!['iniciada','en_proceso','finalizado'].includes(estado)) return res.status(400).json({ error: 'Estado invalido.' });
+    const isVentas = (equipo === 'ventas');
+    const validStatuses = isVentas
+      ? ['presupuestado', 'reunion', 'venta_exitosa', 'papelera']
+      : ['iniciada', 'en_proceso', 'finalizado'];
+    if (!validStatuses.includes(estado)) return res.status(400).json({ error: 'Estado invalido.' });
     if (!canAccessTeam(req.user, equipo)) return res.status(403).json({ error: 'Sin permiso.' });
     if (!ids.length) return res.json({ ok: true });
 
@@ -1728,6 +1817,12 @@ app.use((err, _req, res, _next) => {
 async function start() {
   try {
     await ensureDatabaseMigrations();
+
+    // Inicializar servicio de WhatsApp en segundo plano
+    whatsappService.init().catch(err => {
+      console.error('[WhatsApp Service] Error al inicializar:', err);
+    });
+
     app.listen(PORT, () => {
       console.log(`ConsultoriaDigital en http://localhost:${PORT}`);
     });
