@@ -7,3 +7,7 @@ npm-debug.log*
 secrets/
 *service-account*.json
 gcal-*.json
+
+# Sesiones ocultas de WhatsApp Web (Puppeteer)
+.wwebjs_auth/
+.wwebjs_cache/

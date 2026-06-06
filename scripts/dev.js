@@ -233,7 +233,12 @@ async function main() {
     if (rootEnv.DEV_SEED !== 'false') await run(process.execPath, ['db/seed.js']);
   }
 
-  serverProcess = spawn(process.execPath, ['--watch', 'server.js'], {
+  serverProcess = spawn(process.execPath, [
+    '--watch-path=server.js',
+    '--watch-path=whatsapp-service.js',
+    '--watch-path=google-calendar.js',
+    'server.js'
+  ], {
     cwd: rootDir,
     env: rootEnv,
     stdio: 'inherit',

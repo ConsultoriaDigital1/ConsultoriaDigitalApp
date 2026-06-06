@@ -680,6 +680,162 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 }
 .kcard:hover .kcard-ava { border-color: var(--surface3); }
 
+/* ─── SALES/LEAD KANBAN CARD ─── */
+.kcard-sales {
+  padding: 0.65rem 0.75rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+.kcard-sales-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+.kcard-sales-title {
+  font-family: var(--font-disp);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-hi);
+  line-height: 1.25;
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+.kcard-sales-cuit {
+  font-size: 0.6rem;
+  color: var(--muted);
+  font-family: Consolas, monospace;
+  background: var(--surface);
+  padding: 0.1rem 0.35rem;
+  border-radius: var(--r-xs);
+  flex-shrink: 0;
+  white-space: nowrap;
+  border: 1px solid var(--border);
+}
+.kcard-sales-service {
+  font-size: 0.68rem;
+  color: var(--lime);
+  font-weight: 600;
+  background: rgba(231,255,79,0.06);
+  border: 1px solid rgba(231,255,79,0.12);
+  padding: 0.15rem 0.45rem;
+  border-radius: var(--r-xs);
+  display: inline-block;
+  align-self: flex-start;
+  max-width: 100%;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.kcard-sales-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  margin-top: 0.15rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.45rem;
+}
+.kcard-sales-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+  font-size: 0.68rem;
+  color: var(--text);
+  flex: 1;
+  min-width: 0;
+}
+.kcard-sales-info-item {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.kcard-sales-info-item svg, .kcard-sales-info-item .ico {
+  color: var(--muted);
+  width: 0.85em;
+  height: 0.85em;
+  flex-shrink: 0;
+}
+.kcard-sales-date {
+  font-size: 0.62rem;
+  background: rgba(87,157,255,0.1);
+  color: #85b8ff;
+  padding: 0.1rem 0.4rem;
+  border-radius: var(--r-xs);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.kcard-sales-chat-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(37,211,102,0.15);
+  color: #25d366;
+  border: 1px solid rgba(37,211,102,0.25);
+  border-radius: var(--r-sm);
+  padding: 0.25rem 0.5rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 140ms ease;
+  gap: 0.25rem;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+.kcard-sales-chat-btn:hover {
+  background: #25d366;
+  color: #1d2125;
+  border-color: #25d366;
+  box-shadow: 0 2px 8px rgba(37,211,102,0.25);
+  transform: translateY(-1px);
+}
+.kcard-sales-chat-btn:active {
+  transform: translateY(0);
+}
+.kcard-sales-chat-btn.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+  background: transparent;
+  border-color: var(--border);
+  color: var(--muted);
+}
+.btn-sales-whatsapp {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(37,211,102,0.15);
+  color: #25d366;
+  border: 1px solid rgba(37,211,102,0.25);
+  border-radius: var(--r-sm);
+  padding: 0 0.75rem;
+  cursor: pointer;
+  transition: all 140ms ease;
+}
+.btn-sales-whatsapp:hover {
+  background: #25d366;
+  color: #1d2125;
+  border-color: #25d366;
+  box-shadow: 0 2px 8px rgba(37,211,102,0.25);
+}
+.btn-sales-whatsapp:active {
+  transform: translateY(1px);
+}
+.btn-sales-whatsapp.disabled, .btn-sales-whatsapp[disabled] {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+  background: transparent;
+  border-color: var(--border);
+  color: var(--muted);
+}
+
 /* Add card button */
 .add-card-btn {
   display: flex; align-items: center; gap: 0.45rem;
@@ -1319,7 +1475,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 .profile-photo-actions { display: flex; gap: 0.45rem; flex-wrap: wrap; }
 
 .card-detail-modal {
-  max-width: 980px; height: min(660px, calc(100vh - 32px));
+  max-width: 1060px; height: min(660px, calc(100vh - 32px));
   border-radius: 12px; overflow: hidden; background: var(--surface);
 }
 .card-cover-strip {
@@ -1367,7 +1523,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 .cover-menu .btn { flex: 1; }
 .cover-menu .color-picker { margin-bottom: 0; }
 .card-detail-shell {
-  display: grid; grid-template-columns: minmax(0, 1fr) 340px;
+  display: grid; grid-template-columns: minmax(0, 1fr) 420px;
   min-height: 0; flex: 1;
 }
 .card-detail-main { padding: 0.95rem 1.15rem; overflow-y: auto; min-width: 0; }
@@ -2077,6 +2233,515 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(166,197,226,0.15); border-radius: 99px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(166,197,226,0.28); }
+
+/* ─── WHATSAPP INTEGRATION STYLES ─── */
+.card-detail-activity.ventas-chat-layout {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+}
+
+.activity-tabs {
+  display: flex;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.activity-tab-btn {
+  flex: 1;
+  padding: 0.7rem;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 700;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 150ms ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+}
+
+.activity-tab-btn:hover {
+  color: var(--text-hi);
+  background: rgba(166, 197, 226, 0.04);
+}
+
+.activity-tab-btn.active {
+  color: var(--lime);
+  border-bottom-color: var(--lime);
+  background: rgba(231, 255, 79, 0.05);
+}
+
+.activity-panel-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.chat-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.chat-status-bar {
+  padding: 0.5rem 0.85rem;
+  font-size: 0.65rem;
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.chat-status-bar .status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #7a8a99;
+  display: inline-block;
+}
+
+.chat-status-bar.status-ready .status-dot {
+  background: var(--success);
+}
+
+.chat-status-bar.status-qr .status-dot {
+  background: var(--warn);
+}
+
+.chat-status-bar.status-connecting .status-dot {
+  background: #3b82f6;
+}
+
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  background: #0b141a;
+}
+
+.chat-messages::-webkit-scrollbar {
+  width: 6px;
+}
+.chat-messages::-webkit-scrollbar-track {
+  background: transparent;
+}
+.chat-messages::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+}
+
+.chat-message-bubble {
+  max-width: 85%;
+  min-width: 80px;
+  padding: 0.5rem 0.65rem 0.35rem 0.65rem;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  position: relative;
+  word-break: break-word;
+  white-space: pre-wrap;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 1px 0.5px rgba(0, 0, 0, 0.15);
+}
+
+.chat-message-bubble.incoming {
+  align-self: flex-start;
+  background: #202c33;
+  color: #e9edef;
+  border-top-left-radius: 0;
+}
+
+.chat-message-bubble.outgoing {
+  align-self: flex-end;
+  background: #005c4b;
+  color: #e9edef;
+  border-top-right-radius: 0;
+}
+
+.chat-message-time {
+  font-size: 0.58rem;
+  color: rgba(255, 255, 255, 0.45);
+  margin-top: 0.2rem;
+  text-align: right;
+  align-self: flex-end;
+}
+
+.chat-qr-setup {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  text-align: center;
+  background: #0b141a;
+  color: var(--text-hi);
+  height: 100%;
+}
+
+.chat-qr-setup .qr-title {
+  font-size: 0.95rem;
+  font-weight: 800;
+  margin-bottom: 0.65rem;
+  font-family: var(--font-disp);
+}
+
+.chat-qr-setup .qr-container {
+  background: white;
+  padding: 0.65rem;
+  border-radius: 8px;
+  margin-bottom: 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 180px;
+  height: 180px;
+}
+
+.chat-qr-setup .qr-container img {
+  width: 100%;
+  height: 100%;
+}
+
+.chat-qr-setup .qr-instructions {
+  font-size: 0.65rem;
+  color: var(--muted);
+  line-height: 1.4;
+  max-width: 220px;
+}
+
+.chat-input-area {
+  padding: 0.65rem 0.85rem;
+  background: #1f2c34;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 0.55rem;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.chat-message-input {
+  flex: 1;
+  background: #2a3942;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--text-hi);
+  font-size: 0.8rem;
+  padding: 0.55rem 0.65rem;
+  resize: none;
+  max-height: 80px;
+  outline: none;
+  min-height: 40px;
+  height: 40px;
+  box-sizing: border-box;
+  font-family: var(--font-body);
+}
+
+.chat-message-input:focus {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.chat-send-btn {
+  background: var(--lime);
+  color: #1d2125;
+  border: none;
+  border-radius: 8px;
+  padding: 0.4rem 0.8rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 150ms ease;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+.chat-send-btn:hover {
+  background: var(--lime-d);
+}
+
+.chat-empty-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  text-align: center;
+  background: #0b141a;
+  color: var(--muted);
+  height: 100%;
+}
+
+.chat-empty-state .chat-empty-icon {
+  font-size: 2.2rem;
+  margin-bottom: 0.65rem;
+  color: var(--surface3);
+}
+
+.chat-empty-state .chat-empty-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-hi);
+  margin-bottom: 0.35rem;
+}
+
+.chat-empty-state .chat-empty-desc {
+  font-size: 0.68rem;
+  line-height: 1.4;
+  max-width: 220px;
+}
+
+
+/* ─── GLOBAL WHATSAPP TOPNAV BUTTON ─── */
+.global-whatsapp-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  background: rgba(37, 211, 102, 0.1);
+  color: #25d366;
+  border: 1px solid rgba(37, 211, 102, 0.2);
+  padding: 0.4rem 0.8rem;
+  border-radius: var(--r-sm);
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 150ms ease;
+  user-select: none;
+  font-family: var(--font-disp);
+}
+.global-whatsapp-btn:hover {
+  background: rgba(37, 211, 102, 0.2);
+  border-color: #25d366;
+  transform: translateY(-1px);
+  box-shadow: 0 0 10px rgba(37, 211, 102, 0.25);
+}
+.global-whatsapp-btn:active {
+  transform: translateY(0);
+}
+.global-whatsapp-btn.disconnected {
+  background: rgba(248, 113, 104, 0.08);
+  color: var(--danger);
+  border-color: rgba(248, 113, 104, 0.25);
+}
+.global-whatsapp-btn.disconnected:hover {
+  background: rgba(248, 113, 104, 0.15);
+  border-color: var(--danger);
+  box-shadow: 0 0 10px rgba(248, 113, 104, 0.25);
+}
+.global-whatsapp-btn.connecting {
+  background: rgba(59, 130, 246, 0.08);
+  color: #3b82f6;
+  border-color: rgba(59, 130, 246, 0.25);
+}
+.global-whatsapp-btn.connecting:hover {
+  background: rgba(59, 130, 246, 0.15);
+  border-color: #3b82f6;
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.25);
+}
+
+.global-whatsapp-btn .btn-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  position: relative;
+}
+.global-whatsapp-btn.connecting .btn-dot,
+.global-whatsapp-btn.disconnected .btn-dot {
+  animation: wpp-pulse 1.5s infinite ease-in-out;
+}
+@keyframes wpp-pulse {
+  0% { transform: scale(0.9); opacity: 0.6; }
+  50% { transform: scale(1.25); opacity: 1; }
+  100% { transform: scale(0.9); opacity: 0.6; }
+}
+
+/* ─── GLOBAL WHATSAPP MODAL ─── */
+.wpp-modal {
+  max-width: 420px;
+  width: 100%;
+  background: var(--surface);
+  border-radius: var(--r-xl);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+  padding: 1.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+  animation: pop-in 220ms cubic-bezier(.34,1.4,.5,1) both;
+}
+
+.wpp-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.wpp-modal-title {
+  font-family: var(--font-disp);
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--text-hi);
+}
+
+.wpp-modal-status-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 0.95rem;
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+.wpp-status-icon-wrap {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: rgba(37, 211, 102, 0.1);
+  color: #25d366;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+  flex-shrink: 0;
+}
+.wpp-modal-status-card.disconnected .wpp-status-icon-wrap {
+  background: rgba(248, 113, 104, 0.1);
+  color: var(--danger);
+}
+.wpp-modal-status-card.connecting .wpp-status-icon-wrap {
+  background: rgba(59, 130, 246, 0.1);
+  color: #3b82f6;
+}
+
+.wpp-status-details {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.wpp-status-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.wpp-status-value {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-hi);
+}
+
+.wpp-qr-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: var(--bg2);
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+}
+.wpp-qr-image-wrapper {
+  background: white;
+  padding: 0.75rem;
+  border-radius: 12px;
+  width: 200px;
+  height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow);
+}
+.wpp-qr-image-wrapper img {
+  width: 100%;
+  height: 100%;
+}
+.wpp-qr-instructions {
+  margin-top: 1rem;
+  font-size: 0.7rem;
+  color: var(--muted);
+  text-align: center;
+  line-height: 1.4;
+  max-width: 280px;
+}
+
+.wpp-connected-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem 1rem;
+  text-align: center;
+}
+.wpp-success-circle {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(37, 211, 102, 0.2), rgba(37, 211, 102, 0.05));
+  border: 2px solid #25d366;
+  color: #25d366;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 0 20px rgba(37, 211, 102, 0.15);
+}
+.wpp-success-title {
+  font-family: var(--font-disp);
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--text-hi);
+  margin-bottom: 0.45rem;
+}
+.wpp-success-desc {
+  font-size: 0.74rem;
+  color: var(--text);
+  line-height: 1.5;
+  max-width: 280px;
+}
+
+/* ─── CHAT WARNING STATE ─── */
+.chat-warning-btn {
+  margin-top: 0.85rem;
+  background: var(--lime);
+  color: #1d2125;
+  border: none;
+  font-weight: 700;
+  font-size: 0.74rem;
+  padding: 0.5rem 1.1rem;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+.chat-warning-btn:hover {
+  background: var(--lime-d);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 12px rgba(231,255,79,0.25);
+}
+.chat-warning-btn:active {
+  transform: translateY(0);
+}
   </style>
 </head>
 <body>
@@ -2089,7 +2754,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
     <div class="auth-logo">
       <img class="auth-logo-img" src="logo.webp" alt="consultor&iacute;a digital" />
       <div class="auth-logo-icon">
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
           <rect x="3" y="3" width="7" height="7" rx="1.5"/>
           <rect x="14" y="3" width="7" height="7" rx="1.5"/>
           <rect x="3" y="14" width="7" height="7" rx="1.5"/>
@@ -2132,7 +2797,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
     <div class="brand">
       <img class="brand-logo-img" src="logo.webp" alt="consultor&iacute;a digital" aria-label="Ir a clientes" role="button" tabindex="0" onclick="goClientesHome()" onkeydown="onBrandLogoKeydown(event)" />
       <div class="brand-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
           <rect x="3" y="3" width="7" height="7" rx="1.5"/>
           <rect x="14" y="3" width="7" height="7" rx="1.5"/>
           <rect x="3" y="14" width="7" height="7" rx="1.5"/>
@@ -2146,8 +2811,16 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
       <button class="nav-tab"        data-tab="calendario" onclick="switchTab('calendario')">CALENDARIO</button>
       <button class="nav-tab"        data-tab="notas"      onclick="switchTab('notas')">NOTAS</button>
       <button class="nav-tab"        data-tab="talentos"   onclick="switchTab('talentos')">TALENTOS</button>
+      <button class="nav-tab"        data-tab="ventas"     onclick="switchTab('ventas')" id="nav-tab-ventas" style="display:none">VENTAS</button>
     </div>
     <div class="topnav-right">
+      <button id="global-whatsapp-btn" class="global-whatsapp-btn disconnected" onclick="openGlobalWhatsappModal()" title="WhatsApp de la Empresa">
+        <svg xmlns="http://www.w3.org/2000/svg" class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;">
+          <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+        </svg>
+        <span id="global-whatsapp-btn-text">WhatsApp</span>
+        <span class="btn-dot"></span>
+      </button>
       <div class="user-pill" id="user-pill" onclick="toggleDD()">
         <div class="upill-ava" id="pill-ava"></div>
         <span id="pill-name"></span>
@@ -2221,6 +2894,30 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
         </div>
         <div class="clientes-body">
           <div class="kanban-wrap" id="kanban-board"></div>
+        </div>
+      </div>
+
+      <!-- ── VENTAS TAB ── -->
+      <div id="tab-ventas" class="tab-panel">
+        <div class="cbar" id="ventas-cbar">
+          <div>
+            <div class="cbar-title" id="ventas-title">Gestión de Ventas</div>
+            <div class="cbar-sub" id="ventas-sub">Tablero Kanban de Ventas</div>
+          </div>
+          <div style="display:flex;gap:0.4rem;flex-wrap:wrap;justify-content:flex-end;margin-left:auto">
+            <button id="btn-ventas-trash" class="btn btn-trash btn-sm" onclick="switchVentasView('trash')" title="Ver ventas en la papelera">
+              <i class="ico-ph" data-ico="trash"></i> Papelera <span id="ventas-trash-count" class="trash-count" style="display:none"></span>
+            </button>
+            <button id="btn-ventas-active" class="btn btn-ghost btn-sm" onclick="switchVentasView('active')" style="display:none" title="Volver al tablero">
+              <i class="ico-ph" data-ico="back"></i> Volver al tablero
+            </button>
+            <button id="btn-new-sale-card" class="btn btn-subtle btn-sm" onclick="openNewSaleCard()">
+              <i class="ico-ph" data-ico="plus"></i> Nueva venta
+            </button>
+          </div>
+        </div>
+        <div class="clientes-body">
+          <div class="kanban-wrap" id="sales-kanban-board"></div>
         </div>
       </div>
 
@@ -2347,6 +3044,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
               <option value="marketing">Equipo de Marketing</option>
               <option value="desarrollo">Equipo de Desarrollo</option>
               <option value="admin">Administracion</option>
+              <option value="ventas">Ventas</option>
             </select>
           </div>
           <div class="card-prop">
@@ -2397,12 +3095,12 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 
         <section id="client-details-section" class="trello-section client-details-section" style="display:none">
           <div class="client-details-head">
-            <span>Datos del cliente</span>
+            <span id="lbl-client-details-title">Datos del cliente</span>
             <button class="btn btn-ghost btn-sm" type="button" onclick="toggleClientDetailsSection()">Cerrar</button>
           </div>
           <div class="client-detail-grid">
             <div class="form-group">
-              <label class="form-label">R.S. - Razon Social</label>
+              <label class="form-label" id="lbl-rs">R.S. - Razon Social</label>
               <input id="f-rs" class="form-input" type="text" placeholder="Razon social..." oninput="syncModalPreview()" onblur="autosaveCardIfEnabled()" />
             </div>
             <div class="form-group">
@@ -2414,15 +3112,22 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
               <input id="f-ca" class="form-input" type="text" placeholder="Nro. de cuenta..." onblur="autosaveCardIfEnabled()" />
             </div>
             <div class="form-group">
-              <label class="form-label">Nro. Tel principal</label>
-              <input id="f-ntel" class="form-input" type="tel" placeholder="+54 9 11 ..." onblur="autosaveCardIfEnabled()" />
+              <label class="form-label" id="lbl-ntel">Nro. Tel principal</label>
+              <div style="display:flex; gap:0.4rem;">
+                <input id="f-ntel" class="form-input" type="tel" placeholder="+54 9 11 ..." oninput="syncModalWhatsappButton()" onblur="autosaveCardIfEnabled()" style="flex:1;" />
+                <button id="modal-whatsapp-btn" class="btn-sales-whatsapp" type="button" onclick="openModalWhatsappChat()" title="Abrir chat de WhatsApp" style="display: none;">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+                  </svg>
+                </button>
+              </div>
             </div>
             <div class="form-group">
               <label class="form-label">Telefono alternativo</label>
               <input id="f-t" class="form-input" type="tel" placeholder="+54 ..." onblur="autosaveCardIfEnabled()" />
             </div>
             <div class="form-group">
-              <label class="form-label">Tipo de Actividad</label>
+              <label class="form-label" id="lbl-ta">Tipo de Actividad</label>
               <input id="f-ta" class="form-input" type="text" placeholder="Ej: Comercio minorista, Servicios TI..." onblur="autosaveCardIfEnabled()" />
             </div>
             <div class="form-group">
@@ -2458,11 +3163,44 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
       </main>
 
       <aside class="card-detail-activity">
-        <div class="activity-head">
-          <span>Comentarios y Actividad</span>
+        <!-- Pestañas (sólo visibles para tarjetas de Ventas) -->
+        <div class="activity-tabs" id="activity-tabs" style="display:none">
+          <button class="activity-tab-btn active" id="tab-whatsapp-btn" onclick="switchActivityTab('whatsapp')">
+            <svg xmlns="http://www.w3.org/2000/svg" class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false" style="width: 14px; height: 14px;">
+              <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+            </svg> WhatsApp
+          </button>
+          <button class="activity-tab-btn" id="tab-activity-btn" onclick="switchActivityTab('activity')">
+            Comentarios
+          </button>
         </div>
-        <textarea id="activity-comment" class="form-textarea activity-input" placeholder="Escribe un comentario..." onkeydown="addActivityComment(event)"></textarea>
-        <div id="activity-list" class="activity-list"></div>
+
+        <!-- Panel 1: Chat de WhatsApp (sólo Ventas) -->
+        <div class="activity-panel-content" id="panel-whatsapp" style="display:none">
+          <div class="chat-container">
+            <!-- Mensajes o estado vacío -->
+            <div class="chat-messages" id="chat-messages">
+              <!-- Cargando historial o listado de mensajes -->
+            </div>
+            
+            <!-- Input del Chat -->
+            <div class="chat-input-area" id="chat-input-area">
+              <textarea id="chat-message-input" class="chat-message-input" placeholder="Escribe un mensaje..." onkeydown="handleChatInputKey(event)"></textarea>
+              <button class="chat-send-btn" id="chat-send-btn" onclick="sendChatMessage()">
+                Enviar
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Panel 2: Actividad y Comentarios (Por defecto/Tradicional) -->
+        <div class="activity-panel-content" id="panel-activity">
+          <div class="activity-head">
+            <span>Comentarios y Actividad</span>
+          </div>
+          <textarea id="activity-comment" class="form-textarea activity-input" placeholder="Escribe un comentario..." onkeydown="addActivityComment(event)"></textarea>
+          <div id="activity-list" class="activity-list"></div>
+        </div>
       </aside>
     </div>
 
@@ -2557,6 +3295,34 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
   <div class="due-actions">
     <button class="btn btn-primary btn-sm" type="button" onclick="applyDuePopover()">Guardar</button>
     <button class="btn btn-ghost btn-sm" type="button" onclick="removeDueDate()">Quitar</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     GLOBAL WHATSAPP MODAL
+     ═══════════════════════════════════════════ -->
+<div id="global-whatsapp-overlay" class="overlay" onclick="if(event.target===this)closeGlobalWhatsappModal()">
+  <div class="modal wpp-modal" onclick="event.stopPropagation()">
+    <div class="wpp-modal-header">
+      <span class="wpp-modal-title">WhatsApp de la Empresa</span>
+      <button class="modal-close" onclick="closeGlobalWhatsappModal()" title="Cerrar"><i class="ico-ph" data-ico="x"></i></button>
+    </div>
+    
+    <div id="wpp-modal-status-card" class="wpp-modal-status-card disconnected">
+      <div class="wpp-status-icon-wrap">
+        <svg xmlns="http://www.w3.org/2000/svg" class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px;">
+          <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+        </svg>
+      </div>
+      <div class="wpp-status-details">
+        <div class="wpp-status-label">Estado de la cuenta</div>
+        <div id="wpp-status-value" class="wpp-status-value">Desconectado</div>
+      </div>
+    </div>
+
+    <div id="wpp-global-modal-content">
+      <!-- Se llena dinámicamente con JavaScript -->
+    </div>
   </div>
 </div>
 
@@ -3069,6 +3835,8 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 ───────────────────────────────────────── */
 const STATUSES     = ['iniciada','en_proceso','finalizado'];
 const STATUS_LABEL = { iniciada:'INICIADA', en_proceso:'EN PROCESO', finalizado:'FINALIZADO' };
+const SALES_STATUSES     = ['presupuestado','reunion','venta_exitosa'];
+const SALES_STATUS_LABEL = { presupuestado:'PRESUPUESTADO', reunion:'REUNIÓN', venta_exitosa:'VENTA EXITOSA' };
 
 const MOTIV_QUOTES = [
   { icon:'🚀', text:'El progreso, no la perfección, es lo que importa.', author:'— WorkFlow' },
@@ -3103,9 +3871,9 @@ function motivNext(autoReset) {
 }
 const TEAMS = {
   all:'Todos los equipos', marketing:'Equipo de Marketing',
-  desarrollo:'Equipo de Desarrollo', admin:'Administración',
+  desarrollo:'Equipo de Desarrollo', admin:'Administración', ventas:'Ventas',
 };
-const TEAM_DOT = { marketing:'d-marketing', desarrollo:'d-dev', admin:'d-admin', all:'d-all' };
+const TEAM_DOT = { marketing:'d-marketing', desarrollo:'d-dev', admin:'d-admin', ventas:'d-all', all:'d-all' };
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS   = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
 
@@ -3169,11 +3937,13 @@ const ICONS = {
   shield:'<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
   upload:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/>',
   download:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>',
+  whatsapp:'<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>',
+  phone:'<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>',
 };
 function icon(name, cls) {
   const body = ICONS[name];
   if (!body) return '';
-  return '<svg class="ico' + (cls ? ' ' + cls : '') + '" viewBox="0 0 24 24" '
+  return '<svg xmlns="http://www.w3.org/2000/svg" class="ico' + (cls ? ' ' + cls : '') + '" viewBox="0 0 24 24" '
        + 'aria-hidden="true" focusable="false">' + body + '</svg>';
 }
 // Replace <i data-ico="name"> placeholders in static markup with real SVG.
@@ -3206,6 +3976,7 @@ let usersCache = [];
 let cardsCache = [];
 let cardsTrashCache = [];
 let cardsView = 'active';  // 'active' | 'trash'
+let ventasView = 'active'; // 'active' | 'trash'
 let calendarsCache = {};
 let calendarsEditableCache = {};
 let eventsCache = [];
@@ -3277,7 +4048,7 @@ function replaceCard(card) {
 }
 
 function isAdmin() { return currentUser && currentUser.equipo === 'admin'; }
-function allowedTeams() { return isAdmin() ? ['marketing','desarrollo','admin'] : [currentUser.equipo]; }
+function allowedTeams() { return isAdmin() ? ['marketing','desarrollo','admin','ventas'] : [currentUser.equipo]; }
 function canViewTeam(team) { return team === 'all' ? isAdmin() : allowedTeams().includes(team); }
 function defaultFormTeam() {
   return activeTeam !== 'all' && canViewTeam(activeTeam) ? activeTeam : currentUser.equipo;
@@ -4702,6 +5473,7 @@ async function doLogout() {
   cardsCache  = [];
   cardsTrashCache = [];
   cardsView = 'active';
+  ventasView = 'active';
   myClientsOnly = false;
   eventsCache = [];
   notesCache = { personal: null, teams: {} };
@@ -4749,6 +5521,8 @@ function applyAccessUi() {
   document.querySelectorAll('[onclick="openUserModal()"]').forEach(btn => {
     btn.style.display = isAdmin() ? '' : 'none';
   });
+  const navTabVentas = $('nav-tab-ventas');
+  if (navTabVentas) navTabVentas.style.display = isAdmin() ? '' : 'none';
   syncTeamSelect('f-equipo');
   syncTeamSelect('au-equipo');
 }
@@ -5074,10 +5848,18 @@ function switchTab(tab) {
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + tab));
   closeDD();
-  if (tab === 'clientes')   renderClientesNotes();
+  if (tab === 'clientes') {
+    cardsView = 'active';
+    renderClientesNotes();
+    renderBoard();
+  }
   if (tab === 'calendario') renderCalendar();
   if (tab === 'notas')      renderNotas();
   if (tab === 'talentos')   renderTalentos();
+  if (tab === 'ventas') {
+    ventasView = 'active';
+    renderVentas();
+  }
 }
 
 function goClientesHome() {
@@ -5126,7 +5908,11 @@ function filterTeam(team) {
 ───────────────────────────────────────── */
 function filteredCards() {
   let cards = getCards();
-  if (activeTeam !== 'all') cards = cards.filter(c => c.equipo === activeTeam);
+  if (activeTeam !== 'all') {
+    cards = cards.filter(c => c.equipo === activeTeam);
+  } else {
+    cards = cards.filter(c => c.equipo !== 'ventas');
+  }
   if (myClientsOnly && currentUser) {
     const uid = currentUser.id;
     cards = cards.filter(c => cardUserIds(c).includes(uid));
@@ -5207,6 +5993,224 @@ function renderBoard() {
   initKanbanSortables();
 }
 
+function renderVentas() {
+  const board = $('sales-kanban-board');
+  if (!board) return;
+  const users = getUsers();
+  
+  syncVentasViewToolbar();
+  if (ventasView === 'trash') {
+    board.className = 'admin-table-wrap';
+    renderVentasTrash(board, users);
+    return;
+  }
+  board.className = 'kanban-wrap';
+  
+  // Filter sales cards that are not soft-deleted
+  const sales = getCards().filter(c => c.equipo === 'ventas' && c.deletedAt === null);
+  
+  board.innerHTML = '';
+  SALES_STATUSES.forEach(status => {
+    const colCards = sales.filter(c => c.estado === status).sort(byPosition);
+    const col = document.createElement('div');
+    col.className = 'kanban-col';
+    col.innerHTML = `
+      <div class="col-head">
+        <span class="col-title">${SALES_STATUS_LABEL[status]}</span>
+        <div class="col-head-right">
+          <span class="col-badge">${colCards.length}</span>
+          <button class="col-menu-btn" onclick="openNewSaleCard('${status}')" title="Agregar">+</button>
+        </div>
+      </div>
+      <div class="col-cards" id="sales-col-${status}" data-status="${status}">
+        ${colCards.length === 0
+          ? '<div class="empty-col">Sin tarjetas</div>'
+          : colCards.map(c => cardHTML(c, users)).join('')}
+      </div>
+      <button class="add-card-btn" onclick="openNewSaleCard('${status}')">
+        ${icon('plus')} Añade una tarjeta
+        <span class="add-card-expand">${icon('expand')}</span>
+      </button>`;
+    board.appendChild(col);
+  });
+  
+  initVentasSortables();
+}
+
+function syncVentasViewToolbar() {
+  const inTrash = ventasView === 'trash';
+  const newBtn   = $('btn-new-sale-card');
+  const trashBtn = $('btn-ventas-trash');
+  const backBtn  = $('btn-ventas-active');
+  const titleEl  = $('ventas-title');
+  const countEl  = $('ventas-trash-count');
+  const subEl    = $('ventas-sub');
+
+  if (newBtn)   newBtn.style.display   = inTrash ? 'none' : '';
+  if (trashBtn) trashBtn.style.display = inTrash ? 'none' : '';
+  if (backBtn)  backBtn.style.display  = inTrash ? '' : 'none';
+  if (titleEl)  titleEl.textContent    = inTrash ? 'Papelera de ventas' : 'Gestión de Ventas';
+  
+  const visibleTrash = (cardsTrashCache || []).filter(c => c.equipo === 'ventas');
+  if (countEl) {
+    if (visibleTrash.length > 0) {
+      countEl.textContent = visibleTrash.length;
+      countEl.style.display = '';
+    } else {
+      countEl.style.display = 'none';
+    }
+  }
+  if (subEl) {
+    subEl.textContent = inTrash
+      ? (visibleTrash.length
+          ? `${visibleTrash.length} venta${visibleTrash.length === 1 ? '' : 's'} en la papelera.`
+          : 'La papelera está vacía.')
+      : 'Tablero Kanban de Ventas';
+  }
+}
+
+function renderVentasTrash(board, users) {
+  const list = (cardsTrashCache || []).filter(c => c.equipo === 'ventas');
+  if (!list.length) {
+    board.innerHTML = `
+      <div class="admin-empty" style="padding:2rem;text-align:center;color:var(--muted)">
+        <div style="font-size:2rem;margin-bottom:0.4rem">${icon('trash')}</div>
+        <strong>Papelera vacía</strong>
+        <div style="font-size:0.85rem;margin-top:0.3rem">No hay ventas eliminadas.</div>
+      </div>`;
+    return;
+  }
+  const byId = new Map(users.map(u => [u.id, u]));
+  board.innerHTML = `
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Venta</th>
+          <th>Estado</th>
+          <th>Eliminada</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        ${list.map(c => {
+          const title = (c.nf || c.rs || 'Sin nombre');
+          const owner = byId.get(c.usuario);
+          const ownerLabel = owner ? userFullName(owner) : '—';
+          const deletedTxt = c.deletedAt
+            ? (() => {
+                const d = new Date(c.deletedAt);
+                return pad2(d.getDate()) + '/' + pad2(d.getMonth() + 1) + '/' + d.getFullYear() +
+                       ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+              })()
+            : '—';
+          return `
+            <tr style="opacity:0.85">
+              <td>
+                <div class="ct-name" style="text-decoration:line-through;text-decoration-color:rgba(248,113,104,0.5)">${esc(title)}</div>
+                ${c.cuit ? `<div class="ct-sub">${esc(c.cuit)}</div>` : ''}
+                <div class="ct-sub">${esc(ownerLabel)}</div>
+              </td>
+              <td>${esc(statusText(c.estado))}</td>
+              <td>${deletedTxt}</td>
+              <td>
+                <div class="ct-actions">
+                  <button class="btn btn-restore btn-sm" onclick="restoreCardFromTrash('${c.id}')" title="Restaurar al tablero">${icon('restore')} Restaurar</button>
+                  <button class="btn btn-danger btn-sm" onclick="purgeCardFromTrash('${c.id}')" title="Eliminar definitivamente">${icon('trash')} Eliminar</button>
+                </div>
+              </td>
+            </tr>`;
+        }).join('')}
+      </tbody>
+    </table>`;
+}
+
+function initVentasSortables() {
+  if (typeof Sortable === 'undefined') return;
+  
+  document.querySelectorAll('#sales-kanban-board .col-cards[data-status]').forEach(colEl => {
+    kanbanSortables.push(Sortable.create(colEl, {
+      group: 'sales-cards', // separate group to isolate drag & drop
+      animation: 160,
+      easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+      ghostClass: 'kcard-ghost',
+      chosenClass: 'kcard-chosen',
+      dragClass: 'kcard-drag',
+      forceFallback: true,
+      fallbackOnBody: true,
+      fallbackTolerance: 4,
+      filter: '.kcard-check, .empty-col',
+      preventOnFilter: false,
+      onEnd: onSalesSortableEnd,
+    }));
+  });
+}
+
+async function onSalesSortableEnd(evt) {
+  const item   = evt.item;
+  const cardId = item && item.dataset ? item.dataset.id : null;
+  if (!cardId) return;
+
+  const card = cardsCache.find(c => c.id === cardId);
+  if (!card) return;
+
+  const toColEl   = evt.to;
+  const newStatus = toColEl ? toColEl.dataset.status : card.estado;
+  if (!newStatus) return;
+
+  // 1) Si cambió de columna: persistir el nuevo estado
+  if (card.estado !== newStatus) {
+    try {
+      const saved = await api('/api/cards/' + cardId, {
+        method: 'PUT',
+        body: JSON.stringify({ ...card, estado: newStatus, equipo: 'ventas' }),
+      });
+      replaceCard(saved.card);
+      toast('→ ' + SALES_STATUS_LABEL[newStatus], 'success');
+    } catch (err) {
+      toast(err.message, 'error');
+      renderVentas();
+      return;
+    }
+  }
+
+  // 2) Reconstruir el orden de la columna a partir del DOM
+  const orderedIds = Array.from(toColEl.querySelectorAll('.kcard[data-id]')).map(el => el.dataset.id);
+  const cardsById  = new Map(cardsCache.map(c => [c.id, c]));
+  const newOrder = orderedIds
+    .map(id => cardsById.get(id))
+    .filter(c => c && c.equipo === 'ventas');
+
+  newOrder.forEach((c, i) => {
+    const idx = cardsCache.findIndex(x => x.id === c.id);
+    if (idx > -1) cardsCache[idx] = { ...cardsCache[idx], estado: newStatus, position: i + 1 };
+  });
+  
+  syncColumnCounts();
+
+  try {
+    await api('/api/cards/reorder', {
+      method: 'PUT',
+      body: JSON.stringify({
+        equipo: 'ventas',
+        estado: newStatus,
+        ids: newOrder.map(c => c.id),
+      }),
+    });
+  } catch (err) {
+    toast(err.message || 'No se pudo guardar el orden', 'error');
+    renderVentas();
+  }
+}
+
+function openNewSaleCard(status = 'presupuestado') {
+  openNewCard(status);
+  $('f-equipo').value = 'ventas';
+  $('modal-title').textContent = 'Nueva Venta';
+  const select = $('modal-status-select');
+  if (select) select.value = status;
+  syncModalPreview();
+}
+
 function cardUserIds(c) {
   const ids = normalizeUserIds(c && c.usuarios);
   if (c && c.usuario && !ids.includes(c.usuario)) ids.unshift(c.usuario);
@@ -5274,12 +6278,50 @@ setInterval(() => {
 }, 30 * 1000);
 
 function cardHTML(c, users) {
+  const title = clientName(c);
+  if (c.equipo === 'ventas') {
+    const cuitBadge = c.cuit ? `<span class="kcard-sales-cuit" title="CUIT">${esc(c.cuit)}</span>` : '';
+    const serviceBadge = c.ta ? `<div class="kcard-sales-service" title="Servicio que necesita">${esc(c.ta)}</div>` : '';
+    
+    const hasPhone = !!(c.ntel || '').trim();
+    const cleanPhone = cleanPhoneForWhatsapp(c.ntel);
+    const chatBtnClass = hasPhone ? '' : ' disabled';
+    const chatBtnTitle = hasPhone ? `Iniciar chat en WhatsApp (${esc(c.ntel)})` : 'Sin número de teléfono';
+    
+    const formattedDate = c.vence ? formatDueDate(c.vence) : '';
+    const dateBadge = formattedDate ? `<span class="kcard-sales-date" title="Fecha de contacto">${icon('calendar')} ${esc(formattedDate)}</span>` : '';
+    
+    return `
+      <div class="kcard" data-id="${c.id}" onclick="openCard('${c.id}')">
+        <div class="kcard-sales">
+          <div class="kcard-sales-header">
+            <div class="kcard-sales-title">${esc(title)}</div>
+            ${cuitBadge}
+          </div>
+          ${serviceBadge}
+          <div class="kcard-sales-meta">
+            <div class="kcard-sales-info">
+              ${hasPhone ? `
+                <div class="kcard-sales-info-item" title="Teléfono">
+                  ${icon('phone')} <span style="font-family:monospace">${esc(c.ntel)}</span>
+                </div>` : ''}
+              ${dateBadge}
+            </div>
+            <button class="kcard-sales-chat-btn${chatBtnClass}" 
+                    title="${chatBtnTitle}" 
+                    onclick="event.stopPropagation(); openCard('${c.id}')">
+              ${icon('whatsapp')} Chat
+            </button>
+          </div>
+        </div>
+      </div>`;
+  }
+
   const assignees = usersForCard(c, users);
   const avatarTitle = assignees.map(userFullName).join(', ');
   const shownAssignees = assignees.slice(0, 4);
   const extraAssignees = assignees.length - shownAssignees.length;
   const checklist = checklistStats(c.checklist);
-  const title = clientName(c);
 
   const dailyDone = isDailyChecked(c);
   const hasAvatars = shownAssignees.length > 0;
@@ -5900,8 +6942,11 @@ async function onSortableEnd(evt) {
 }
 
 function syncColumnCounts() {
-  STATUSES.forEach(status => {
-    const colEl = $('col-' + status);
+  const isVentas = (activeTab === 'ventas');
+  const statusesToSync = isVentas ? SALES_STATUSES : STATUSES;
+  const prefix = isVentas ? 'sales-col-' : 'col-';
+  statusesToSync.forEach(status => {
+    const colEl = $(prefix + status);
     if (!colEl) return;
     const cards = colEl.querySelectorAll('.kcard[data-id]');
     const head = colEl.parentElement && colEl.parentElement.querySelector('.col-badge');
@@ -5925,9 +6970,38 @@ function byPosition(a, b) {
 /* ─────────────────────────────────────────
    CARD MODAL
 ───────────────────────────────────────── */
-function openNewCard(status = 'iniciada') {
+function populateModalStatuses(isVentas) {
+  const select = $('modal-status-select');
+  if (!select) return;
+  if (isVentas) {
+    select.innerHTML = `
+      <option value="presupuestado">Presupuestado</option>
+      <option value="reunion">Reunión</option>
+      <option value="venta_exitosa">Venta exitosa</option>
+    `;
+  } else {
+    select.innerHTML = `
+      <option value="iniciada">Iniciada</option>
+      <option value="en_proceso">En proceso</option>
+      <option value="finalizado">Hecho</option>
+    `;
+  }
+}
+
+function openNewCard(status) {
+  const isVentas = (activeTab === 'ventas');
+  if (status === undefined) {
+    status = isVentas ? 'presupuestado' : 'iniciada';
+  }
   if (autosaveTimer) { clearTimeout(autosaveTimer); autosaveTimer = null; }
   editingId   = null;
+  populateModalStatuses(isVentas);
+  if (isVentas) {
+    $('card-prop-equipo').style.display = 'none';
+  } else {
+    $('card-prop-equipo').style.display = '';
+  }
+  applyVentasModalLayout(isVentas);
   modalStatus = status;
   modalColor  = 'none';
   modalCoverImage = '';
@@ -5943,7 +7017,7 @@ function openNewCard(status = 'iniciada') {
   syncDueButton();
   setStatus(status);
   pickColor('none');
-  $('f-equipo').value = defaultFormTeam();
+  $('f-equipo').value = isVentas ? 'ventas' : defaultFormTeam();
   syncTeamSelect('f-equipo');
   populateUsers(currentUser ? [currentUser.id] : []);
   $('activity-comment').value = '';
@@ -5956,6 +7030,20 @@ function openNewCard(status = 'iniciada') {
   syncAllActionButtons();
   syncModalPreview();
   applyModalSaveMode();
+
+  const activityAside = document.querySelector('.card-detail-activity');
+  if (activityAside) {
+    if (isVentas) {
+      activityAside.classList.add('ventas-chat-layout');
+      $('activity-tabs').style.display = 'flex';
+      switchActivityTab('whatsapp');
+    } else {
+      activityAside.classList.remove('ventas-chat-layout');
+      $('activity-tabs').style.display = 'none';
+      switchActivityTab('activity');
+    }
+  }
+
   openOverlay('card-overlay');
 }
 
@@ -5964,6 +7052,14 @@ function openCard(id) {
   editingId = id;
   const c = getCards().find(x => x.id === id);
   if (!c) return;
+  const isVentas = (c.equipo === 'ventas');
+  populateModalStatuses(isVentas);
+  if (isVentas) {
+    $('card-prop-equipo').style.display = 'none';
+  } else {
+    $('card-prop-equipo').style.display = '';
+  }
+  applyVentasModalLayout(isVentas);
   modalStatus = c.estado;
   modalColor  = c.color || 'none';
   modalCoverImage = c.coverImage || '';
@@ -5994,12 +7090,26 @@ function openCard(id) {
   modalAttachments = Array.isArray(c.attachments) ? c.attachments : [];
   renderChecklist();
   hideChecklistInput(true);
-  setCardDetailsOpen(false);
+  setCardDetailsOpen(isVentas);
   if ($('attachments-section')) $('attachments-section').style.display = 'none';
   renderAttachments();
   syncAllActionButtons();
   syncModalPreview();
   applyModalSaveMode();
+
+  const activityAside = document.querySelector('.card-detail-activity');
+  if (activityAside) {
+    if (isVentas) {
+      activityAside.classList.add('ventas-chat-layout');
+      $('activity-tabs').style.display = 'flex';
+      switchActivityTab('whatsapp');
+    } else {
+      activityAside.classList.remove('ventas-chat-layout');
+      $('activity-tabs').style.display = 'none';
+      switchActivityTab('activity');
+    }
+  }
+
   openOverlay('card-overlay');
 }
 
@@ -6111,6 +7221,22 @@ function removeCardMember(userId, event) {
 }
 
 function onCardTeamChange() {
+  const team = $('f-equipo') ? $('f-equipo').value : '';
+  const isVentas = (team === 'ventas');
+  populateModalStatuses(isVentas);
+  applyVentasModalLayout(isVentas);
+  if (isVentas) {
+    $('card-prop-equipo').style.display = 'none';
+  } else {
+    $('card-prop-equipo').style.display = '';
+  }
+  
+  const validStatuses = isVentas ? ['presupuestado', 'reunion', 'venta_exitosa'] : ['iniciada', 'en_proceso', 'finalizado'];
+  if (!validStatuses.includes(modalStatus)) {
+    modalStatus = isVentas ? 'presupuestado' : 'iniciada';
+    setStatus(modalStatus);
+  }
+
   syncTeamSelect('f-equipo');
   membersPopoverOpen = false;
   membersSearch = '';
@@ -6149,7 +7275,16 @@ function onModalStatusChange(s) {
 }
 
 function statusText(s) {
-  return ({ iniciada:'Iniciada', en_proceso:'En proceso', finalizado:'Hecho' })[s] || s;
+  const mapping = {
+    iniciada: 'Iniciada',
+    en_proceso: 'En proceso',
+    finalizado: 'Hecho',
+    presupuestado: 'Presupuestado',
+    reunion: 'Reunión',
+    venta_exitosa: 'Venta exitosa',
+    papelera: 'Papelera'
+  };
+  return mapping[s] || s;
 }
 
 function setCardDetailsOpen(open) {
@@ -6158,11 +7293,63 @@ function setCardDetailsOpen(open) {
   section.style.display = open ? '' : 'none';
 }
 
+function applyVentasModalLayout(isVentas) {
+  const lblTitle = $('lbl-client-details-title');
+  if (lblTitle) lblTitle.textContent = isVentas ? 'Datos del Lead' : 'Datos del cliente';
+  
+  const lblRs = $('lbl-rs');
+  if (lblRs) lblRs.textContent = isVentas ? 'Nombre de la Empresa / Razón Social' : 'R.S. - Razon Social';
+  
+  const lblNtel = $('lbl-ntel');
+  if (lblNtel) lblNtel.textContent = isVentas ? 'Teléfono (WhatsApp)' : 'Nro. Tel principal';
+  
+  const lblTa = $('lbl-ta');
+  if (lblTa) lblTa.textContent = isVentas ? 'Servicio que necesita' : 'Tipo de Actividad';
+  
+  const btnDetails = $('client-details-action-btn');
+  if (btnDetails) btnDetails.textContent = isVentas ? 'Datos del Lead' : 'Datos del cliente';
+  
+  const fNf = $('f-nf');
+  if (fNf) fNf.placeholder = isVentas ? 'Nombre de empresa...' : 'Nombre fiscal...';
+
+  syncModalWhatsappButton();
+}
+
+function syncModalWhatsappButton() {
+  const btnWhatsapp = $('modal-whatsapp-btn');
+  if (!btnWhatsapp) return;
+  const isVentas = ($('f-equipo') && $('f-equipo').value === 'ventas');
+  btnWhatsapp.style.display = isVentas ? '' : 'none';
+  
+  const phone = $('f-ntel') ? $('f-ntel').value.trim() : '';
+  const hasPhone = !!phone;
+  if (hasPhone) {
+    btnWhatsapp.classList.remove('disabled');
+    btnWhatsapp.removeAttribute('disabled');
+    btnWhatsapp.style.opacity = '1';
+    btnWhatsapp.style.pointerEvents = 'auto';
+  } else {
+    btnWhatsapp.classList.add('disabled');
+    btnWhatsapp.setAttribute('disabled', 'true');
+    btnWhatsapp.style.opacity = '0.4';
+    btnWhatsapp.style.pointerEvents = 'none';
+  }
+}
+
 function toggleClientDetailsSection() {
   const section = $('client-details-section');
   if (!section) return;
   const isOpen = section.style.display !== 'none';
   section.style.display = isOpen ? 'none' : '';
+}
+
+function openModalWhatsappChat() {
+  const phone = $('f-ntel') ? $('f-ntel').value.trim() : '';
+  if (!phone) {
+    toast('Ingresá un número de teléfono primero', 'error');
+    return;
+  }
+  switchActivityTab('whatsapp');
 }
 
 function toggleAttachmentsSection() {
@@ -6183,6 +7370,14 @@ function syncModalPreview() {
   const card = editingId ? getCards().find(x => x.id === editingId) : null;
   renderActivity(card);
   syncClientDataButton();
+
+  // Dynamic delete button
+  const isVentas = ($('f-equipo') && $('f-equipo').value === 'ventas');
+  const btnDel = $('btn-del');
+  if (btnDel) {
+    btnDel.innerHTML = icon('trash') + ' Mover a papelera';
+    btnDel.title = isVentas ? 'Mover la venta a la papelera' : 'Mueve la tarjeta a la papelera';
+  }
 }
 
 function autoGrowTitle() {
@@ -6447,7 +7642,15 @@ async function runAutosaveCard() {
 }
 
 async function deleteCard() {
-  if (!editingId || !confirm('¿Mover esta tarjeta a la papelera?\n\nVas a poder restaurarla desde la papelera más adelante.')) return;
+  if (!editingId) return;
+  const card = cardsCache.find(c => c.id === editingId);
+  const isVentas = card && card.equipo === 'ventas';
+
+  const confirmMsg = isVentas 
+    ? '¿Mover esta venta a la papelera?\n\nVas a poder restaurarla desde la papelera más adelante.'
+    : '¿Mover esta tarjeta a la papelera?\n\nVas a poder restaurarla desde la papelera más adelante.';
+  if (!confirm(confirmMsg)) return;
+
   try {
     await api('/api/cards/' + editingId, { method: 'DELETE' });
     const removed = cardsCache.find(c => c.id === editingId);
@@ -6456,8 +7659,12 @@ async function deleteCard() {
       cardsTrashCache.unshift({ ...removed, deletedAt: new Date().toISOString() });
     }
     closeModal();
-    renderBoard();
-    toast('Tarjeta movida a la papelera', 'success');
+    if (isVentas) {
+      renderVentas();
+    } else {
+      renderBoard();
+    }
+    toast(isVentas ? 'Venta movida a la papelera' : 'Tarjeta movida a la papelera', 'success');
   } catch (err) {
     toast(err.message, 'error');
   }
@@ -6466,6 +7673,11 @@ async function deleteCard() {
 function switchCardsView(view) {
   cardsView = view === 'trash' ? 'trash' : 'active';
   renderBoard();
+}
+
+function switchVentasView(view) {
+  ventasView = view === 'trash' ? 'trash' : 'active';
+  renderVentas();
 }
 
 function myClientsStorageKey() {
@@ -6626,8 +7838,12 @@ async function restoreCardFromTrash(id) {
     if (data.card) {
       replaceCard(data.card);
     }
-    renderBoard();
-    toast('Tarjeta restaurada', 'success');
+    if (activeTab === 'ventas') {
+      renderVentas();
+    } else {
+      renderBoard();
+    }
+    toast(activeTab === 'ventas' ? 'Venta restaurada' : 'Tarjeta restaurada', 'success');
   } catch (err) {
     toast(err.message || 'No se pudo restaurar.', 'error');
   }
@@ -6640,14 +7856,28 @@ async function purgeCardFromTrash(id) {
   try {
     await api('/api/cards/' + encodeURIComponent(id) + '/purge', { method: 'DELETE' });
     cardsTrashCache = cardsTrashCache.filter(c => c.id !== id);
-    renderBoard();
-    toast('Tarjeta eliminada definitivamente', 'success');
+    if (activeTab === 'ventas') {
+      renderVentas();
+    } else {
+      renderBoard();
+    }
+    toast(activeTab === 'ventas' ? 'Venta eliminada definitivamente' : 'Tarjeta eliminada definitivamente', 'success');
   } catch (err) {
     toast(err.message || 'No se pudo eliminar.', 'error');
   }
 }
 
-function closeModal()  { flushAutosaveCard(); closeCoverMenu(); closeDuePopover(); closeMembersPopover(); closeOverlay('pauta-overlay'); closeOverlay('card-overlay'); }
+function closeModal()  { 
+  flushAutosaveCard(); 
+  closeCoverMenu(); 
+  closeDuePopover(); 
+  closeMembersPopover(); 
+  closeOverlay('pauta-overlay'); 
+  closeOverlay('card-overlay'); 
+  activeChatPhone = null;
+  const chatMessages = $('chat-messages');
+  if (chatMessages) chatMessages.innerHTML = '';
+}
 function overlayBg(e)  { if (e.target.id === 'card-overlay') closeModal(); }
 
 /* ─────────────────────────────────────────
@@ -7619,6 +8849,32 @@ function toast(msg, type='success') {
 function $(id)       { return document.getElementById(id); }
 function mkId()      { return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
 function esc(s)      { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function cleanPhoneForWhatsapp(phone) {
+  if (!phone) return '';
+  let cleaned = phone.replace(/\D/g, '');
+  if (cleaned.startsWith('54')) {
+    if (cleaned.length === 12 && !cleaned.startsWith('549')) {
+      cleaned = '549' + cleaned.slice(2);
+    }
+    return cleaned;
+  }
+  if (cleaned.startsWith('9') && cleaned.length === 11) {
+    return '54' + cleaned;
+  }
+  if (cleaned.startsWith('0')) {
+    cleaned = cleaned.slice(1);
+  }
+  if (cleaned.length === 10) {
+    return '549' + cleaned;
+  }
+  if (cleaned.length === 12 && cleaned.includes('15')) {
+    cleaned = cleaned.replace('15', '');
+    if (cleaned.length === 10) {
+      return '549' + cleaned;
+    }
+  }
+  return cleaned;
+}
 function initials(u) {
   const f=(u.nombre||'')[0]||''; const l=(u.apellido||'')[0]||(u.nombre||'')[1]||'';
   return (f+l).toUpperCase()||'?';
@@ -7636,6 +8892,389 @@ function showErr(id,msg){ const e=$(id); e.textContent=msg; e.style.display=''; 
 function hideErr(id)    { $(id).style.display='none'; }
 
 /* ─────────────────────────────────────────
+   INTEGRACION WHATSAPP
+───────────────────────────────────────── */
+let whatsappEventSource = null;
+let whatsappStatus = 'DISCONNECTED';
+let whatsappQrCode = null;
+let activeChatPhone = null;
+
+function initWhatsappSSE() {
+  if (whatsappEventSource) {
+    whatsappEventSource.close();
+  }
+  
+  whatsappEventSource = new EventSource('/api/whatsapp/sse');
+  
+  whatsappEventSource.addEventListener('status', (e) => {
+    try {
+      const data = JSON.parse(e.data);
+      whatsappStatus = data.status;
+      whatsappQrCode = data.qrCode || null;
+      updateWhatsappStatusUI();
+    } catch (err) {
+      console.error('Error parsing whatsapp status event', err);
+    }
+  });
+
+  whatsappEventSource.addEventListener('message', (e) => {
+    try {
+      const msg = JSON.parse(e.data);
+      // If the chat is open, is in Ventas, and the message belongs to the current phone, append it!
+      const currentCard = getCards().find(c => c.id === editingId);
+      if (currentCard && currentCard.equipo === 'ventas' && currentCard.ntel) {
+        const cleanCurrentPhone = cleanPhoneForWhatsapp(currentCard.ntel);
+        const msgPhone = cleanPhoneForWhatsapp(msg.fromMe ? msg.to : msg.from);
+        if (cleanCurrentPhone === msgPhone && activeChatPhone === cleanCurrentPhone) {
+          appendMessageToUI(msg);
+          scrollToChatBottom();
+        }
+      }
+    } catch (err) {
+      console.error('Error parsing whatsapp message event', err);
+    }
+  });
+
+  whatsappEventSource.onerror = (err) => {
+    console.error('Whatsapp EventSource connection error, reconnecting...', err);
+    whatsappStatus = 'DISCONNECTED';
+    updateWhatsappStatusUI();
+  };
+}
+
+function switchActivityTab(tab) {
+  document.querySelectorAll('.activity-tab-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.id === `tab-${tab}-btn`);
+  });
+  
+  document.querySelectorAll('.activity-panel-content').forEach(p => {
+    p.style.display = p.id === `panel-${tab}` ? 'flex' : 'none';
+  });
+
+  if (tab === 'whatsapp') {
+    const phoneInput = $('f-ntel');
+    const phone = phoneInput ? phoneInput.value.trim() : '';
+    if (phone) {
+      const cleanPhone = cleanPhoneForWhatsapp(phone);
+      loadWhatsappChat(cleanPhone);
+    } else {
+      activeChatPhone = null;
+      showChatEmptyState('no-phone');
+    }
+  }
+}
+
+function updateWhatsappStatusUI() {
+  const btn = $('global-whatsapp-btn');
+  const btnText = $('global-whatsapp-btn-text');
+  if (btn && btnText) {
+    btn.className = 'global-whatsapp-btn';
+    if (whatsappStatus === 'READY') {
+      btnText.textContent = 'Conectado';
+    } else if (whatsappStatus === 'CONNECTING' || whatsappStatus === 'AUTHENTICATED') {
+      btn.className = 'global-whatsapp-btn connecting';
+      btnText.textContent = 'Conectando';
+    } else {
+      btn.className = 'global-whatsapp-btn disconnected';
+      btnText.textContent = 'Desconectado';
+    }
+  }
+
+  // Update Global Modal elements
+  const modalStatusCard = $('wpp-modal-status-card');
+  const modalStatusValue = $('wpp-status-value');
+  const modalContent = $('wpp-global-modal-content');
+  if (modalStatusCard && modalStatusValue && modalContent) {
+    modalStatusCard.className = 'wpp-modal-status-card';
+    if (whatsappStatus === 'READY') {
+      modalStatusValue.textContent = 'Conectado';
+      modalContent.innerHTML = `
+        <div class="wpp-connected-state">
+          <div class="wpp-success-circle">
+            <svg xmlns="http://www.w3.org/2000/svg" class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:32px;height:32px;">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+          </div>
+          <div class="wpp-success-title">WhatsApp de la Empresa Conectado</div>
+          <div class="wpp-success-desc">El número de la empresa está sincronizado y listo para responder a todos los Leads de ventas de manera directa.</div>
+          <button class="btn btn-danger btn-full" style="margin-top: 1.5rem;" onclick="disconnectGlobalWhatsapp()">Desconectar Cuenta</button>
+        </div>
+      `;
+    } else if (whatsappStatus === 'QR') {
+      modalStatusCard.className = 'wpp-modal-status-card disconnected';
+      modalStatusValue.textContent = 'Requiere Vinculación';
+      modalContent.innerHTML = `
+        <div class="wpp-qr-container">
+          <div class="wpp-qr-image-wrapper">
+            ${whatsappQrCode ? `<img src="${whatsappQrCode}" alt="Código QR de WhatsApp" />` : '<div style="color:var(--muted);font-size:0.75rem;text-align:center;"><span class="is-loading" style="display:block;margin-bottom:8px;width:18px;height:18px;"></span>Generando QR...</div>'}
+          </div>
+          <div class="wpp-qr-instructions">
+            Escaneá este código QR desde WhatsApp en tu celular (Dispositivos vinculados > Vincular dispositivo) para conectar la cuenta de la empresa.
+          </div>
+        </div>
+      `;
+    } else if (whatsappStatus === 'CONNECTING' || whatsappStatus === 'AUTHENTICATED') {
+      modalStatusCard.className = 'wpp-modal-status-card connecting';
+      modalStatusValue.textContent = 'Conectando...';
+      modalContent.innerHTML = `
+        <div class="wpp-qr-container" style="padding: 2.5rem 1rem;">
+          <span class="is-loading" style="display:block;margin-bottom:12px;width:24px;height:24px;"></span>
+          <div style="color:var(--muted);font-size:0.75rem;font-weight:600;">Autenticando y sincronizando con WhatsApp...</div>
+        </div>
+      `;
+    } else {
+      modalStatusCard.className = 'wpp-modal-status-card disconnected';
+      modalStatusValue.textContent = 'Desconectado';
+      modalContent.innerHTML = `
+        <div class="wpp-qr-container" style="padding: 2.5rem 1rem;">
+          <span class="is-loading" style="display:block;margin-bottom:12px;width:24px;height:24px;"></span>
+          <div style="color:var(--muted);font-size:0.75rem;font-weight:600;text-align:center;">Intentando establecer conexión con el servicio...</div>
+        </div>
+      `;
+    }
+  }
+
+  // Update Lead chat panel UI
+  if (whatsappStatus === 'READY') {
+    if (activeChatPhone) {
+      $('chat-messages').style.display = 'flex';
+      $('chat-input-area').style.display = 'flex';
+    } else {
+      showChatEmptyState('no-active-chat');
+    }
+  } else {
+    showChatEmptyState('disconnected');
+  }
+}
+
+function openGlobalWhatsappModal() {
+  openOverlay('global-whatsapp-overlay');
+  updateWhatsappStatusUI();
+}
+
+function closeGlobalWhatsappModal() {
+  closeOverlay('global-whatsapp-overlay');
+}
+
+async function disconnectGlobalWhatsapp() {
+  if (!confirm('¿Seguro que querés desconectar la cuenta de WhatsApp de la empresa? Se cerrará la sesión actual.')) return;
+  
+  const content = $('wpp-global-modal-content');
+  if (content) {
+    content.innerHTML = `
+      <div class="wpp-qr-container" style="padding: 2.5rem 1rem;">
+        <span class="is-loading" style="display:block;margin-bottom:12px;width:24px;height:24px;"></span>
+        <div style="color:var(--muted);font-size:0.75rem;font-weight:600;">Cerrando sesión de WhatsApp...</div>
+      </div>
+    `;
+  }
+
+  try {
+    await api('/api/whatsapp/logout', { method: 'POST' });
+    toast('Sesión cerrada correctamente', 'success');
+  } catch (err) {
+    console.error('Error disconnecting WhatsApp', err);
+    toast(err.message || 'Error al cerrar sesión de WhatsApp', 'error');
+    updateWhatsappStatusUI();
+  }
+}
+
+function showChatEmptyState(reason) {
+  const messagesContainer = $('chat-messages');
+  if (!messagesContainer) return;
+
+  if ($('chat-qr-setup')) $('chat-qr-setup').style.display = 'none';
+  messagesContainer.style.display = 'flex';
+  $('chat-input-area').style.display = 'none';
+
+  if (reason === 'no-phone') {
+    messagesContainer.innerHTML = `
+      <div class="chat-empty-state">
+        <div class="chat-empty-icon">${icon('phone')}</div>
+        <div class="chat-empty-title">Sin número de teléfono</div>
+        <div class="chat-empty-desc">Este Lead no tiene configurado un teléfono de WhatsApp. Cargá un número en los detalles para chatear.</div>
+      </div>
+    `;
+  } else if (reason === 'no-active-chat') {
+    messagesContainer.innerHTML = `
+      <div class="chat-empty-state">
+        <div class="chat-empty-icon">${icon('whatsapp')}</div>
+        <div class="chat-empty-title">Seleccioná un Lead</div>
+        <div class="chat-empty-desc">Hacé clic en un Lead con teléfono para ver la conversación.</div>
+      </div>
+    `;
+  } else if (reason === 'not-registered') {
+    messagesContainer.innerHTML = `
+      <div class="chat-empty-state">
+        <div class="chat-empty-icon">${icon('warn')}</div>
+        <div class="chat-empty-title">Número no registrado</div>
+        <div class="chat-empty-desc">El número de teléfono ingresado no parece estar registrado en WhatsApp.</div>
+      </div>
+    `;
+  } else if (reason === 'loading') {
+    messagesContainer.innerHTML = `
+      <div class="chat-empty-state">
+        <div style="text-align:center;"><span class="is-loading" style="display:block;margin-bottom:8px;"></span>Cargando historial...</div>
+      </div>
+    `;
+  } else if (reason === 'empty') {
+    messagesContainer.innerHTML = `
+      <div class="chat-empty-state">
+        <div class="chat-empty-icon">${icon('whatsapp')}</div>
+        <div class="chat-empty-title">Chat vacío</div>
+        <div class="chat-empty-desc">No hay mensajes previos. Escribí tu primer mensaje para iniciar la conversación.</div>
+      </div>
+    `;
+    $('chat-input-area').style.display = 'flex';
+  } else if (reason === 'disconnected') {
+    messagesContainer.innerHTML = `
+      <div class="chat-empty-state">
+        <div class="chat-empty-icon" style="color:var(--danger)">
+          <svg xmlns="http://www.w3.org/2000/svg" class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:48px;height:48px;">
+            <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+          </svg>
+        </div>
+        <div class="chat-empty-title">WhatsApp Desconectado</div>
+        <div class="chat-empty-desc">Para poder leer y enviar mensajes a este Lead, primero debés vincular la cuenta de WhatsApp de la empresa.</div>
+        <button class="chat-warning-btn" onclick="openGlobalWhatsappModal()">Vincular WhatsApp</button>
+      </div>
+    `;
+  }
+}
+
+async function loadWhatsappChat(phone) {
+  activeChatPhone = phone;
+  updateWhatsappStatusUI();
+
+  if (whatsappStatus !== 'READY') {
+    return; // Will show QR setup instead of loading
+  }
+
+  showChatEmptyState('loading');
+
+  try {
+    const data = await api(`/api/whatsapp/chats/${phone}/messages`);
+    const messages = data.messages || [];
+    
+    if (activeChatPhone !== phone) return;
+
+    const messagesContainer = $('chat-messages');
+    if (!messagesContainer) return;
+
+    if (messages.length === 0) {
+      showChatEmptyState('empty');
+    } else {
+      messagesContainer.innerHTML = '';
+      $('chat-input-area').style.display = 'flex';
+      messages.forEach(msg => appendMessageToUI(msg));
+      scrollToChatBottom();
+    }
+  } catch (err) {
+    if (activeChatPhone !== phone) return;
+    console.error('Error loading chat history', err);
+    if (err.message && err.message.includes('no está registrado')) {
+      showChatEmptyState('not-registered');
+    } else {
+      toast(err.message || 'Error al conectar con WhatsApp Web', 'error');
+      showChatEmptyState('empty');
+    }
+  }
+}
+
+function appendMessageToUI(msg) {
+  const messagesContainer = $('chat-messages');
+  if (!messagesContainer) return;
+
+  if (messagesContainer.querySelector(`[data-msg-id="${msg.id}"]`)) return;
+
+  const bubble = document.createElement('div');
+  bubble.className = `chat-message-bubble ${msg.fromMe ? 'outgoing' : 'incoming'}`;
+  bubble.dataset.msgId = msg.id;
+
+  const timeStr = formatMessageTimestamp(msg.timestamp);
+
+  bubble.innerHTML = `
+    <div class="chat-message-body">${esc(msg.body)}</div>
+    <span class="chat-message-time">${timeStr}</span>
+  `;
+
+  messagesContainer.appendChild(bubble);
+}
+
+function formatMessageTimestamp(timestamp) {
+  const date = new Date(timestamp * 1000);
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${hours}:${minutes}`;
+}
+
+function scrollToChatBottom() {
+  const messagesContainer = $('chat-messages');
+  if (messagesContainer) {
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+  }
+}
+
+function handleChatInputKey(event) {
+  if (event.key === 'Enter' && !event.shiftKey) {
+    event.preventDefault();
+    sendChatMessage();
+  }
+}
+
+async function sendChatMessage() {
+  const input = $('chat-message-input');
+  if (!input) return;
+
+  const text = input.value.trim();
+  if (!text) return;
+
+  const phone = activeChatPhone;
+  if (!phone) return;
+
+  input.value = '';
+  input.style.height = '32px';
+
+  const tempId = 'temp-' + Date.now();
+  const tempMsg = {
+    id: tempId,
+    fromMe: true,
+    body: text,
+    timestamp: Math.floor(Date.now() / 1000)
+  };
+  
+  const emptyState = document.querySelector('.chat-empty-state');
+  if (emptyState) {
+    $('chat-messages').innerHTML = '';
+  }
+
+  appendMessageToUI(tempMsg);
+  scrollToChatBottom();
+
+  try {
+    const data = await api(`/api/whatsapp/chats/${phone}/messages`, {
+      method: 'POST',
+      body: JSON.stringify({ message: text })
+    });
+    
+    const tempBubble = document.querySelector(`[data-msg-id="${tempId}"]`);
+    if (tempBubble && data.message) {
+      tempBubble.dataset.msgId = data.message.id;
+    }
+  } catch (err) {
+    console.error('Error sending message', err);
+    toast(err.message || 'No se pudo enviar el mensaje', 'error');
+    
+    const tempBubble = document.querySelector(`[data-msg-id="${tempId}"]`);
+    if (tempBubble) {
+      tempBubble.style.opacity = '0.5';
+      const timeSpan = tempBubble.querySelector('.chat-message-time');
+      if (timeSpan) timeSpan.textContent = 'Fallo al enviar';
+    }
+  }
+}
+
+/* ─────────────────────────────────────────
    BOOT
 ───────────────────────────────────────── */
 (async function boot() {
@@ -7643,6 +9282,7 @@ function hideErr(id)    { $(id).style.display='none'; }
   try {
     await loadAppData();
     startApp();
+    initWhatsappSSE();
   } catch (_) {
     $('login-screen').style.display = '';
     $('app').style.display = 'none';
