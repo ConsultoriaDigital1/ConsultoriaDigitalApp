@@ -421,14 +421,41 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
   padding: 1.1rem 1.25rem; display: flex; gap: 1rem; align-items: stretch;
 }
 
-/* ─── Cuerpo de Clientes: tablero + notas privadas a la derecha ─── */
+/* ─── Cuerpo de Clientes: tablero ─── */
 .clientes-body { flex: 1; display: flex; min-height: 0; overflow: hidden; }
 .clientes-body > #kanban-board { flex: 1; min-width: 0; }
+
+/* ─── Notas privadas: drawer deslizable desde la derecha ─── */
 .clientes-notes {
-  width: 300px; flex-shrink: 0; display: flex; flex-direction: column;
-  border-left: 1px solid var(--border); background: var(--bg);
+  position: fixed; top: 0; right: 0; z-index: 120;
+  height: 100vh; width: 340px; max-width: 90vw;
+  display: flex; flex-direction: column;
+  background: var(--bg); border-left: 1px solid var(--border);
+  box-shadow: -10px 0 34px rgba(0,0,0,0.32);
   padding: 1.1rem 1rem;
+  transform: translateX(100%);
+  transition: transform 320ms cubic-bezier(.22,1,.36,1);
 }
+.clientes-notes.open { transform: translateX(0); }
+
+/* Pestaña/manija siempre visible para sacar el panel */
+.cnotes-handle {
+  position: fixed; top: 50%; right: 0; z-index: 119;
+  transform: translateY(-50%);
+  display: flex; align-items: center; gap: 0.4rem;
+  background: var(--surface); color: var(--text-hi);
+  border: 1px solid var(--border); border-right: none;
+  border-radius: var(--r-md) 0 0 var(--r-md);
+  padding: 0.85rem 0.45rem; cursor: pointer;
+  writing-mode: vertical-rl; text-orientation: mixed;
+  font-family: var(--font-disp); font-size: 0.72rem; font-weight: 700;
+  letter-spacing: 0.06em;
+  box-shadow: -4px 0 14px rgba(0,0,0,0.2);
+  transition: opacity 220ms, background 160ms, color 160ms;
+}
+.cnotes-handle:hover { background: var(--text-hi); color: var(--bg); }
+.clientes-notes.open ~ .cnotes-handle { opacity: 0; pointer-events: none; }
+
 .cnotes-head {
   display: flex; align-items: flex-start; gap: 0.6rem; margin-bottom: 0.7rem;
 }
@@ -442,6 +469,12 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
   display: flex; align-items: center; gap: 0.3rem;
   font-size: 0.6rem; color: var(--muted); white-space: nowrap;
 }
+.cnotes-close {
+  flex-shrink: 0; background: none; border: none; cursor: pointer;
+  color: var(--muted); font-size: 1.1rem; line-height: 1; padding: 0.1rem 0.25rem;
+  border-radius: var(--r-sm); transition: color 160ms, background 160ms;
+}
+.cnotes-close:hover { color: var(--text-hi); background: var(--surface); }
 .cnotes-textarea {
   flex: 1; min-height: 0; resize: none; width: 100%;
   background: var(--surface); border: 1px solid var(--border);
@@ -451,10 +484,6 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 }
 .cnotes-textarea:focus { outline: none; border-color: var(--border2); box-shadow: var(--shadow); }
 .cnotes-foot { margin-top: 0.45rem; text-align: right; font-size: 0.62rem; color: var(--muted); }
-
-@media (max-width: 900px) {
-  .clientes-notes { display: none; }
-}
 
 .kanban-col {
   min-width: 380px; width: 380px; height: 100%; flex-shrink: 0;
@@ -858,6 +887,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 .metric-cobrados.active  { border-color: rgba(74,222,128,0.5);  box-shadow: 0 0 0 1.5px rgba(74,222,128,0.15); }
 .metric-pendientes.active{ border-color: rgba(251,146,60,0.5);  box-shadow: 0 0 0 1.5px rgba(251,146,60,0.15); }
 .metric-vencidos.active  { border-color: rgba(248,113,113,0.5); box-shadow: 0 0 0 1.5px rgba(248,113,113,0.15); }
+.metric-pendientes-total.active { border-color: rgba(96,165,250,0.5); box-shadow: 0 0 0 1.5px rgba(96,165,250,0.15); }
 .admin-metric::before {
   content: ''; position: absolute;
   bottom: 0; left: 0; right: 0; height: 2px;
@@ -866,6 +896,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 .metric-cobrados::before { background: linear-gradient(90deg,#4ade80,rgba(74,222,128,0.1)); }
 .metric-pendientes::before { background: linear-gradient(90deg,#fb923c,rgba(251,146,60,0.1)); }
 .metric-vencidos::before { background: linear-gradient(90deg,#f87171,rgba(248,113,113,0.1)); }
+.metric-pendientes-total::before { background: linear-gradient(90deg,#60a5fa,rgba(96,165,250,0.1)); }
 .admin-metric-icon {
   width: 1.25rem; height: 1.25rem; margin-bottom: 0.45rem; opacity: 0.75;
 }
@@ -873,6 +904,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 .metric-cobrados .admin-metric-icon { color: #4ade80; }
 .metric-pendientes .admin-metric-icon { color: #fb923c; }
 .metric-vencidos .admin-metric-icon { color: #f87171; }
+.metric-pendientes-total .admin-metric-icon { color: #60a5fa; }
 .admin-metric-label {
   color: var(--muted); font-size: 0.6rem; font-weight: 800;
   text-transform: uppercase; letter-spacing: 0.1em;
@@ -1022,6 +1054,10 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
   letter-spacing: 0.06em; text-transform: uppercase;
   background: var(--surface2);
 }
+.clients-table th.th-sort { cursor: pointer; user-select: none; white-space: nowrap; }
+.clients-table th.th-sort:hover { color: var(--text-hi); }
+.th-sort-arrow { font-size: 0.78rem; opacity: 0.4; margin-left: 0.15rem; }
+.th-sort-arrow.active { opacity: 1; color: var(--accent, var(--text-hi)); }
 .clients-table th:first-child { border-radius: var(--r-xs) 0 0 var(--r-xs); }
 .clients-table th:last-child  { border-radius: 0 var(--r-xs) var(--r-xs) 0; text-align: right; }
 .clients-table tbody td {
@@ -1161,6 +1197,23 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
   background: rgba(87, 157, 255, 0.28);
   border-color: rgba(87, 157, 255, 0.7);
   color: #85b8ff;
+}
+.btn-vencidos {
+  background: rgba(248, 113, 113, 0.08);
+  color: var(--text);
+  border: 1px solid var(--border2);
+  transition: all 150ms ease;
+  display: inline-flex; align-items: center; gap: 0.35rem;
+}
+.btn-vencidos:hover {
+  background: rgba(248, 113, 113, 0.14);
+  border-color: rgba(248, 113, 113, 0.4);
+  color: #f87171;
+}
+.btn-vencidos.active {
+  background: rgba(248, 113, 113, 0.2);
+  border-color: rgba(248, 113, 113, 0.6);
+  color: #f87171;
 }
 .btn-restore {
   background: linear-gradient(135deg, #579dff 0%, #3b7fdc 100%);
@@ -2841,21 +2894,6 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
         </div>
         <div class="clientes-body">
           <div class="kanban-wrap" id="kanban-board"></div>
-          <aside class="clientes-notes" id="clientes-notes">
-            <div class="cnotes-head">
-              <div class="cnotes-ico">🔒</div>
-              <div class="cnotes-head-txt">
-                <div class="cnotes-title">Notas privadas</div>
-                <div class="cnotes-sub">Solo las ves vos</div>
-              </div>
-              <div class="cnotes-status">
-                <span class="note-status-dot" id="cnotes-dot"></span>
-                <span id="cnotes-status">Guardado</span>
-              </div>
-            </div>
-            <textarea id="cnotes-textarea" class="cnotes-textarea" placeholder="Escribí tus notas personales…" oninput="onClientesNoteInput()"></textarea>
-            <div class="cnotes-foot"><span id="cnotes-cc">0 car.</span></div>
-          </aside>
         </div>
       </div>
 
@@ -2928,6 +2966,25 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
           <div class="talent-grid" id="talent-grid"></div>
         </div>
       </div>
+
+      <!-- ── NOTAS PRIVADAS: drawer deslizable (siempre disponible) ── -->
+      <aside class="clientes-notes" id="clientes-notes">
+        <div class="cnotes-head">
+          <div class="cnotes-ico">🔒</div>
+          <div class="cnotes-head-txt">
+            <div class="cnotes-title">Notas privadas</div>
+            <div class="cnotes-sub">Solo las ves vos</div>
+          </div>
+          <div class="cnotes-status">
+            <span class="note-status-dot" id="cnotes-dot"></span>
+            <span id="cnotes-status">Guardado</span>
+          </div>
+          <button class="cnotes-close" onclick="toggleClientesNotes(false)" title="Cerrar" aria-label="Cerrar notas">✕</button>
+        </div>
+        <textarea id="cnotes-textarea" class="cnotes-textarea" placeholder="Escribí tus notas personales…" oninput="onClientesNoteInput()"></textarea>
+        <div class="cnotes-foot"><span id="cnotes-cc">0 car.</span></div>
+      </aside>
+      <button class="cnotes-handle" id="cnotes-handle" onclick="toggleClientesNotes()" title="Notas privadas" aria-label="Abrir notas privadas">🔒 NOTAS</button>
 
     </main>
   </div>
@@ -4006,7 +4063,8 @@ let clientsTrashCache  = [];
 let clientsView        = 'active';  // 'active' | 'trash'
 let clientsFilter      = 'todos';   // 'todos' | 'activos' | 'inactivos'
 let clientsSearchTerm  = '';        // término del buscador de clientes
-let clientsDashFilter  = null;      // null | 'ingresos' | 'cobrados' | 'pendientes' | 'vencidos'
+let clientsDashFilter  = null;      // null | 'ingresos' | 'cobrados' | 'pendientes' | 'pendientes-total' | 'vencidos'
+let clientsSort        = { col: null, dir: null }; // col: 'debe' | 'vence' · dir: 'asc' | 'desc' | null (sin orden)
 let movementsCache     = {};       // { [clientId]: [movements...] }
 let currentClientId    = null;
 let editingClientId    = null;     // id si el modal de cliente está editando; null = creando
@@ -4070,13 +4128,16 @@ function updateAdminDashUI(data) {
   if (lbl) lbl.textContent = adminMonthLabel(adminDashYear, adminDashMonth);
   const set = (id, val) => { const el = $(id); if (el) el.textContent = val; };
   if (!data) {
-    ['adash-ingresos','adash-cobrados','adash-pendientes','adash-vencidos'].forEach(id => set(id, '—'));
+    ['adash-ingresos','adash-cobrados','adash-pendientes','adash-pendientes-total'].forEach(id => set(id, '—'));
     return;
   }
   set('adash-ingresos',   formatMoney(data.ingresosTotales));
   set('adash-cobrados',   formatMoney(data.cobrados));
-  set('adash-pendientes', formatMoney(data.pendientes));
-  set('adash-vencidos',   String(data.vencidos));
+  // Pendiente de cobro este mes = Ingresos totales del mes − Cobrados
+  set('adash-pendientes', formatMoney(Number(data.ingresosTotales || 0) - Number(data.cobrados || 0)));
+  // Pendiente de cobro total = suma de saldos pendientes (incluye canje, excluye saldos a favor).
+  // Usa el cálculo único del backend para que coincida con la lista al filtrar por la tarjeta.
+  set('adash-pendientes-total', formatMoney(data.pendientes));
 }
 
 function applyAdminNumbersState() {
@@ -4109,6 +4170,8 @@ function changeAdminDashMonth(delta) {
   if (adminDashMonth < 1)  { adminDashMonth = 12; adminDashYear--; }
   updateAdminDashUI(null);
   loadAdminDashboard();
+  // Si está activo el filtro "este mes", recalcular la lista para el nuevo mes
+  if (clientsDashFilter === 'pendientes' && adminSubTab === 'clientes') renderClientsResults();
 }
 
 function formatMoney(n) {
@@ -4167,6 +4230,9 @@ function renderClientesSubTab() {
           <button class="btn btn-ghost btn-sm" onclick="switchClientsView('active')">${icon('back')} Volver a Clientes</button>
         ` : `
           <button class="btn btn-lime btn-sm" onclick="openNewClientModal()">+ Nuevo cliente</button>
+          <button class="btn btn-vencidos btn-sm ${clientsDashFilter==='vencidos'?'active':''}" onclick="setDashFilter('vencidos')" title="Ver clientes con facturas vencidas">
+            ${icon('warn')} Vencidos
+          </button>
           <button class="btn btn-trash btn-sm" onclick="switchClientsView('trash')" title="Ver clientes eliminados">
             ${icon('trash')} Papelera ${trashCount > 0 ? `<span class="trash-count">${trashCount}</span>` : ''}
           </button>
@@ -4195,22 +4261,67 @@ function renderClientsResults() {
 
   // Aplicar filtro de tarjeta del dashboard
   const todayStr = new Date().toISOString().slice(0, 10);
+  const monthPrefix = `${adminDashYear}-${String(adminDashMonth).padStart(2, '0')}`;
   const afterFilter = (!inTrash && clientsDashFilter)
     ? afterEstado.filter(c => {
         const saldo = Number(c.saldo || 0);
-        if (clientsDashFilter === 'cobrados')   return saldo <= 0;
-        if (clientsDashFilter === 'pendientes') return saldo > 0;
-        if (clientsDashFilter === 'vencidos')   return saldo > 0 && c.vence && c.vence < todayStr;
+        if (clientsDashFilter === 'cobrados') {
+          // Clientes con al menos un pago efectuado en el mes seleccionado
+          const movs = movementsCache[c.id] || [];
+          return movs.some(m => Number(m.haber || 0) > 0 && (m.fecha || '').startsWith(monthPrefix));
+        }
+        if (clientsDashFilter === 'pendientes') {
+          // Pendiente de cobro de ESTE mes: facturas emitidas en el mes (no las
+          // de meses siguientes) menos los pagos de este mes y los siguientes,
+          // porque hay clientes que pagan atrasados y, aunque el pago caiga en un
+          // mes posterior, la factura igual queda saldada. Excluye canje.
+          // Solo aparece quien efectivamente debe (saldo > 0).
+          if (saldo <= 0) return false;
+          const movs = movementsCache[c.id] || [];
+          let neto = 0;
+          for (const m of movs) {
+            if ((m.medioPago || '') === 'canje') continue;
+            const ym = (m.fecha || '').slice(0, 7);
+            if (!ym) continue;
+            // Factura: solo la emitida en el mes seleccionado.
+            if (ym === monthPrefix) neto += Number(m.montoFactura || 0);
+            // Pago: este mes y los siguientes (cubre pagos atrasados).
+            if (ym >= monthPrefix) neto -= Number(m.haber || 0);
+          }
+          return neto > 0;
+        }
+        if (clientsDashFilter === 'pendientes-total') return saldo > 0;
+        if (clientsDashFilter === 'vencidos')        return saldo > 0 && c.vence && c.vence < todayStr;
         return true; // 'ingresos' → todos
       })
     : afterEstado;
 
-  const list = term
+  const filtered = term
     ? afterFilter.filter(c =>
         normTxt(clientDisplayName(c)).includes(term) ||
         normTxt(c.razonSocial).includes(term) ||
         normTxt(c.cuit).includes(term))
     : afterFilter;
+
+  // Orden por columna (Cliente / Debe / Vence). Sin orden activo → se mantiene
+  // el orden alfabético por nombre que viene de `all`.
+  const list = clientsSort.col
+    ? filtered.slice().sort((a, b) => {
+        const dir = clientsSort.dir === 'desc' ? -1 : 1;
+        if (clientsSort.col === 'cliente') {
+          return clientDisplayName(a).localeCompare(clientDisplayName(b), 'es') * dir;
+        }
+        if (clientsSort.col === 'debe') {
+          return (Number(a.saldo || 0) - Number(b.saldo || 0)) * dir;
+        }
+        // 'vence': fechas vacías siempre al final, sin importar la dirección
+        const av = a.vence || '', bv = b.vence || '';
+        if (!av && !bv) return 0;
+        if (!av) return 1;
+        if (!bv) return -1;
+        return av.localeCompare(bv) * dir;
+      })
+    : filtered;
 
   // Subtítulo con conteo en vivo
   const sub = $('clients-sub');
@@ -4248,11 +4359,11 @@ function renderClientsResults() {
       <table class="clients-table">
         <thead>
           <tr>
-            <th>Cliente</th>
+            <th class="th-sort" onclick="toggleClientsSort('cliente')" title="Ordenar por nombre">Cliente ${sortArrow('cliente')}</th>
             <th>RS</th>
             <th>CUIT</th>
-            <th>Debe</th>
-            <th>Vence</th>
+            <th class="th-sort" onclick="toggleClientsSort('debe')" title="Ordenar por deuda">Debe ${sortArrow('debe')}</th>
+            <th class="th-sort" onclick="toggleClientsSort('vence')" title="Ordenar por vencimiento">Vence ${sortArrow('vence')}</th>
             <th>Estado</th>
             <th>${inTrash ? 'Eliminado' : 'Acciones'}</th>
           </tr>
@@ -4296,6 +4407,23 @@ function setClientsFilter(f) {
   renderClientesSubTab();
 }
 
+// Orden por columna: cicla ascendente → descendente → sin orden
+function toggleClientsSort(col) {
+  if (clientsSort.col !== col) {
+    clientsSort = { col, dir: 'asc' };
+  } else if (clientsSort.dir === 'asc') {
+    clientsSort.dir = 'desc';
+  } else {
+    clientsSort = { col: null, dir: null };
+  }
+  renderClientsResults();
+}
+
+function sortArrow(col) {
+  if (clientsSort.col !== col) return '<span class="th-sort-arrow">↕</span>';
+  return `<span class="th-sort-arrow active">${clientsSort.dir === 'asc' ? '↑' : '↓'}</span>`;
+}
+
 function setDashFilter(key) {
   // Toggle: clic en el mismo activo lo desactiva
   clientsDashFilter = (clientsDashFilter === key) ? null : key;
@@ -4303,11 +4431,24 @@ function setDashFilter(key) {
   document.querySelectorAll('.admin-metric[data-dash-filter]').forEach(el => {
     el.classList.toggle('active', el.dataset.dashFilter === clientsDashFilter);
   });
+  // Estado visual del botón "Vencidos" junto a Nuevo cliente
+  document.querySelectorAll('.btn-vencidos').forEach(el => {
+    el.classList.toggle('active', clientsDashFilter === 'vencidos');
+  });
   // Al activar un filtro, cambiar al tab de clientes si no estamos ahí
   if (clientsDashFilter !== null && adminSubTab !== 'clientes') {
     switchAdminSubTab('clientes');
   } else {
     renderClientsResults();
+  }
+  // "Pendiente de cobro este mes" y "Cobrados" necesitan los movimientos de
+  // cada cliente para saber quién tuvo factura emitida / pago efectuado en el
+  // mes seleccionado.
+  if (clientsDashFilter === 'pendientes' || clientsDashFilter === 'cobrados') {
+    const activeKey = clientsDashFilter;
+    ensureAllMovementsLoaded().then(() => {
+      if (clientsDashFilter === activeKey) renderClientsResults();
+    });
   }
 }
 
@@ -4741,6 +4882,23 @@ async function confirmMovDelete(clientId, movId, goBtn) {
     toast(err.message || 'No se pudo eliminar el movimiento.', 'error');
     renderClientMovements(movementsCache[clientId] || []);
   }
+}
+
+// Carga en bloque los movimientos de todos los clientes que aún no estén en cache.
+// Necesario para filtrar por "factura emitida en el mes" sin abrir cada cliente.
+async function ensureAllMovementsLoaded() {
+  const missing = (clientsCache || []).filter(c => !movementsCache[c.id]);
+  if (!missing.length) return;
+  await Promise.all(missing.map(async c => {
+    try {
+      const data = await api('/api/admin/clients/' + encodeURIComponent(c.id) + '/movements');
+      movementsCache[c.id] = data.movements || [];
+      const idx = clientsCache.findIndex(x => x.id === c.id);
+      if (idx > -1 && data.client) clientsCache[idx] = data.client;
+    } catch (_e) {
+      movementsCache[c.id] = movementsCache[c.id] || [];
+    }
+  }));
 }
 
 async function loadMovementsForClient(clientId) {
@@ -6239,13 +6397,13 @@ function renderAdminTable(board, cards, _users) {
       </div>
       <div class="admin-metric metric-pendientes" style="--mi:2" data-dash-filter="pendientes" onclick="setDashFilter('pendientes')">
         <div class="admin-metric-icon">${icon('zap')}</div>
-        <div class="admin-metric-label">Pendientes de cobro</div>
+        <div class="admin-metric-label">Pendiente de cobro este mes</div>
         <div class="admin-metric-value" id="adash-pendientes">—</div>
       </div>
-      <div class="admin-metric metric-vencidos" style="--mi:3" data-dash-filter="vencidos" onclick="setDashFilter('vencidos')">
-        <div class="admin-metric-icon">${icon('warn')}</div>
-        <div class="admin-metric-label">Vencidos</div>
-        <div class="admin-metric-value" id="adash-vencidos">—</div>
+      <div class="admin-metric metric-pendientes-total" style="--mi:3" data-dash-filter="pendientes-total" onclick="setDashFilter('pendientes-total')">
+        <div class="admin-metric-icon">${icon('zap')}</div>
+        <div class="admin-metric-label">Pendiente de cobro total</div>
+        <div class="admin-metric-value" id="adash-pendientes-total">—</div>
       </div>
     </div>
     </div>
@@ -8330,6 +8488,18 @@ async function saveNote(scope, team) {
 
 /* ── Notas privadas en el tablero de Clientes (mismo dato que 'personal') ── */
 let clientesNoteTimer = null;
+
+function toggleClientesNotes(force) {
+  const drawer = $('clientes-notes');
+  if (!drawer) return;
+  const open = (force === undefined) ? !drawer.classList.contains('open') : !!force;
+  drawer.classList.toggle('open', open);
+  if (open) {
+    renderClientesNotes();
+    const ta = $('cnotes-textarea');
+    if (ta) setTimeout(() => ta.focus(), 320);
+  }
+}
 
 function renderClientesNotes() {
   const ta = $('cnotes-textarea');
