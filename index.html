@@ -1198,6 +1198,27 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
   border-color: rgba(87, 157, 255, 0.7);
   color: #85b8ff;
 }
+
+/* Contactados */
+.btn-contactados {
+  background: rgba(87, 157, 255, 0.08);
+  color: var(--text);
+  border: 1px solid var(--border2);
+  transition: all 150ms ease;
+  display: inline-flex; align-items: center; gap: 0.35rem;
+}
+.btn-contactados:hover {
+  background: rgba(87, 157, 255, 0.15);
+  border-color: rgba(87, 157, 255, 0.45);
+  color: #85b8ff;
+}
+.btn-contactados .contactados-count {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 18px; height: 18px; padding: 0 5px;
+  background: #579dff; color: #1d2125;
+  border-radius: 999px; font-size: 0.7rem; font-weight: 800;
+  margin-left: 0.2rem;
+}
 .btn-vencidos {
   background: rgba(248, 113, 113, 0.08);
   color: var(--text);
@@ -2905,6 +2926,9 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
             <div class="cbar-sub" id="ventas-sub">Tablero Kanban de Ventas</div>
           </div>
           <div style="display:flex;gap:0.4rem;flex-wrap:wrap;justify-content:flex-end;margin-left:auto">
+            <button id="btn-ventas-contactados" class="btn btn-contactados btn-sm" onclick="switchVentasView('contactados')" title="Ver leads contactados">
+              <i class="ico-ph" data-ico="user"></i> Contactados <span id="ventas-contactados-count" class="contactados-count" style="display:none"></span>
+            </button>
             <button id="btn-ventas-trash" class="btn btn-trash btn-sm" onclick="switchVentasView('trash')" title="Ver ventas en la papelera">
               <i class="ico-ph" data-ico="trash"></i> Papelera <span id="ventas-trash-count" class="trash-count" style="display:none"></span>
             </button>
@@ -6006,6 +6030,11 @@ function renderVentas() {
     renderVentasTrash(board, users);
     return;
   }
+  if (ventasView === 'contactados') {
+    board.className = 'admin-table-wrap';
+    renderVentasContactados(board, users);
+    return;
+  }
   board.className = 'kanban-wrap';
   
   // Filter sales cards that are not soft-deleted
@@ -6041,17 +6070,27 @@ function renderVentas() {
 
 function syncVentasViewToolbar() {
   const inTrash = ventasView === 'trash';
+  const inContactados = ventasView === 'contactados';
+  const inActive = ventasView === 'active';
   const newBtn   = $('btn-new-sale-card');
   const trashBtn = $('btn-ventas-trash');
+  const contactadosBtn = $('btn-ventas-contactados');
   const backBtn  = $('btn-ventas-active');
   const titleEl  = $('ventas-title');
   const countEl  = $('ventas-trash-count');
+  const contCountEl = $('ventas-contactados-count');
   const subEl    = $('ventas-sub');
 
-  if (newBtn)   newBtn.style.display   = inTrash ? 'none' : '';
-  if (trashBtn) trashBtn.style.display = inTrash ? 'none' : '';
-  if (backBtn)  backBtn.style.display  = inTrash ? '' : 'none';
-  if (titleEl)  titleEl.textContent    = inTrash ? 'Papelera de ventas' : 'Gestión de Ventas';
+  if (newBtn)   newBtn.style.display   = (inTrash || inContactados) ? 'none' : '';
+  if (trashBtn) trashBtn.style.display = inActive ? '' : 'none';
+  if (contactadosBtn) contactadosBtn.style.display = inActive ? '' : 'none';
+  if (backBtn)  backBtn.style.display  = inActive ? 'none' : '';
+  
+  if (titleEl) {
+    if (inTrash) titleEl.textContent = 'Papelera de ventas';
+    else if (inContactados) titleEl.textContent = 'Leads Contactados';
+    else titleEl.textContent = 'Gestión de Ventas';
+  }
   
   const visibleTrash = (cardsTrashCache || []).filter(c => c.equipo === 'ventas');
   if (countEl) {
@@ -6062,12 +6101,29 @@ function syncVentasViewToolbar() {
       countEl.style.display = 'none';
     }
   }
+
+  const visibleContactados = getCards().filter(c => c.equipo === 'ventas' && c.estado === 'contactado' && c.deletedAt === null);
+  if (contCountEl) {
+    if (visibleContactados.length > 0) {
+      contCountEl.textContent = visibleContactados.length;
+      contCountEl.style.display = '';
+    } else {
+      contCountEl.style.display = 'none';
+    }
+  }
+
   if (subEl) {
-    subEl.textContent = inTrash
-      ? (visibleTrash.length
-          ? `${visibleTrash.length} venta${visibleTrash.length === 1 ? '' : 's'} en la papelera.`
-          : 'La papelera está vacía.')
-      : 'Tablero Kanban de Ventas';
+    if (inTrash) {
+      subEl.textContent = visibleTrash.length
+        ? `${visibleTrash.length} venta${visibleTrash.length === 1 ? '' : 's'} en la papelera.`
+        : 'La papelera está vacía.';
+    } else if (inContactados) {
+      subEl.textContent = visibleContactados.length
+        ? `${visibleContactados.length} lead${visibleContactados.length === 1 ? '' : 's'} contactado${visibleContactados.length === 1 ? '' : 's'}.`
+        : 'No hay leads contactados.';
+    } else {
+      subEl.textContent = 'Tablero Kanban de Ventas';
+    }
   }
 }
 
@@ -6124,6 +6180,94 @@ function renderVentasTrash(board, users) {
         }).join('')}
       </tbody>
     </table>`;
+}
+
+function renderVentasContactados(board, users) {
+  const list = getCards().filter(c => c.equipo === 'ventas' && c.estado === 'contactado' && c.deletedAt === null);
+  if (!list.length) {
+    board.innerHTML = `
+      <div class="admin-empty" style="padding:2rem;text-align:center;color:var(--muted)">
+        <div style="font-size:2rem;margin-bottom:0.4rem">${icon('user')}</div>
+        <strong>Sin leads contactados</strong>
+        <div style="font-size:0.85rem;margin-top:0.3rem">No hay leads en la sección de contactados.</div>
+      </div>`;
+    return;
+  }
+  const byId = new Map(users.map(u => [u.id, u]));
+  board.innerHTML = `
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Lead</th>
+          <th>Teléfono</th>
+          <th>Creado</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        ${list.map(c => {
+          const title = (c.nf || c.rs || 'Sin nombre');
+          const owner = byId.get(c.usuario);
+          const ownerLabel = owner ? userFullName(owner) : '—';
+          const createdTxt = c.creadoEn
+            ? (() => {
+                const d = new Date(c.creadoEn);
+                return pad2(d.getDate()) + '/' + pad2(d.getMonth() + 1) + '/' + d.getFullYear() +
+                       ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+              })()
+            : '—';
+          return `
+            <tr style="opacity:0.95">
+              <td>
+                <div class="ct-name" style="cursor:pointer;color:#579dff;font-weight:700" onclick="openCard('${c.id}')">${esc(title)}</div>
+                ${c.cuit ? `<div class="ct-sub">${esc(c.cuit)}</div>` : ''}
+                <div class="ct-sub">${esc(ownerLabel)}</div>
+              </td>
+              <td>${c.ntel ? esc(c.ntel) : '—'}</td>
+              <td>${createdTxt}</td>
+              <td>
+                <div class="ct-actions">
+                  <button class="btn btn-restore btn-sm" onclick="moveLeadToPresupuestado('${c.id}')" title="Pasar a presupuestado">${icon('check')} Presupuestar</button>
+                  <button class="btn btn-ghost btn-sm" onclick="openCard('${c.id}')" title="Ver/Editar">${icon('edit')} Editar</button>
+                  <button class="btn btn-trash btn-sm" onclick="deleteCardFromContactados('${c.id}')" title="Mover a papelera">${icon('trash')} Borrar</button>
+                </div>
+              </td>
+            </tr>`;
+        }).join('')}
+      </tbody>
+    </table>`;
+}
+
+async function moveLeadToPresupuestado(cardId) {
+  const card = cardsCache.find(c => c.id === cardId);
+  if (!card) return;
+  try {
+    const saved = await api('/api/cards/' + cardId, {
+      method: 'PUT',
+      body: JSON.stringify({ ...card, estado: 'presupuestado', equipo: 'ventas' }),
+    });
+    replaceCard(saved.card);
+    toast('Lead pasado a Presupuestado', 'success');
+    renderVentas();
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function deleteCardFromContactados(cardId) {
+  if (!confirm('¿Mover este lead a la papelera?\n\nVas a poder restaurarlo desde la papelera más adelante.')) return;
+  try {
+    await api('/api/cards/' + cardId, { method: 'DELETE' });
+    const removed = cardsCache.find(c => c.id === cardId);
+    cardsCache = cardsCache.filter(c => c.id !== cardId);
+    if (removed) {
+      cardsTrashCache.unshift({ ...removed, deletedAt: new Date().toISOString() });
+    }
+    renderVentas();
+    toast('Lead movido a la papelera', 'success');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
 }
 
 function initVentasSortables() {
@@ -6977,6 +7121,7 @@ function populateModalStatuses(isVentas) {
   if (!select) return;
   if (isVentas) {
     select.innerHTML = `
+      <option value="contactado">Contactado</option>
       <option value="presupuestado">Presupuestado</option>
       <option value="reunion">Reunión</option>
       <option value="venta_exitosa">Venta exitosa</option>
@@ -7233,7 +7378,7 @@ function onCardTeamChange() {
     $('card-prop-equipo').style.display = '';
   }
   
-  const validStatuses = isVentas ? ['presupuestado', 'reunion', 'venta_exitosa'] : ['iniciada', 'en_proceso', 'finalizado'];
+  const validStatuses = isVentas ? ['contactado', 'presupuestado', 'reunion', 'venta_exitosa'] : ['iniciada', 'en_proceso', 'finalizado'];
   if (!validStatuses.includes(modalStatus)) {
     modalStatus = isVentas ? 'presupuestado' : 'iniciada';
     setStatus(modalStatus);
@@ -7281,6 +7426,7 @@ function statusText(s) {
     iniciada: 'Iniciada',
     en_proceso: 'En proceso',
     finalizado: 'Hecho',
+    contactado: 'Contactado',
     presupuestado: 'Presupuestado',
     reunion: 'Reunión',
     venta_exitosa: 'Venta exitosa',
@@ -7678,7 +7824,7 @@ function switchCardsView(view) {
 }
 
 function switchVentasView(view) {
-  ventasView = view === 'trash' ? 'trash' : 'active';
+  ventasView = view === 'trash' ? 'trash' : (view === 'contactados' ? 'contactados' : 'active');
   renderVentas();
 }
 

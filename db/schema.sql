@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS cards (
   ta TEXT NOT NULL DEFAULT '',
   c TEXT NOT NULL DEFAULT '',
   color TEXT NOT NULL DEFAULT 'none',
-  estado TEXT NOT NULL CHECK (estado IN ('iniciada', 'en_proceso', 'finalizado', 'presupuestado', 'reunion', 'venta_exitosa', 'papelera')),
+  estado TEXT NOT NULL CHECK (estado IN ('iniciada', 'en_proceso', 'finalizado', 'contactado', 'presupuestado', 'reunion', 'venta_exitosa', 'papelera')),
   equipo TEXT NOT NULL CHECK (equipo IN ('marketing', 'desarrollo', 'admin', 'ventas')),
   usuario TEXT REFERENCES users(id) ON DELETE SET NULL,
   usuarios JSONB NOT NULL DEFAULT '[]'::jsonb,

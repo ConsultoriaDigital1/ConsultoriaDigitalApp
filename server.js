@@ -47,7 +47,7 @@ async function ensureDatabaseMigrations() {
   await pool.query("ALTER TABLE cards DROP CONSTRAINT IF EXISTS cards_equipo_check");
   await pool.query("ALTER TABLE cards ADD CONSTRAINT cards_equipo_check CHECK (equipo IN ('marketing', 'desarrollo', 'admin', 'ventas'))");
   await pool.query("ALTER TABLE cards DROP CONSTRAINT IF EXISTS cards_estado_check");
-  await pool.query("ALTER TABLE cards ADD CONSTRAINT cards_estado_check CHECK (estado IN ('iniciada', 'en_proceso', 'finalizado', 'presupuestado', 'reunion', 'venta_exitosa', 'papelera'))");
+  await pool.query("ALTER TABLE cards ADD CONSTRAINT cards_estado_check CHECK (estado IN ('iniciada', 'en_proceso', 'finalizado', 'contactado', 'presupuestado', 'reunion', 'venta_exitosa', 'papelera'))");
 
   // Migrate old sales cards in 'papelera' column status to actual soft-deleted cards
   await pool.query("UPDATE cards SET deleted_at = NOW(), estado = 'presupuestado', updated_at = NOW() WHERE equipo = 'ventas' AND estado = 'papelera' AND deleted_at IS NULL");
@@ -646,9 +646,9 @@ function cardValues(body, user, existing = {}) {
     estado: (() => {
       const isVentas = (equipo === 'ventas');
       const validStatuses = isVentas
-        ? ['presupuestado', 'reunion', 'venta_exitosa', 'papelera']
+        ? ['contactado', 'presupuestado', 'reunion', 'venta_exitosa', 'papelera']
         : ['iniciada', 'en_proceso', 'finalizado'];
-      const defaultStatus = isVentas ? 'presupuestado' : 'iniciada';
+      const defaultStatus = isVentas ? 'contactado' : 'iniciada';
       return validStatuses.includes(body.estado) ? body.estado : defaultStatus;
     })(),
     equipo,
@@ -1579,7 +1579,7 @@ app.put('/api/cards/reorder', requireAuth, async (req, res, next) => {
     if (!equipo) return res.status(400).json({ error: 'Equipo invalido.' });
     const isVentas = (equipo === 'ventas');
     const validStatuses = isVentas
-      ? ['presupuestado', 'reunion', 'venta_exitosa', 'papelera']
+      ? ['contactado', 'presupuestado', 'reunion', 'venta_exitosa', 'papelera']
       : ['iniciada', 'en_proceso', 'finalizado'];
     if (!validStatuses.includes(estado)) return res.status(400).json({ error: 'Estado invalido.' });
     if (!canAccessTeam(req.user, equipo)) return res.status(403).json({ error: 'Sin permiso.' });
@@ -1816,6 +1816,57 @@ app.use((err, _req, res, _next) => {
 async function start() {
   try {
     await ensureDatabaseMigrations();
+
+    // Handler para recibir mensajes de WhatsApp y crear leads automáticamente si no existen
+    whatsappService.events.on('message', async (msg) => {
+      if (msg.fromMe) return;
+
+      const jid = msg.from;
+      const phone = jid.split('@')[0];
+
+      try {
+        // Consultar tarjetas activas de ventas
+        const { rows } = await pool.query(
+          "SELECT id, ntel FROM cards WHERE equipo = 'ventas' AND deleted_at IS NULL"
+        );
+
+        const cleanDigits = (p) => String(p || '').replace(/\D/g, '');
+        const cleanLocal = (p) => {
+          let s = p;
+          if (s.startsWith('549')) s = s.slice(3);
+          else if (s.startsWith('54')) s = s.slice(2);
+          if (s.startsWith('0')) s = s.slice(1);
+          if (s.length === 10 && s.startsWith('15')) s = s.slice(2);
+          return s;
+        };
+
+        const incomingClean = cleanDigits(phone);
+        const incomingLocal = cleanLocal(incomingClean);
+
+        const exists = rows.some((row) => {
+          const cardClean = cleanDigits(row.ntel);
+          const cardLocal = cleanLocal(cardClean);
+          if (!cardClean || !incomingClean) return false;
+          return cardClean === incomingClean || (cardLocal === incomingLocal && cardLocal.length >= 7);
+        });
+
+        if (!exists) {
+          console.log(`[WhatsApp Lead] Creando nuevo lead para número: ${phone}`);
+          const cardId = Date.now().toString(36) + crypto.randomBytes(4).toString('hex');
+          const creadoEn = Date.now();
+          const nf = `WhatsApp Lead (${phone})`;
+          
+          await pool.query(
+            `INSERT INTO cards (
+              id, nf, rs, cuit, ca, ntel, t, ta, c, color, estado, equipo, creado_en
+            ) VALUES ($1, $2, '', '', '', $3, '', '', $4, 'none', 'contactado', 'ventas', $5)`,
+            [cardId, nf, phone, `Mensaje recibido: "${msg.body}"`, creadoEn]
+          );
+        }
+      } catch (err) {
+        console.error('[WhatsApp Lead Error] No se pudo procesar el lead entrante:', err);
+      }
+    });
 
     // Inicializar servicio de WhatsApp en segundo plano
     whatsappService.init().catch(err => {
