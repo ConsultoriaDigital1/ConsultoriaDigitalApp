@@ -67,6 +67,34 @@ function saveMappings() {
 
 loadMappings();
 
+function addContactMapping(contact, source) {
+  let lid = null;
+  let pn = null;
+
+  if (contact.id && contact.lid) {
+    if (contact.id.endsWith('@lid') && contact.lid.endsWith('@s.whatsapp.net')) {
+      lid = contact.id;
+      pn = contact.lid;
+    } else if (contact.id.endsWith('@s.whatsapp.net') && contact.lid.endsWith('@lid')) {
+      lid = contact.lid;
+      pn = contact.id;
+    }
+  }
+
+  if (contact.id && contact.id.endsWith('@lid') && contact.phoneNumber) {
+    lid = contact.id;
+    pn = contact.phoneNumber.includes('@') ? contact.phoneNumber : (contact.phoneNumber + '@s.whatsapp.net');
+  }
+
+  if (lid && pn) {
+    if (lidToPnMap.get(lid) !== pn) {
+      lidToPnMap.set(lid, pn);
+      saveMappings();
+      console.log(`[WhatsApp Service] Mapped LID ${lid} to PN JID ${pn} from ${source}`);
+    }
+  }
+}
+
 function cleanPhoneForWhatsapp(phone) {
   if (!phone) return '';
   let cleaned = phone.replace(/\D/g, '');
@@ -276,6 +304,26 @@ async function init() {
     sock.ev.on('creds.update', saveCreds);
     sock.ev.on('connection.update', handleConnectionUpdate);
     sock.ev.on('messages.upsert', handleMessagesUpsert);
+
+    sock.ev.on('contacts.upsert', (contacts) => {
+      for (const contact of contacts) {
+        addContactMapping(contact, 'contacts.upsert');
+      }
+    });
+
+    sock.ev.on('contacts.update', (updates) => {
+      for (const update of updates) {
+        addContactMapping(update, 'contacts.update');
+      }
+    });
+
+    sock.ev.on('messaging-history.set', ({ contacts }) => {
+      if (contacts) {
+        for (const contact of contacts) {
+          addContactMapping(contact, 'messaging-history.set');
+        }
+      }
+    });
   } catch (err) {
     console.error('[WhatsApp Service] Failed to initialize client:', err);
     setStatus('DISCONNECTED');
