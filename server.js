@@ -248,21 +248,21 @@ function clientDTO(row, balance = null) {
   const saldo = balance != null ? Number(balance.saldo || 0) : 0;
   return {
     id: row.id,
-    nombreFantasia:  row.nombre_fantasia || '',
-    razonSocial:     row.razon_social || '',
-    cuit:            row.cuit || '',
-    direccion:       row.direccion || '',
-    telAdmin:        row.tel_admin || '',
-    telDueno:        row.tel_dueno || '',
-    mail1:           row.mail1 || '',
-    mail2:           row.mail2 || '',
-    vence:           row.vence || '',
-    estadoCliente:   row.estado_cliente || 'activo',
-    descripcion:     row.descripcion || '',
-    cardId:          row.card_id || null,
-    creadoPor:       row.creado_por || null,
-    creadoEn:        Number(row.creado_en) || 0,
-    deletedAt:       row.deleted_at ? row.deleted_at.toISOString() : null,
+    nombreFantasia: row.nombre_fantasia || '',
+    razonSocial: row.razon_social || '',
+    cuit: row.cuit || '',
+    direccion: row.direccion || '',
+    telAdmin: row.tel_admin || '',
+    telDueno: row.tel_dueno || '',
+    mail1: row.mail1 || '',
+    mail2: row.mail2 || '',
+    vence: row.vence || '',
+    estadoCliente: row.estado_cliente || 'activo',
+    descripcion: row.descripcion || '',
+    cardId: row.card_id || null,
+    creadoPor: row.creado_por || null,
+    creadoEn: Number(row.creado_en) || 0,
+    deletedAt: row.deleted_at ? row.deleted_at.toISOString() : null,
     saldo,
   };
 }
@@ -270,18 +270,18 @@ function clientDTO(row, balance = null) {
 function movementDTO(row, saldoAcumulado = null) {
   return {
     id: row.id,
-    clientId:     row.client_id,
-    fecha:        row.fecha || '',
-    medioPago:    row.medio_pago || '',
-    banco:        row.banco || '',
-    detalle:      row.detalle || '',
+    clientId: row.client_id,
+    fecha: row.fecha || '',
+    medioPago: row.medio_pago || '',
+    banco: row.banco || '',
+    detalle: row.detalle || '',
     montoFactura: Number(row.monto_factura || 0),
-    debe:         Number(row.debe || 0),
-    haber:        Number(row.haber || 0),
-    creadoPor:    row.creado_por || null,
-    creadoEn:     Number(row.creado_en) || 0,
+    debe: Number(row.debe || 0),
+    haber: Number(row.haber || 0),
+    creadoPor: row.creado_por || null,
+    creadoEn: Number(row.creado_en) || 0,
     saldoAcumulado: saldoAcumulado != null ? Number(saldoAcumulado) : null,
-    archivos:     Array.isArray(row.archivos) ? row.archivos : [],
+    archivos: Array.isArray(row.archivos) ? row.archivos : [],
   };
 }
 
@@ -293,7 +293,7 @@ function cleanArchivosMovement(value) {
   if (!Array.isArray(items)) return [];
   return items.slice(0, 10).map((item) => {
     if (!item || typeof item !== 'object') return null;
-    const id   = String(item.id   || '').slice(0, 80);
+    const id = String(item.id || '').slice(0, 80);
     const name = String(item.name || '').slice(0, 255);
     const type = String(item.type || '').slice(0, 100);
     const size = Number(item.size) || 0;
@@ -314,7 +314,7 @@ function cleanArchivosMovementWithData(value) {
   if (!Array.isArray(items)) return [];
   return items.slice(0, 10).map((item) => {
     if (!item || typeof item !== 'object') return null;
-    const id   = String(item.id   || '').slice(0, 80);
+    const id = String(item.id || '').slice(0, 80);
     const name = String(item.name || '').slice(0, 255);
     const type = String(item.type || '').slice(0, 100);
     const size = Number(item.size) || 0;
@@ -758,10 +758,10 @@ app.get('/api/bootstrap', requireAuth, async (req, res, next) => {
       events: await visibleEvents(req.user),
       notes: await visibleNotes(req.user),
       teams: allowedTeams(req.user),
-      clients:         isAdmin ? await listClients()        : [],
-      clientsTrash:    isAdmin ? await listTrashedClients() : [],
-      libretaUrl:      isAdmin ? (process.env.LIBRETA_URL || '')      : '',
-      flujoFondosUrl:  isAdmin ? (process.env.FLUJO_FONDOS_URL || '') : '',
+      clients: isAdmin ? await listClients() : [],
+      clientsTrash: isAdmin ? await listTrashedClients() : [],
+      libretaUrl: isAdmin ? (process.env.LIBRETA_URL || '') : '',
+      flujoFondosUrl: isAdmin ? (process.env.FLUJO_FONDOS_URL || '') : '',
     });
   } catch (err) {
     next(err);
@@ -1027,14 +1027,14 @@ app.post('/api/admin/clients/:id/restore', requireAdmin, async (req, res, next) 
 app.get('/api/admin/dashboard', requireAdmin, async (req, res, next) => {
   try {
     const now = new Date();
-    const year  = parseInt(req.query.year  || now.getFullYear(),  10);
+    const year = parseInt(req.query.year || now.getFullYear(), 10);
     const month = parseInt(req.query.month || (now.getMonth() + 1), 10);
     if (!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12) {
       return res.status(400).json({ error: 'Parámetros year/month inválidos.' });
     }
 
     const monthStr = String(month).padStart(2, '0');
-    const prefix   = `${year}-${monthStr}`;
+    const prefix = `${year}-${monthStr}`;
 
     const [ingresosRes, pendientesRes] = await Promise.all([
       pool.query(
@@ -1065,9 +1065,9 @@ app.get('/api/admin/dashboard', requireAdmin, async (req, res, next) => {
     res.json({
       year, month,
       ingresosTotales: Number(ingresosRes.rows[0].ingresos_totales),
-      cobrados:        Number(ingresosRes.rows[0].cobrados),
-      pendientes:      Number(pendientesRes.rows[0].pendientes),
-      vencidos:        Number(pendientesRes.rows[0].vencidos),
+      cobrados: Number(ingresosRes.rows[0].cobrados),
+      pendientes: Number(pendientesRes.rows[0].pendientes),
+      vencidos: Number(pendientesRes.rows[0].vencidos),
     });
   } catch (err) { next(err); }
 });
@@ -1155,7 +1155,7 @@ app.patch('/api/admin/clients/:id/movements/:movId', requireAdmin, async (req, r
     if (!fecha) return res.status(400).json({ error: 'Fecha invalida (YYYY-MM-DD).' });
     const medioPago = String(b.medioPago || '').toLowerCase().trim();
     if (!ALLOWED_MEDIO_PAGO.has(medioPago)) return res.status(400).json({ error: 'Medio de pago invalido.' });
-    const debe  = cleanMoney(b.debe);
+    const debe = cleanMoney(b.debe);
     const haber = cleanMoney(b.haber);
     const monto = cleanMoney(b.montoFactura);
     if (debe === 0 && haber === 0) return res.status(400).json({ error: 'Ingresa al menos un monto en Debe o Haber.' });
@@ -1167,7 +1167,7 @@ app.patch('/api/admin/clients/:id/movements/:movId', requireAdmin, async (req, r
        WHERE id=$9 AND client_id=$10`,
       [
         fecha, medioPago,
-        String(b.banco   || '').trim(),
+        String(b.banco || '').trim(),
         String(b.detalle || '').trim(),
         monto, debe, haber,
         JSON.stringify(archivos),
@@ -1256,10 +1256,10 @@ app.patch('/api/users/:id', requireAuth, async (req, res, next) => {
   try {
     if (!isAdmin(req.user)) return res.status(403).json({ error: 'Solo administradores pueden editar usuarios.' });
     const { id } = req.params;
-    const nombre   = String(req.body.nombre   || '').trim();
+    const nombre = String(req.body.nombre || '').trim();
     const apellido = String(req.body.apellido || '').trim();
     const username = cleanUsername(req.body.username);
-    const equipo   = cleanTeam(req.body.equipo);
+    const equipo = cleanTeam(req.body.equipo);
     const password = req.body.password ? String(req.body.password) : null;
     if (!nombre || !username || !equipo) return res.status(400).json({ error: 'Completa todos los campos.' });
     if (password && password.length < 6) return res.status(400).json({ error: 'Contrasena minimo 6 caracteres.' });
@@ -1315,13 +1315,13 @@ function eventDTO(r) {
 
 app.post('/api/events', requireAuth, async (req, res, next) => {
   try {
-    const titulo      = String(req.body.titulo      || '').trim();
+    const titulo = String(req.body.titulo || '').trim();
     const descripcion = String(req.body.descripcion || '').trim();
-    const fecha       = String(req.body.fecha       || '').trim();
-    const horaInicio  = String(req.body.horaInicio  || '').trim();
-    const horaFin     = String(req.body.horaFin     || '').trim();
-    const equipo      = cleanTeam(req.body.equipo) || req.user.equipo;
-    const color       = String(req.body.color || 'blue').trim();
+    const fecha = String(req.body.fecha || '').trim();
+    const horaInicio = String(req.body.horaInicio || '').trim();
+    const horaFin = String(req.body.horaFin || '').trim();
+    const equipo = cleanTeam(req.body.equipo) || req.user.equipo;
+    const color = String(req.body.color || 'blue').trim();
     if (!titulo || !fecha) return res.status(400).json({ error: 'Titulo y fecha son requeridos.' });
     if (!canAccessTeam(req.user, equipo)) return res.status(403).json({ error: 'Sin acceso a ese equipo.' });
     const { rows } = await pool.query(
@@ -1338,13 +1338,13 @@ app.patch('/api/events/:id', requireAuth, async (req, res, next) => {
     const { rows: ex } = await pool.query('SELECT * FROM calendar_events WHERE id=$1', [req.params.id]);
     if (!ex.length) return res.status(404).json({ error: 'Evento no encontrado.' });
     if (ex[0].creado_por !== req.user.id && !isAdmin(req.user)) return res.status(403).json({ error: 'Sin permiso para editar este evento.' });
-    const titulo      = String(req.body.titulo      || '').trim();
+    const titulo = String(req.body.titulo || '').trim();
     const descripcion = String(req.body.descripcion || '').trim();
-    const fecha       = String(req.body.fecha       || '').trim();
-    const horaInicio  = String(req.body.horaInicio  || '').trim();
-    const horaFin     = String(req.body.horaFin     || '').trim();
-    const equipo      = cleanTeam(req.body.equipo)  || ex[0].equipo;
-    const color       = String(req.body.color || ex[0].color).trim();
+    const fecha = String(req.body.fecha || '').trim();
+    const horaInicio = String(req.body.horaInicio || '').trim();
+    const horaFin = String(req.body.horaFin || '').trim();
+    const equipo = cleanTeam(req.body.equipo) || ex[0].equipo;
+    const color = String(req.body.color || ex[0].color).trim();
     if (!titulo || !fecha) return res.status(400).json({ error: 'Titulo y fecha son requeridos.' });
     if (!canAccessTeam(req.user, equipo)) return res.status(403).json({ error: 'Sin acceso a ese equipo.' });
     const { rows } = await pool.query(
@@ -1559,7 +1559,7 @@ app.post('/api/cards', requireAuth, async (req, res, next) => {
       await client.query('COMMIT');
       res.status(201).json({ card: cardDTO(rows[0], history) });
     } catch (err) {
-      await client.query('ROLLBACK').catch(() => {});
+      await client.query('ROLLBACK').catch(() => { });
       throw err;
     } finally {
       client.release();
@@ -1575,7 +1575,7 @@ app.put('/api/cards/reorder', requireAuth, async (req, res, next) => {
   try {
     const equipo = cleanTeam(req.body.equipo);
     const estado = String(req.body.estado || '');
-    const ids    = Array.isArray(req.body.ids) ? req.body.ids.map(String) : [];
+    const ids = Array.isArray(req.body.ids) ? req.body.ids.map(String) : [];
     if (!equipo) return res.status(400).json({ error: 'Equipo invalido.' });
     const isVentas = (equipo === 'ventas');
     const validStatuses = isVentas
@@ -1596,7 +1596,7 @@ app.put('/api/cards/reorder', requireAuth, async (req, res, next) => {
     await client.query('COMMIT');
     res.json({ ok: true });
   } catch (err) {
-    await client.query('ROLLBACK').catch(() => {});
+    await client.query('ROLLBACK').catch(() => { });
     next(err);
   } finally {
     client.release();
@@ -1651,7 +1651,7 @@ app.put('/api/cards/:id', requireAuth, async (req, res, next) => {
     await client.query('COMMIT');
     res.json({ card: cardDTO(rows[0], historyByCard.get(req.params.id) || []) });
   } catch (err) {
-    await client.query('ROLLBACK').catch(() => {});
+    await client.query('ROLLBACK').catch(() => { });
     next(err);
   } finally {
     client.release();
@@ -1678,8 +1678,8 @@ app.post('/api/cards/:id/daily-check', requireAuth, async (req, res, next) => {
     if (!cur[0]) return res.status(404).json({ error: 'Card no encontrada.' });
     if (!canAccessTeam(req.user, cur[0].equipo)) return res.status(403).json({ error: 'Sin permiso.' });
 
-    const today  = todayInArgentina();
-    const wasOn  = String(cur[0].daily_check_date || '') === today;
+    const today = todayInArgentina();
+    const wasOn = String(cur[0].daily_check_date || '') === today;
     const newVal = wasOn ? '' : today;
 
     await pool.query(
@@ -1773,7 +1773,7 @@ app.post('/api/cards/:id/restore', requireAuth, async (req, res, next) => {
     await client.query('COMMIT');
     res.json({ card: cardDTO(rows[0], historyByCard.get(req.params.id) || []) });
   } catch (err) {
-    await client.query('ROLLBACK').catch(() => {});
+    await client.query('ROLLBACK').catch(() => { });
     next(err);
   } finally {
     client.release();
@@ -1855,7 +1855,7 @@ async function start() {
           const cardId = Date.now().toString(36) + crypto.randomBytes(4).toString('hex');
           const creadoEn = Date.now();
           const nf = `WhatsApp Lead (${phone})`;
-          
+
           await pool.query(
             `INSERT INTO cards (
               id, nf, rs, cuit, ca, ntel, t, ta, c, color, estado, equipo, creado_en
