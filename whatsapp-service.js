@@ -185,6 +185,7 @@ function formatMessage(m) {
     body: extractText(m.message),
     timestamp: toUnixSeconds(m.messageTimestamp),
     fromMe,
+    pushName: m.pushName || '',
   };
 }
 
@@ -448,6 +449,22 @@ async function resolvePhoneLid(phone) {
   }
 }
 
+async function getProfilePictureBase64(jid) {
+  if (status !== 'READY' || !sock) return '';
+  try {
+    const url = await sock.profilePictureUrl(jid, 'image');
+    if (!url) return '';
+    const res = await fetch(url);
+    const buffer = await res.arrayBuffer();
+    const base64 = Buffer.from(buffer).toString('base64');
+    const mimeType = res.headers.get('content-type') || 'image/jpeg';
+    return `data:${mimeType};base64,${base64}`;
+  } catch (err) {
+    console.error('[WhatsApp Service] Error getting profile picture:', err.message);
+    return '';
+  }
+}
+
 async function sendMessage(phone, messageText) {
   if (status !== 'READY' || !sock) {
     throw new Error('El servicio de WhatsApp no está conectado o listo.');
@@ -507,5 +524,6 @@ module.exports = {
   sendMessage,
   logout,
   resolvePhoneLid,
+  getProfilePictureBase64,
   events: whatsappEvents,
 };

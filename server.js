@@ -1854,13 +1854,20 @@ async function start() {
           console.log(`[WhatsApp Lead] Creando nuevo lead para número: ${phone}`);
           const cardId = Date.now().toString(36) + crypto.randomBytes(4).toString('hex');
           const creadoEn = Date.now();
-          const nf = `WhatsApp Lead (${phone})`;
+          const nf = msg.pushName ? msg.pushName : `WhatsApp Lead (${phone})`;
+
+          let coverImage = '';
+          try {
+            coverImage = await whatsappService.getProfilePictureBase64(jid);
+          } catch (picErr) {
+            console.error('[WhatsApp Lead Picture Error] No se pudo obtener la imagen de perfil:', picErr);
+          }
 
           await pool.query(
             `INSERT INTO cards (
-              id, nf, rs, cuit, ca, ntel, t, ta, c, color, estado, equipo, creado_en
-            ) VALUES ($1, $2, '', '', '', $3, '', '', $4, 'none', 'contactado', 'ventas', $5)`,
-            [cardId, nf, phone, `Mensaje recibido: "${msg.body}"`, creadoEn]
+              id, nf, rs, cuit, ca, ntel, t, ta, c, color, estado, equipo, creado_en, cover_image
+            ) VALUES ($1, $2, '', '', '', $3, '', '', $4, 'none', 'contactado', 'ventas', $5, $6)`,
+            [cardId, nf, phone, `Mensaje recibido: "${msg.body}"`, creadoEn, coverImage]
           );
         }
       } catch (err) {
