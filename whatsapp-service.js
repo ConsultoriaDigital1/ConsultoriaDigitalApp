@@ -347,18 +347,21 @@ async function resolveWhatsappJid(phone) {
     throw new Error('Número de teléfono inválido.');
   }
   const results = await sock.onWhatsApp(cleaned);
+  console.log(`[WhatsApp Service] onWhatsApp results for ${cleaned}:`, JSON.stringify(results, null, 2));
   const match = results && results[0];
   if (!match || !match.exists) {
     throw new Error(`El número ${phone} no está registrado en WhatsApp.`);
   }
-  if (match.lid) {
-    const lid = match.lid;
-    const pn = match.jid;
+  const pn = match.jid;
+  const lid = match.lid || sock?.signalRepository?.lidMapping?.getLIDForPN(pn);
+  if (lid) {
     if (lidToPnMap.get(lid) !== pn) {
       lidToPnMap.set(lid, pn);
       saveMappings();
       console.log(`[WhatsApp Service] Mapped and saved LID ${lid} to PN JID ${pn}`);
     }
+  } else {
+    console.log(`[WhatsApp Service] Could not find LID for JID ${pn}`);
   }
   return match.jid; // jid normalizado, ej: 549XXXXXXXXXX@s.whatsapp.net
 }

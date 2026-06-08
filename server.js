@@ -1876,11 +1876,14 @@ async function start() {
           const { rows } = await pool.query(
             "SELECT ntel FROM cards WHERE equipo = 'ventas' AND deleted_at IS NULL AND ntel IS NOT NULL AND ntel != ''"
           );
+          console.log(`[WhatsApp Lead] Encontrados ${rows.length} números de leads activos para mapear.`);
           for (const row of rows) {
             try {
-              await whatsappService.resolvePhoneLid(row.ntel);
+              console.log(`[WhatsApp Lead] Mapeando número: ${row.ntel}`);
+              const resJid = await whatsappService.resolvePhoneLid(row.ntel);
+              console.log(`[WhatsApp Lead] Mapeo para ${row.ntel} resuelto a JID: ${resJid}`);
             } catch (e) {
-              // Silencioso
+              console.error(`[WhatsApp Lead] Error mapeando número ${row.ntel}:`, e.message);
             }
           }
           console.log('[WhatsApp Lead] Mapeo de leads activos completado.');
