@@ -357,7 +357,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 
 /* ─── SIDEBAR ─── */
 .sidebar {
-  width: 195px; min-width: 195px;
+  width: 240px; min-width: 240px;
   background: var(--bg2); border-right: 1px solid var(--border);
   padding: 0.85rem 0.6rem; display: flex; flex-direction: column;
   overflow-y: auto; overflow-x: hidden; gap: 0.12rem;
@@ -486,7 +486,7 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 .cnotes-foot { margin-top: 0.45rem; text-align: right; font-size: 0.62rem; color: var(--muted); }
 
 .kanban-col {
-  min-width: 380px; width: 380px; height: 100%; flex-shrink: 0;
+  min-width: 430px; width: 430px; height: 100%; flex-shrink: 0;
   display: flex; flex-direction: column; gap: 0;
   background: var(--surface); border-radius: var(--r-md);
 }
@@ -899,6 +899,99 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
   border-color: rgba(87,157,255,0.4);
   color: #aecfff;
 }
+/* ── ventas-mode: slim info panel + full-width chat ── */
+.card-detail-shell.ventas-mode {
+  grid-template-columns: 210px 1fr;
+}
+.card-detail-shell.ventas-mode .card-detail-main {
+  display: none;
+}
+#ventas-simple-panel {
+  display: none;
+}
+.card-detail-shell.ventas-mode #ventas-simple-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 1rem 0.9rem;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+}
+.vsp-label {
+  display: block;
+  font-size: 0.52rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+  margin-bottom: 0.2rem;
+}
+.vsp-input {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xs);
+  color: var(--text-hi);
+  font-size: 0.72rem;
+  padding: 0.3rem 0.45rem;
+  outline: none;
+  transition: border-color 120ms ease;
+  box-sizing: border-box;
+}
+.vsp-input:focus {
+  border-color: var(--border2);
+  background: var(--surface3);
+}
+.vsp-name {
+  font-weight: 700;
+  font-size: 0.8rem;
+}
+.vsp-spacer {
+  flex: 1;
+}
+.vsp-btn-reunion {
+  width: 100%;
+  background: rgba(87,157,255,0.12);
+  color: #85b8ff;
+  border: 1px solid rgba(87,157,255,0.25);
+  border-radius: var(--r-sm);
+  padding: 0.4rem 0.6rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 140ms ease;
+}
+.vsp-btn-reunion:hover {
+  background: rgba(87,157,255,0.22);
+  border-color: rgba(87,157,255,0.4);
+}
+.vsp-btn-reunion:disabled {
+  opacity: 0.35;
+  cursor: default;
+  pointer-events: none;
+}
+.vsp-btn-trash {
+  width: 100%;
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 0.35rem 0.6rem;
+  font-size: 0.65rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 140ms ease;
+}
+.vsp-btn-trash:hover {
+  background: rgba(249,112,102,0.1);
+  color: #f97066;
+  border-color: rgba(249,112,102,0.3);
+}
+.card-detail-shell.ventas-mode ~ .card-modal-foot {
+  display: none;
+}
+/* chat-only kept for backward compat but now ventas-mode replaces it */
 .card-detail-shell.chat-only {
   grid-template-columns: 1fr;
 }
@@ -3147,6 +3240,29 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
     </div>
 
     <div class="card-detail-shell">
+      <!-- ── Panel simplificado para tarjetas de Ventas ── -->
+      <div id="ventas-simple-panel" class="ventas-simple-panel">
+        <div class="vsp-field">
+          <span class="vsp-label">Nombre en WhatsApp</span>
+          <input id="vs-nf" class="vsp-input vsp-name" type="text" placeholder="Nombre..." oninput="syncVSPanel('nf',this.value)" onblur="autosaveCardIfEnabled()" />
+        </div>
+        <div class="vsp-field">
+          <span class="vsp-label">Empresa</span>
+          <input id="vs-rs" class="vsp-input" type="text" placeholder="Razón social..." oninput="syncVSPanel('rs',this.value)" onblur="autosaveCardIfEnabled()" />
+        </div>
+        <div class="vsp-field">
+          <span class="vsp-label">CUIL / CUIT</span>
+          <input id="vs-cuit" class="vsp-input" type="text" placeholder="30-12345678-9" maxlength="13" oninput="syncVSPanel('cuit',this.value)" onblur="autosaveCardIfEnabled()" />
+        </div>
+        <div class="vsp-field">
+          <span class="vsp-label">Teléfono</span>
+          <input id="vs-ntel" class="vsp-input" type="tel" placeholder="+54 9 11..." oninput="syncVSPanel('ntel',this.value);syncModalWhatsappButton()" onblur="autosaveCardIfEnabled()" />
+        </div>
+        <div class="vsp-spacer"></div>
+        <button id="vsp-btn-reunion" class="vsp-btn-reunion" onclick="quickMoveToReunionFromModal()">Pasar a Reunión</button>
+        <button class="vsp-btn-trash" onclick="deleteCurrentCardFromVSP()">Mover a papelera</button>
+      </div>
+
       <main class="card-detail-main">
         <div class="card-title-row">
           <span class="card-title-check"></span>
@@ -7316,6 +7432,14 @@ function openCard(id) {
     $('card-prop-equipo').style.display = '';
   }
   applyVentasModalLayout(isVentas);
+
+  // Apply ventas-mode layout (slim panel + full chat)
+  const shell = document.querySelector('.card-detail-shell');
+  if (shell) {
+    if (isVentas) shell.classList.add('ventas-mode');
+    else shell.classList.remove('ventas-mode');
+  }
+
   modalStatus = c.estado;
   modalColor  = c.color || 'none';
   modalCoverImage = c.coverImage || '';
@@ -7352,6 +7476,8 @@ function openCard(id) {
   syncAllActionButtons();
   syncModalPreview();
   applyModalSaveMode();
+
+  if (isVentas) populateVentasPanel(c);
 
   const activityAside = document.querySelector('.card-detail-activity');
   if (activityAside) {
@@ -8136,13 +8262,67 @@ function closeModal()  {
   const chatMessages = $('chat-messages');
   if (chatMessages) chatMessages.innerHTML = '';
   const shell = document.querySelector('.card-detail-shell');
-  if (shell) shell.classList.remove('chat-only');
+  if (shell) { shell.classList.remove('chat-only'); shell.classList.remove('ventas-mode'); }
 }
 
 function openDirectChat(id) {
-  openCard(id);
-  const shell = document.querySelector('.card-detail-shell');
-  if (shell) shell.classList.add('chat-only');
+  openCard(id); // openCard already applies ventas-mode for ventas cards
+}
+
+function populateVentasPanel(c) {
+  const vs = (id) => document.getElementById(id);
+  if (vs('vs-nf'))   vs('vs-nf').value   = c.nf   || '';
+  if (vs('vs-rs'))   vs('vs-rs').value   = c.rs   || '';
+  if (vs('vs-cuit')) vs('vs-cuit').value = c.cuit || '';
+  if (vs('vs-ntel')) vs('vs-ntel').value = c.ntel || '';
+  const reunionBtn = vs('vsp-btn-reunion');
+  if (reunionBtn) {
+    const alreadyThere = c.estado === 'reunion' || c.estado === 'venta_exitosa';
+    reunionBtn.disabled = alreadyThere;
+    reunionBtn.textContent = c.estado === 'reunion' ? 'Ya en Reunión' : c.estado === 'venta_exitosa' ? 'Venta exitosa' : 'Pasar a Reunión';
+  }
+}
+
+function syncVSPanel(field, value) {
+  const map = { nf: 'f-nf', rs: 'f-rs', cuit: 'f-cuit', ntel: 'f-ntel' };
+  const target = document.getElementById(map[field]);
+  if (target) { target.value = value; syncModalPreview(); }
+}
+
+async function quickMoveToReunionFromModal() {
+  if (!editingId) return;
+  const card = getCards().find(c => c.id === editingId);
+  if (!card) return;
+  try {
+    const saved = await api('/api/cards/' + editingId, {
+      method: 'PUT',
+      body: JSON.stringify({ ...card, estado: 'reunion' }),
+    });
+    replaceCard(saved.card);
+    modalStatus = 'reunion';
+    setStatus('reunion');
+    populateVentasPanel(saved.card);
+    renderVentas();
+    toast('Pasado a Reunión', 'success');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function deleteCurrentCardFromVSP() {
+  if (!editingId) return;
+  if (!confirm('¿Mover esta venta a la papelera?')) return;
+  try {
+    await api('/api/cards/' + editingId, { method: 'DELETE' });
+    const removed = cardsCache.find(c => c.id === editingId);
+    cardsCache = cardsCache.filter(c => c.id !== editingId);
+    if (removed) cardsTrashCache.unshift({ ...removed, deletedAt: new Date().toISOString() });
+    closeModal();
+    renderVentas();
+    toast('Movido a la papelera', 'success');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
 }
 
 let _kcardPopup = null;
