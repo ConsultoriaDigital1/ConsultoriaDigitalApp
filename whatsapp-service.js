@@ -182,6 +182,8 @@ function handleMessagesUpsert({ messages, type }) {
     storeMessage(jid, formatted);
 
     // Solo emitimos mensajes "en vivo" (notify); el history-sync (append) solo se guarda.
+    console.log('[WA DEBUG] upsert type:', type);
+    console.log('[WA DEBUG] formatted:', formatted);
     if (type === 'notify') {
       whatsappEvents.emit('message', formatted);
     }
