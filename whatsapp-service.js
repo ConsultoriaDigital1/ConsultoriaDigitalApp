@@ -342,28 +342,63 @@ function getQrCode() {
 }
 
 async function resolveWhatsappJid(phone) {
+  // If it's already a full JID, return it directly
+  if (phone.endsWith('@s.whatsapp.net') || phone.endsWith('@lid')) {
+    return phone;
+  }
+
+  // If it's a numeric phone/LID that we have mapped in our local store, return the mapped PN JID
+  if (lidToPnMap.has(phone + '@lid')) {
+    return lidToPnMap.get(phone + '@lid');
+  }
+
+  // If the input phone is mapped to a LID in reverse
+  for (const [l, p] of lidToPnMap.entries()) {
+    if (p.split('@')[0] === phone) {
+      return p;
+    }
+  }
+
   const cleaned = cleanPhoneForWhatsapp(phone);
   if (!cleaned) {
     throw new Error('Número de teléfono inválido.');
   }
-  const results = await sock.onWhatsApp(cleaned);
-  console.log(`[WhatsApp Service] onWhatsApp results for ${cleaned}:`, JSON.stringify(results, null, 2));
-  const match = results && results[0];
-  if (!match || !match.exists) {
-    throw new Error(`El número ${phone} no está registrado en WhatsApp.`);
-  }
-  const pn = match.jid;
-  const lid = match.lid || sock?.signalRepository?.lidMapping?.getLIDForPN(pn);
-  if (lid) {
-    if (lidToPnMap.get(lid) !== pn) {
-      lidToPnMap.set(lid, pn);
-      saveMappings();
-      console.log(`[WhatsApp Service] Mapped and saved LID ${lid} to PN JID ${pn}`);
+
+  try {
+    const results = await sock.onWhatsApp(cleaned);
+    console.log(`[WhatsApp Service] onWhatsApp results for ${cleaned}:`, JSON.stringify(results, null, 2));
+    const match = results && results[0];
+    
+    if (!match || !match.exists) {
+      // Fallback: If it's not registered or onWhatsApp failed (e.g. because input is a LID, not a PN),
+      // but it looks like a valid numeric ID, treat it as a LID JID.
+      if (/^\d+$/.test(phone) && phone.length >= 10) {
+        console.log(`[WhatsApp Service] onWhatsApp failed/empty for ${phone}, treating as LID JID.`);
+        return phone + '@lid';
+      }
+      throw new Error(`El número ${phone} no está registrado en WhatsApp.`);
     }
-  } else {
-    console.log(`[WhatsApp Service] Could not find LID for JID ${pn}`);
+
+    const pn = match.jid;
+    const lid = match.lid || sock?.signalRepository?.lidMapping?.getLIDForPN(pn);
+    if (lid) {
+      if (lidToPnMap.get(lid) !== pn) {
+        lidToPnMap.set(lid, pn);
+        saveMappings();
+        console.log(`[WhatsApp Service] Mapped and saved LID ${lid} to PN JID ${pn}`);
+      }
+    } else {
+      console.log(`[WhatsApp Service] Could not find LID for JID ${pn}`);
+    }
+    return match.jid; // jid normalizado, ej: 549XXXXXXXXXX@s.whatsapp.net
+  } catch (err) {
+    // If onWhatsApp fails (e.g. network error), check if we can fall back to LID
+    if (/^\d+$/.test(phone) && phone.length >= 10) {
+      console.log(`[WhatsApp Service] resolveWhatsappJid error: ${err.message}, falling back to LID.`);
+      return phone + '@lid';
+    }
+    throw err;
   }
-  return match.jid; // jid normalizado, ej: 549XXXXXXXXXX@s.whatsapp.net
 }
 
 async function getChatHistory(phone) {
