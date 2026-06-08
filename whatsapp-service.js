@@ -178,6 +178,7 @@ function handleMessagesUpsert({ messages, type }) {
     const jid = m.key.remoteJid;
     if (!isIndividualChat(jid)) continue; // ignoramos grupos, status y broadcast
 
+    console.log('[WA DEBUG RAW]', JSON.stringify(m.message, null, 2));
     const formatted = formatMessage(m);
     storeMessage(jid, formatted);
 
