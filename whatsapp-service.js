@@ -186,19 +186,7 @@ function handleMessagesUpsert({ messages, type }) {
   console.log('MENSAJES:', messages.length);
 
   for (const m of messages) {
-    console.log(
-      JSON.stringify(
-        {
-          remoteJid: m.key?.remoteJid,
-          participant: m.key?.participant,
-          fromMe: m.key?.fromMe,
-          messageKeys: m.message ? Object.keys(m.message) : [],
-          pushName: m.pushName,
-        },
-        null,
-        2
-      )
-    );
+    console.log('[WhatsApp Service] Mensaje Completo Recibido:', JSON.stringify(m, null, 2));
 
     if (!m.message) continue;
 
