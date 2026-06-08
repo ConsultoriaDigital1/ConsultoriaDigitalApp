@@ -806,6 +806,108 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
   border-color: var(--border);
   color: var(--muted);
 }
+.kcard-sales-btn-group {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex-shrink: 0;
+}
+.kcard-menu-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  background: var(--surface2);
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 700;
+  transition: all 140ms ease;
+  flex-shrink: 0;
+  line-height: 1;
+  letter-spacing: -1px;
+}
+.kcard-menu-btn:hover {
+  background: var(--surface3);
+  color: var(--text-hi);
+  border-color: var(--border2);
+}
+.kcard-popup {
+  position: fixed;
+  z-index: 9999;
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: var(--r-md);
+  box-shadow: 0 8px 28px rgba(0,0,0,0.55);
+  padding: 0.75rem 0.9rem;
+  min-width: 200px;
+  max-width: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+.kcard-popup-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+.kcard-popup-label {
+  font-size: 0.54rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+}
+.kcard-popup-value {
+  font-size: 0.73rem;
+  color: var(--text-hi);
+  font-weight: 600;
+  word-break: break-word;
+}
+.kcard-popup-empty {
+  font-size: 0.68rem;
+  color: var(--muted);
+  font-style: italic;
+}
+.kcard-popup-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 0.05rem 0;
+}
+.kcard-popup-reunion-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  width: 100%;
+  background: rgba(87,157,255,0.12);
+  color: #85b8ff;
+  border: 1px solid rgba(87,157,255,0.25);
+  border-radius: var(--r-sm);
+  padding: 0.35rem 0.6rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 140ms ease;
+  margin-top: 0.15rem;
+}
+.kcard-popup-reunion-btn:hover {
+  background: rgba(87,157,255,0.22);
+  border-color: rgba(87,157,255,0.4);
+  color: #aecfff;
+}
+.card-detail-shell.chat-only {
+  grid-template-columns: 1fr;
+}
+.card-detail-shell.chat-only .card-detail-main {
+  display: none;
+}
+.card-detail-shell.chat-only .card-detail-activity {
+  border-left: none;
+}
 .btn-sales-whatsapp {
   display: inline-flex;
   align-items: center;
@@ -6453,11 +6555,18 @@ function cardHTML(c, users) {
                 </div>` : ''}
               ${dateBadge}
             </div>
-            <button class="kcard-sales-chat-btn${chatBtnClass}" 
-                    title="${chatBtnTitle}" 
-                    onclick="event.stopPropagation(); openCard('${c.id}')">
-              ${icon('whatsapp')} Chat
-            </button>
+            <div class="kcard-sales-btn-group">
+              <button class="kcard-sales-chat-btn${chatBtnClass}"
+                      title="${chatBtnTitle}"
+                      onclick="event.stopPropagation(); openDirectChat('${c.id}')">
+                ${icon('whatsapp')} Chat
+              </button>
+              <button class="kcard-menu-btn"
+                      title="Ver datos del cliente"
+                      onclick="event.stopPropagation(); openKcardMenu(event, '${c.id}')">
+                ⋮
+              </button>
+            </div>
           </div>
         </div>
       </div>`;
@@ -8015,16 +8124,98 @@ async function purgeCardFromTrash(id) {
   }
 }
 
-function closeModal()  { 
-  flushAutosaveCard(); 
-  closeCoverMenu(); 
-  closeDuePopover(); 
-  closeMembersPopover(); 
-  closeOverlay('pauta-overlay'); 
-  closeOverlay('card-overlay'); 
+function closeModal()  {
+  flushAutosaveCard();
+  closeCoverMenu();
+  closeDuePopover();
+  closeMembersPopover();
+  closeKcardMenu();
+  closeOverlay('pauta-overlay');
+  closeOverlay('card-overlay');
   activeChatPhone = null;
   const chatMessages = $('chat-messages');
   if (chatMessages) chatMessages.innerHTML = '';
+  const shell = document.querySelector('.card-detail-shell');
+  if (shell) shell.classList.remove('chat-only');
+}
+
+function openDirectChat(id) {
+  openCard(id);
+  const shell = document.querySelector('.card-detail-shell');
+  if (shell) shell.classList.add('chat-only');
+}
+
+let _kcardPopup = null;
+function openKcardMenu(event, id) {
+  closeKcardMenu();
+  const c = getCards().find(x => x.id === id);
+  if (!c) return;
+
+  const nf = (c.nf || '').trim();
+  const rs = (c.rs || '').trim();
+  const cuit = (c.cuit || '').trim();
+  const showReunion = c.estado !== 'reunion' && c.estado !== 'venta_exitosa';
+
+  const popup = document.createElement('div');
+  popup.className = 'kcard-popup';
+  popup.id = 'kcard-popup';
+  popup.innerHTML = `
+    <div class="kcard-popup-row">
+      <span class="kcard-popup-label">Nombre en WhatsApp</span>
+      ${nf ? `<span class="kcard-popup-value">${esc(nf)}</span>` : '<span class="kcard-popup-empty">Sin nombre</span>'}
+    </div>
+    <div class="kcard-popup-divider"></div>
+    <div class="kcard-popup-row">
+      <span class="kcard-popup-label">Empresa</span>
+      ${rs ? `<span class="kcard-popup-value">${esc(rs)}</span>` : '<span class="kcard-popup-empty">Sin empresa</span>'}
+    </div>
+    <div class="kcard-popup-divider"></div>
+    <div class="kcard-popup-row">
+      <span class="kcard-popup-label">CUIL / CUIT</span>
+      ${cuit ? `<span class="kcard-popup-value" style="font-family:monospace">${esc(cuit)}</span>` : '<span class="kcard-popup-empty">Sin CUIL</span>'}
+    </div>
+    ${showReunion ? `
+    <div class="kcard-popup-divider"></div>
+    <button class="kcard-popup-reunion-btn" onclick="quickMoveToReunion('${c.id}'); closeKcardMenu()">
+      Pasar a Reunión
+    </button>` : ''}
+  `;
+
+  document.body.appendChild(popup);
+  _kcardPopup = popup;
+
+  const btn = event.currentTarget;
+  const rect = btn.getBoundingClientRect();
+  const pw = popup.offsetWidth || 220;
+  const ph = popup.offsetHeight || 170;
+  let left = rect.left;
+  let top = rect.bottom + 6;
+  if (left + pw > window.innerWidth - 8) left = window.innerWidth - pw - 8;
+  if (top + ph > window.innerHeight - 8) top = rect.top - ph - 6;
+  popup.style.left = left + 'px';
+  popup.style.top = top + 'px';
+
+  setTimeout(() => document.addEventListener('click', closeKcardMenu, { once: true }), 0);
+}
+
+function closeKcardMenu() {
+  if (_kcardPopup) { _kcardPopup.remove(); _kcardPopup = null; }
+}
+
+async function quickMoveToReunion(id) {
+  const card = getCards().find(c => c.id === id);
+  if (!card) return;
+  try {
+    const saved = await api('/api/cards/' + id, {
+      method: 'PUT',
+      body: JSON.stringify({ ...card, estado: 'reunion' }),
+    });
+    replaceCard(saved.card);
+    renderVentas();
+    toast('Pasado a Reunión', 'success');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
 }
 function overlayBg(e)  { if (e.target.id === 'card-overlay') closeModal(); }
 
