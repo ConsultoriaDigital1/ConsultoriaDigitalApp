@@ -428,15 +428,36 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text);
 /* ─── Notas privadas: drawer deslizable desde la derecha ─── */
 .clientes-notes {
   position: fixed; top: 0; right: 0; z-index: 120;
-  height: 100vh; width: 340px; max-width: 90vw;
+  height: 100vh; width: 459px; max-width: 90vw;
   display: flex; flex-direction: column;
   background: var(--bg); border-left: 1px solid var(--border);
   box-shadow: -10px 0 34px rgba(0,0,0,0.32);
   padding: 1.1rem 1rem;
-  transform: translateX(100%);
-  transition: transform 320ms cubic-bezier(.22,1,.36,1);
+  transform: translateX(108%);
+  opacity: 0;
+  transition: transform 460ms cubic-bezier(.34,1.28,.64,1),
+              opacity 320ms ease,
+              box-shadow 460ms ease;
 }
-.clientes-notes.open { transform: translateX(0); }
+.clientes-notes.open {
+  transform: translateX(0);
+  opacity: 1;
+  box-shadow: -18px 0 52px rgba(0,0,0,0.52);
+}
+
+@keyframes cnotes-saved-glow {
+  0%   { border-color: var(--border); box-shadow: 0 0 0 0 rgba(75,206,151,0); }
+  30%  { border-color: var(--success); box-shadow: 0 0 0 4px rgba(75,206,151,0.28); }
+  100% { border-color: var(--border); box-shadow: 0 0 0 0 rgba(75,206,151,0); }
+}
+@keyframes cnotes-dot-pop {
+  0%   { transform: scale(1); }
+  45%  { transform: scale(1.9); }
+  70%  { transform: scale(0.82); }
+  100% { transform: scale(1); }
+}
+.cnotes-textarea.flash-saved { animation: cnotes-saved-glow 850ms ease-out forwards; }
+.note-status-dot.dot-pop     { animation: cnotes-dot-pop 480ms cubic-bezier(.34,1.56,.64,1) forwards; }
 
 /* Pestaña/manija siempre visible para sacar el panel */
 .cnotes-handle {
@@ -9052,8 +9073,17 @@ async function saveClientesNote() {
       body: JSON.stringify({ content: ta.value }),
     });
     setNoteCache(data.note);
-    if (dot) { dot.classList.remove('saving', 'error'); }
-    if (st)  st.textContent = 'Guardado';
+    if (dot) {
+      dot.classList.remove('saving', 'error', 'dot-pop');
+      void dot.offsetWidth;
+      dot.classList.add('dot-pop');
+      setTimeout(() => dot.classList.remove('dot-pop'), 480);
+    }
+    if (st) st.textContent = 'Guardado';
+    ta.classList.remove('flash-saved');
+    void ta.offsetWidth;
+    ta.classList.add('flash-saved');
+    setTimeout(() => ta.classList.remove('flash-saved'), 850);
     // Mantener sincronizado el panel de la pestaña NOTAS si está montado
     const other = $('note-personal');
     if (other && document.activeElement !== other) {
