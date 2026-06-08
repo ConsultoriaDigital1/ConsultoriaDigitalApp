@@ -105,7 +105,15 @@ function myJid() {
 }
 
 function formatMessage(m) {
-  const jid = m.key.remoteJid;
+  const rawJid = m.key.remoteJid;
+  let jid = rawJid;
+  if (rawJid && rawJid.endsWith('@lid')) {
+    const pn = m.key?.senderPn || sock?.signalRepository?.lidMapping?.getPNForLID(rawJid);
+    if (pn) {
+      jid = pn;
+    }
+  }
+
   const fromMe = !!m.key.fromMe;
   const me = myJid();
   return {
@@ -133,7 +141,7 @@ function storeMessage(jid, msg) {
 }
 
 function isIndividualChat(jid) {
-  return !!jid && jid.endsWith('@s.whatsapp.net');
+  return !!jid && (jid.endsWith('@s.whatsapp.net') || jid.endsWith('@lid'));
 }
 
 async function handleConnectionUpdate(update) {
@@ -191,6 +199,31 @@ function handleMessagesUpsert({ messages, type }) {
         2
       )
     );
+
+    if (!m.message) continue;
+
+    const rawJid = m.key?.remoteJid;
+    if (!isIndividualChat(rawJid)) continue;
+
+    // Resolve LID to PN if possible
+    let resolvedJid = rawJid;
+    if (rawJid && rawJid.endsWith('@lid')) {
+      const pn = m.key?.senderPn || sock?.signalRepository?.lidMapping?.getPNForLID(rawJid);
+      if (pn) {
+        resolvedJid = pn;
+        console.log(`[WhatsApp Service] Resolved JID from LID ${rawJid} to PN ${resolvedJid}`);
+      }
+    }
+
+    const formatted = formatMessage(m);
+    
+    // Store message in the in-memory store
+    storeMessage(resolvedJid, formatted);
+
+    // Emit event so that server.js and the SSE stream receive it in real-time
+    whatsappEvents.emit('message', formatted);
+
+    console.log('[WhatsApp Service] Guardado y emitido:', formatted);
   }
 }
 
@@ -256,11 +289,27 @@ async function getChatHistory(phone) {
     throw new Error('El servicio de WhatsApp no está conectado o listo.');
   }
 
-  const jid = await resolveWhatsappJid(phone);
-  // Nota: solo devuelve los mensajes acumulados en memoria desde que arrancó el
-  // servicio (Baileys no permite traer el historial completo a demanda).
-  const arr = messageStore.get(jid) || [];
-  return arr.slice(-50);
+  const jid = await resolveWhatsappJid(phone); // E.g. 5493794558038@s.whatsapp.net
+  const lidJid = sock?.signalRepository?.lidMapping?.getLIDForPN(jid);
+
+  console.log('[WhatsApp Service] getChatHistory for:', jid, 'LID:', lidJid);
+  console.log('[WhatsApp Service] Available store keys:', [...messageStore.keys()]);
+
+  const arrPn = messageStore.get(jid) || [];
+  const arrLid = lidJid ? (messageStore.get(lidJid) || []) : [];
+
+  const merged = [];
+  const seenIds = new Set();
+
+  for (const msg of [...arrPn, ...arrLid]) {
+    if (!seenIds.has(msg.id)) {
+      seenIds.add(msg.id);
+      merged.push(msg);
+    }
+  }
+
+  merged.sort((a, b) => a.timestamp - b.timestamp);
+  return merged.slice(-50);
 }
 
 async function sendMessage(phone, messageText) {
