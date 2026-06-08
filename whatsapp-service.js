@@ -173,30 +173,24 @@ async function handleConnectionUpdate(update) {
 }
 
 function handleMessagesUpsert({ messages, type }) {
+  console.log('========================');
+  console.log('UPSERT TYPE:', type);
+  console.log('MENSAJES:', messages.length);
+
   for (const m of messages) {
-
-    if (!m.message || !m.key?.remoteJid) continue;
-
-    // Ignorar mensajes internos de protocolo
-    if (m.message.protocolMessage) {
-      console.log('[WA DEBUG] Protocol message ignored');
-      continue;
-    }
-
-    const jid = m.key.remoteJid;
-
-    if (!isIndividualChat(jid)) continue;
     console.log(
-      '[WA DEBUG FULL]',
-      JSON.stringify(m, null, 2)
+      JSON.stringify(
+        {
+          remoteJid: m.key?.remoteJid,
+          participant: m.key?.participant,
+          fromMe: m.key?.fromMe,
+          messageKeys: m.message ? Object.keys(m.message) : [],
+          pushName: m.pushName,
+        },
+        null,
+        2
+      )
     );
-    const formatted = formatMessage(m);
-
-    storeMessage(jid, formatted);
-
-    if (type === 'notify') {
-      whatsappEvents.emit('message', formatted);
-    }
   }
 }
 
