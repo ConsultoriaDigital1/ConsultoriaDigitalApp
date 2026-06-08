@@ -174,17 +174,26 @@ async function handleConnectionUpdate(update) {
 
 function handleMessagesUpsert({ messages, type }) {
   for (const m of messages) {
-    if (!m.message || !m.key?.remoteJid) continue;
-    const jid = m.key.remoteJid;
-    if (!isIndividualChat(jid)) continue; // ignoramos grupos, status y broadcast
 
-    console.log('[WA DEBUG RAW]', JSON.stringify(m.message, null, 2));
+    if (!m.message || !m.key?.remoteJid) continue;
+
+    // Ignorar mensajes internos de protocolo
+    if (m.message.protocolMessage) {
+      console.log('[WA DEBUG] Protocol message ignored');
+      continue;
+    }
+
+    const jid = m.key.remoteJid;
+
+    if (!isIndividualChat(jid)) continue;
+    console.log(
+      '[WA DEBUG FULL]',
+      JSON.stringify(m, null, 2)
+    );
     const formatted = formatMessage(m);
+
     storeMessage(jid, formatted);
 
-    // Solo emitimos mensajes "en vivo" (notify); el history-sync (append) solo se guarda.
-    console.log('[WA DEBUG] upsert type:', type);
-    console.log('[WA DEBUG] formatted:', formatted);
     if (type === 'notify') {
       whatsappEvents.emit('message', formatted);
     }
