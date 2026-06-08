@@ -33,6 +33,40 @@ const logger = pino({ level: 'silent' });
 
 const AUTH_DIR = path.join(os.homedir(), '.baileys_auth', 'consultoria-digital');
 
+const MAPPING_FILE = path.join(__dirname, '.local', 'lid-mappings.json');
+const lidToPnMap = new Map();
+
+function loadMappings() {
+  try {
+    if (fs.existsSync(MAPPING_FILE)) {
+      const data = fs.readFileSync(MAPPING_FILE, 'utf8');
+      const parsed = JSON.parse(data);
+      for (const [k, v] of Object.entries(parsed)) {
+        lidToPnMap.set(k, v);
+      }
+      console.log(`[WhatsApp Service] Loaded ${lidToPnMap.size} LID mappings from file.`);
+    } else {
+      const dir = path.dirname(MAPPING_FILE);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+    }
+  } catch (err) {
+    console.error('[WhatsApp Service] Error loading LID mappings:', err);
+  }
+}
+
+function saveMappings() {
+  try {
+    const obj = Object.fromEntries(lidToPnMap.entries());
+    fs.writeFileSync(MAPPING_FILE, JSON.stringify(obj, null, 2), 'utf8');
+  } catch (err) {
+    console.error('[WhatsApp Service] Error saving LID mappings:', err);
+  }
+}
+
+loadMappings();
+
 function cleanPhoneForWhatsapp(phone) {
   if (!phone) return '';
   let cleaned = phone.replace(/\D/g, '');
@@ -108,7 +142,7 @@ function formatMessage(m) {
   const rawJid = m.key.remoteJid;
   let jid = rawJid;
   if (rawJid && rawJid.endsWith('@lid')) {
-    const pn = m.key?.senderPn || sock?.signalRepository?.lidMapping?.getPNForLID(rawJid);
+    const pn = m.key?.senderPn || lidToPnMap.get(rawJid) || sock?.signalRepository?.lidMapping?.getPNForLID(rawJid);
     if (pn) {
       jid = pn;
     }
@@ -196,7 +230,7 @@ function handleMessagesUpsert({ messages, type }) {
     // Resolve LID to PN if possible
     let resolvedJid = rawJid;
     if (rawJid && rawJid.endsWith('@lid')) {
-      const pn = m.key?.senderPn || sock?.signalRepository?.lidMapping?.getPNForLID(rawJid);
+      const pn = m.key?.senderPn || lidToPnMap.get(rawJid) || sock?.signalRepository?.lidMapping?.getPNForLID(rawJid);
       if (pn) {
         resolvedJid = pn;
         console.log(`[WhatsApp Service] Resolved JID from LID ${rawJid} to PN ${resolvedJid}`);
@@ -269,6 +303,15 @@ async function resolveWhatsappJid(phone) {
   if (!match || !match.exists) {
     throw new Error(`El número ${phone} no está registrado en WhatsApp.`);
   }
+  if (match.lid) {
+    const lid = match.lid;
+    const pn = match.jid;
+    if (lidToPnMap.get(lid) !== pn) {
+      lidToPnMap.set(lid, pn);
+      saveMappings();
+      console.log(`[WhatsApp Service] Mapped and saved LID ${lid} to PN JID ${pn}`);
+    }
+  }
   return match.jid; // jid normalizado, ej: 549XXXXXXXXXX@s.whatsapp.net
 }
 
@@ -278,7 +321,16 @@ async function getChatHistory(phone) {
   }
 
   const jid = await resolveWhatsappJid(phone); // E.g. 5493794558038@s.whatsapp.net
-  const lidJid = sock?.signalRepository?.lidMapping?.getLIDForPN(jid);
+  let lidJid = sock?.signalRepository?.lidMapping?.getLIDForPN(jid);
+  if (!lidJid) {
+    // Fallback to local map search in reverse
+    for (const [l, p] of lidToPnMap.entries()) {
+      if (p === jid) {
+        lidJid = l;
+        break;
+      }
+    }
+  }
 
   console.log('[WhatsApp Service] getChatHistory for:', jid, 'LID:', lidJid);
   console.log('[WhatsApp Service] Available store keys:', [...messageStore.keys()]);
@@ -298,6 +350,16 @@ async function getChatHistory(phone) {
 
   merged.sort((a, b) => a.timestamp - b.timestamp);
   return merged.slice(-50);
+}
+
+async function resolvePhoneLid(phone) {
+  if (status !== 'READY' || !sock) return null;
+  try {
+    const jid = await resolveWhatsappJid(phone);
+    return jid;
+  } catch (err) {
+    return null;
+  }
 }
 
 async function sendMessage(phone, messageText) {
@@ -358,5 +420,6 @@ module.exports = {
   getChatHistory,
   sendMessage,
   logout,
+  resolvePhoneLid,
   events: whatsappEvents,
 };

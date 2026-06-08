@@ -1868,6 +1868,28 @@ async function start() {
       }
     });
 
+    // Evento status de WhatsApp para sincronizar correspondencias de LID para leads activos
+    whatsappService.events.on('status', async ({ status }) => {
+      if (status === 'READY') {
+        console.log('[WhatsApp Lead] Socket listo, mapeando leads activos...');
+        try {
+          const { rows } = await pool.query(
+            "SELECT ntel FROM cards WHERE equipo = 'ventas' AND deleted_at IS NULL AND ntel IS NOT NULL AND ntel != ''"
+          );
+          for (const row of rows) {
+            try {
+              await whatsappService.resolvePhoneLid(row.ntel);
+            } catch (e) {
+              // Silencioso
+            }
+          }
+          console.log('[WhatsApp Lead] Mapeo de leads activos completado.');
+        } catch (err) {
+          console.error('[WhatsApp Lead] Error mapeando leads activos:', err);
+        }
+      }
+    });
+
     // Inicializar servicio de WhatsApp en segundo plano
     whatsappService.init().catch(err => {
       console.error('[WhatsApp Service] Error al inicializar:', err);
