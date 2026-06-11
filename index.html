@@ -1217,6 +1217,13 @@
   align-items: flex-start; padding: 0.45rem 0.5rem;
   background: var(--surface2); border: 1px solid var(--border2);
   border-radius: var(--r-sm, 6px);
+  cursor: grab;
+}
+.pend-item.pend-ghost { opacity: 0.35; border-style: dashed; border-color: rgba(251,146,60,0.6); }
+.pend-item.pend-chosen, .pend-item.pend-drag {
+  cursor: grabbing;
+  border-color: rgba(251,146,60,0.5);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.35);
 }
 .pend-item-check { margin-top: 2px; cursor: pointer; }
 .pend-item-text {
@@ -10009,17 +10016,67 @@
           out.push({ card, item });
         });
       });
-      return out;
+      return sortPendEntries(out);
+    }
+
+    // Orden manual de pendientes (drag & drop), guardado por usuario en el navegador
+    let pendOrder = (() => {
+      try { return JSON.parse(localStorage.getItem('pendientesOrder') || '[]'); }
+      catch (_err) { return []; }
+    })();
+
+    function sortPendEntries(entries) {
+      if (!pendOrder.length) return entries;
+      const pos = new Map(pendOrder.map((k, i) => [k, i]));
+      return entries.slice().sort((a, b) => {
+        const ia = pos.has(a.card.id + '::' + a.item.id) ? pos.get(a.card.id + '::' + a.item.id) : Infinity;
+        const ib = pos.has(b.card.id + '::' + b.item.id) ? pos.get(b.card.id + '::' + b.item.id) : Infinity;
+        return ia - ib;
+      });
+    }
+
+    let pendSortable = null;
+    let pendDragging = false;
+
+    function initPendSortable() {
+      if (typeof Sortable === 'undefined') return;
+      const list = $('pend-list');
+      if (!list) return;
+      if (pendSortable) { try { pendSortable.destroy(); } catch (_) { } pendSortable = null; }
+      if (!list.querySelector('.pend-item')) return;
+      pendSortable = Sortable.create(list, {
+        animation: 160,
+        easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+        ghostClass: 'pend-ghost',
+        chosenClass: 'pend-chosen',
+        dragClass: 'pend-drag',
+        forceFallback: true,
+        fallbackOnBody: true,
+        fallbackTolerance: 4,
+        filter: '.pend-item-check, .pend-progress-btn, .pend-undo-btn',
+        preventOnFilter: false,
+        onStart: () => { pendDragging = true; },
+        onEnd: () => {
+          pendDragging = false;
+          const domKeys = [...list.querySelectorAll('.pend-item[data-key]')].map(el => el.dataset.key);
+          // Mantener al final del listado guardado las claves que hoy no se ven (otro filtro/equipo)
+          pendOrder = [...domKeys, ...pendOrder.filter(k => !domKeys.includes(k))];
+          localStorage.setItem('pendientesOrder', JSON.stringify(pendOrder.slice(0, 500)));
+          renderPendientesList();
+        },
+      });
     }
 
     function renderPendientesList() {
       const list = $('pend-list');
       if (!list) return;
+      if (pendDragging) return; // no redibujar mientras se arrastra un item
       const entries = pendienteItems();
       const countEl = $('pend-count');
       if (countEl) countEl.textContent = entries.filter(({ card, item }) => !pendDoneTimers.has(card.id + '::' + item.id)).length;
       if (!entries.length) {
         list.innerHTML = `<div class="pend-empty">${pendientesFilter === 'mias' ? 'No tenés tareas asignadas pendientes 🎉' : 'Sin pendientes en tus clientes 🎉'}</div>`;
+        initPendSortable();
         return;
       }
       list.innerHTML = entries.map(({ card, item }) => {
@@ -10027,7 +10084,7 @@
         const pending = pendDoneTimers.get(key);
         const secs = pending ? Math.max(1, Math.ceil((pending.deadline - Date.now()) / 1000)) : 0;
         return `
-      <div class="pend-item${pending ? ' pending-done' : (item.progress ? ' in-progress' : '')}">
+      <div class="pend-item${pending ? ' pending-done' : (item.progress ? ' in-progress' : '')}" data-key="${esc(key)}">
         <input class="pend-item-check" type="checkbox" ${pending ? 'checked' : ''}
           onchange="${pending ? `undoPendienteDone('${esc(card.id)}','${esc(item.id)}')` : `markPendienteDone('${esc(card.id)}','${esc(item.id)}')`}" />
         <div>
@@ -10039,6 +10096,7 @@
         </div>
       </div>`;
       }).join('');
+      initPendSortable();
       syncPendTicker();
     }
 
