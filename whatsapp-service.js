@@ -91,8 +91,16 @@ function addContactMapping(contact, source) {
       lidToPnMap.set(lid, pn);
       saveMappings();
       console.log(`[WhatsApp Service] Mapped LID ${lid} to PN JID ${pn} from ${source}`);
+      whatsappEvents.emit('lid_mapped', { lid, pn });
     }
   }
+}
+
+function extractPhoneNumberFromJid(jid) {
+  if (!jid) return null;
+  if (jid.endsWith('@lid')) return null; // Ignora JIDs de tipo LID (identidades enlazadas)
+  const match = jid.match(/^(\d+)(?=@)/); // Captura los dígitos antes del @
+  return match ? match[1] : null;
 }
 
 function cleanPhoneForWhatsapp(phone) {
@@ -256,6 +264,11 @@ function handleMessagesUpsert({ messages, type }) {
     const rawJid = m.key?.remoteJid;
     if (!isIndividualChat(rawJid)) continue;
 
+    // Si viene un LID y viene acompañado de senderPn, guardamos ese mapeo de inmediato
+    if (rawJid && rawJid.endsWith('@lid') && m.key?.senderPn) {
+      addContactMapping({ id: rawJid, lid: m.key.senderPn }, 'messages.upsert.senderPn');
+    }
+
     // Resolve LID to PN if possible
     let resolvedJid = rawJid;
     if (rawJid && rawJid.endsWith('@lid')) {
@@ -305,6 +318,12 @@ async function init() {
     sock.ev.on('creds.update', saveCreds);
     sock.ev.on('connection.update', handleConnectionUpdate);
     sock.ev.on('messages.upsert', handleMessagesUpsert);
+
+    sock.ev.on('chats.phoneNumberShare', (update) => {
+      if (update && update.lid && update.jid) {
+        addContactMapping({ id: update.lid, lid: update.jid }, 'chats.phoneNumberShare');
+      }
+    });
 
     sock.ev.on('contacts.upsert', (contacts) => {
       for (const contact of contacts) {
@@ -387,6 +406,7 @@ async function resolveWhatsappJid(phone) {
         lidToPnMap.set(lid, pn);
         saveMappings();
         console.log(`[WhatsApp Service] Mapped and saved LID ${lid} to PN JID ${pn}`);
+        whatsappEvents.emit('lid_mapped', { lid, pn });
       }
     } else {
       console.log(`[WhatsApp Service] Could not find LID for JID ${pn}`);
@@ -483,6 +503,7 @@ async function sendMessage(phone, messageText) {
       fromMe: true,
     };
     storeMessage(jid, formatted);
+    whatsappEvents.emit('message', formatted);
     return formatted;
   } catch (err) {
     console.error('[WhatsApp Service] Error sending message:', err);
@@ -525,5 +546,7 @@ module.exports = {
   logout,
   resolvePhoneLid,
   getProfilePictureBase64,
+  cleanPhoneForWhatsapp,
+  extractPhoneNumberFromJid,
   events: whatsappEvents,
 };

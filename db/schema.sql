@@ -187,3 +187,16 @@ CREATE TABLE IF NOT EXISTS client_movements (
 );
 
 CREATE INDEX IF NOT EXISTS idx_client_movements_client ON client_movements(client_id, fecha, creado_en);
+
+CREATE TABLE IF NOT EXISTS whatsapp_messages (
+  id TEXT PRIMARY KEY,
+  chat_jid TEXT NOT NULL,
+  sender_jid TEXT NOT NULL,
+  receiver_jid TEXT NOT NULL,
+  body TEXT NOT NULL,
+  timestamp BIGINT NOT NULL,
+  from_me BOOLEAN NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_whatsapp_messages_chat_jid ON whatsapp_messages(chat_jid, timestamp);

@@ -5,6 +5,7 @@ const path = require('path');
 const bcrypt = require('bcrypt');
 const express = require('express');
 const { Pool } = require('pg');
+const EventEmitter = require('events');
 const gcal = require('./google-calendar');
 
 const app = express();
@@ -12,6 +13,7 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
 });
+const cardEvents = new EventEmitter();
 
 const PORT = Number(process.env.PORT || 3000);
 const COOKIE_NAME = 'cd_session';
@@ -51,6 +53,21 @@ async function ensureDatabaseMigrations() {
 
   // Migrate old sales cards in 'papelera' column status to actual soft-deleted cards
   await pool.query("UPDATE cards SET deleted_at = NOW(), estado = 'presupuestado', updated_at = NOW() WHERE equipo = 'ventas' AND estado = 'papelera' AND deleted_at IS NULL");
+
+  // WhatsApp Messages Table and Index
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS whatsapp_messages (
+      id TEXT PRIMARY KEY,
+      chat_jid TEXT NOT NULL,
+      sender_jid TEXT NOT NULL,
+      receiver_jid TEXT NOT NULL,
+      body TEXT NOT NULL,
+      timestamp BIGINT NOT NULL,
+      from_me BOOLEAN NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await pool.query("CREATE INDEX IF NOT EXISTS idx_whatsapp_messages_chat_jid ON whatsapp_messages(chat_jid, timestamp)");
 }
 
 app.use(express.json({ limit: '100mb' }));
@@ -782,7 +799,52 @@ app.get('/api/whatsapp/status', requireAuth, (req, res) => {
 
 app.get('/api/whatsapp/chats/:phone/messages', requireAuth, async (req, res, next) => {
   try {
-    const messages = await whatsappService.getChatHistory(req.params.phone);
+    const cleaned = whatsappService.cleanPhoneForWhatsapp(req.params.phone);
+    const candidateJids = new Set();
+    if (cleaned) {
+      candidateJids.add(cleaned + '@s.whatsapp.net');
+      candidateJids.add(cleaned + '@lid');
+    }
+    try {
+      const resolved = await whatsappService.resolvePhoneLid(req.params.phone);
+      if (resolved) {
+        candidateJids.add(resolved);
+      }
+    } catch (e) {
+      // ignore
+    }
+
+    const { rows: dbMessages } = await pool.query(
+      `SELECT id, sender_jid AS "from", receiver_jid AS "to", body, timestamp, from_me AS "fromMe"
+       FROM whatsapp_messages
+       WHERE chat_jid = ANY($1)
+       ORDER BY timestamp ASC`,
+      [[...candidateJids]]
+    );
+
+    let memoryMessages = [];
+    try {
+      memoryMessages = await whatsappService.getChatHistory(req.params.phone);
+    } catch (memErr) {
+      console.log('[WhatsApp History] Falling back to DB-only because service is disconnected:', memErr.message);
+    }
+
+    const mergedMap = new Map();
+    for (const msg of dbMessages) {
+      mergedMap.set(msg.id, {
+        id: msg.id,
+        from: msg.from,
+        to: msg.to,
+        body: msg.body,
+        timestamp: Number(msg.timestamp),
+        fromMe: msg.fromMe
+      });
+    }
+    for (const msg of memoryMessages) {
+      mergedMap.set(msg.id, msg);
+    }
+
+    const messages = [...mergedMap.values()].sort((a, b) => a.timestamp - b.timestamp);
     res.json({ messages });
   } catch (err) {
     res.status(500).json({ error: err.message || 'Error al obtener mensajes.' });
@@ -828,12 +890,18 @@ app.get('/api/whatsapp/sse', requireAuth, (req, res) => {
     res.write(`event: message\ndata: ${JSON.stringify(msg)}\n\n`);
   };
 
+  const onCardChange = (change) => {
+    res.write(`event: card_change\ndata: ${JSON.stringify(change)}\n\n`);
+  };
+
   whatsappService.events.on('status', onStatusChange);
   whatsappService.events.on('message', onMessage);
+  cardEvents.on('change', onCardChange);
 
   req.on('close', () => {
     whatsappService.events.off('status', onStatusChange);
     whatsappService.events.off('message', onMessage);
+    cardEvents.off('change', onCardChange);
   });
 });
 
@@ -1557,7 +1625,9 @@ app.post('/api/cards', requireAuth, async (req, res, next) => {
         ));
       }
       await client.query('COMMIT');
-      res.status(201).json({ card: cardDTO(rows[0], history) });
+      const card = cardDTO(rows[0], history);
+      cardEvents.emit('change', { action: 'create', card });
+      res.status(201).json({ card });
     } catch (err) {
       await client.query('ROLLBACK').catch(() => { });
       throw err;
@@ -1594,6 +1664,7 @@ app.put('/api/cards/reorder', requireAuth, async (req, res, next) => {
       );
     }
     await client.query('COMMIT');
+    cardEvents.emit('change', { action: 'reorder', equipo, estado, ids });
     res.json({ ok: true });
   } catch (err) {
     await client.query('ROLLBACK').catch(() => { });
@@ -1649,7 +1720,9 @@ app.put('/api/cards/:id', requireAuth, async (req, res, next) => {
     }
     const historyByCard = await descriptionHistoryByCardIds([req.params.id], client);
     await client.query('COMMIT');
-    res.json({ card: cardDTO(rows[0], historyByCard.get(req.params.id) || []) });
+    const card = cardDTO(rows[0], historyByCard.get(req.params.id) || []);
+    cardEvents.emit('change', { action: 'update', card });
+    res.json({ card });
   } catch (err) {
     await client.query('ROLLBACK').catch(() => { });
     next(err);
@@ -1686,6 +1759,7 @@ app.post('/api/cards/:id/daily-check', requireAuth, async (req, res, next) => {
       'UPDATE cards SET daily_check_date = $1, updated_at = NOW() WHERE id = $2',
       [newVal, req.params.id]
     );
+    cardEvents.emit('change', { action: 'daily-check', id: req.params.id, dailyCheckDate: newVal });
     res.json({ id: req.params.id, dailyCheckDate: newVal, today });
   } catch (err) { next(err); }
 });
@@ -1727,10 +1801,13 @@ app.delete('/api/cards/:id', requireAuth, async (req, res, next) => {
     if (!current.rows[0]) return res.status(404).json({ error: 'Tarjeta no encontrada.' });
     if (!canAccessTeam(req.user, current.rows[0].equipo)) return res.status(403).json({ error: 'Sin permiso.' });
     if (current.rows[0].deleted_at) return res.status(400).json({ error: 'La tarjeta ya esta en la papelera.' });
-    await pool.query(
-      `UPDATE cards SET deleted_at = NOW(), updated_at = NOW() WHERE id = $1`,
+    const { rows } = await pool.query(
+      `UPDATE cards SET deleted_at = NOW(), updated_at = NOW() WHERE id = $1 RETURNING *`,
       [req.params.id]
     );
+    if (!rows[0]) return res.status(404).json({ error: 'Tarjeta no encontrada.' });
+    const card = cardDTO(rows[0]);
+    cardEvents.emit('change', { action: 'delete', id: req.params.id, card });
     res.json({ ok: true });
   } catch (err) {
     next(err);
@@ -1771,7 +1848,9 @@ app.post('/api/cards/:id/restore', requireAuth, async (req, res, next) => {
     );
     const historyByCard = await descriptionHistoryByCardIds([req.params.id], client);
     await client.query('COMMIT');
-    res.json({ card: cardDTO(rows[0], historyByCard.get(req.params.id) || []) });
+    const card = cardDTO(rows[0], historyByCard.get(req.params.id) || []);
+    cardEvents.emit('change', { action: 'restore', card });
+    res.json({ card });
   } catch (err) {
     await client.query('ROLLBACK').catch(() => { });
     next(err);
@@ -1788,6 +1867,7 @@ app.delete('/api/cards/:id/purge', requireAuth, async (req, res, next) => {
     if (!canAccessTeam(req.user, current.rows[0].equipo)) return res.status(403).json({ error: 'Sin permiso.' });
     if (!current.rows[0].deleted_at) return res.status(400).json({ error: 'La tarjeta no esta en la papelera.' });
     await pool.query('DELETE FROM cards WHERE id = $1', [req.params.id]);
+    cardEvents.emit('change', { action: 'purge', id: req.params.id });
     res.json({ ok: true });
   } catch (err) {
     next(err);
@@ -1813,16 +1893,86 @@ app.use((err, _req, res, _next) => {
   res.status(err.status || 500).json({ error: err.message || 'Error interno.' });
 });
 
+async function mergeChatAlias(lidJid, phoneJid) {
+  const lidNumber = lidJid.split('@')[0];
+  const realNumber = phoneJid.split('@')[0];
+
+  console.log(`[WhatsApp Merge] Iniciando fusion para LID ${lidJid} (numero: ${lidNumber}) -> PN ${phoneJid} (numero: ${realNumber})`);
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // 1. Obtener todas las tarjetas activas de ventas asociadas al numero del LID
+    const { rows: cardsToUpdate } = await client.query(
+      "SELECT id, ntel FROM cards WHERE ntel = $1 AND equipo = 'ventas' AND deleted_at IS NULL",
+      [lidNumber]
+    );
+
+    if (cardsToUpdate.length > 0) {
+      console.log(`[WhatsApp Merge] Encontradas ${cardsToUpdate.length} tarjetas con LID ${lidNumber}. Actualizando a ${realNumber}...`);
+      
+      // Actualizar ntel de las tarjetas
+      await client.query(
+        "UPDATE cards SET ntel = $1, updated_at = NOW() WHERE ntel = $2 AND equipo = 'ventas' AND deleted_at IS NULL",
+        [realNumber, lidNumber]
+      );
+
+      // Emitir evento de cambio por cada tarjeta actualizada para que el cliente web refresque en tiempo real
+      for (const cardRow of cardsToUpdate) {
+        const { rows: updatedCard } = await client.query(
+          "SELECT * FROM cards WHERE id = $1",
+          [cardRow.id]
+        );
+        if (updatedCard[0]) {
+          const card = cardDTO(updatedCard[0]);
+          cardEvents.emit('change', { action: 'update', card });
+        }
+      }
+    }
+
+    // 2. Fusionar mensajes en whatsapp_messages
+    const { rowCount: updatedMessages } = await client.query(
+      "UPDATE whatsapp_messages SET chat_jid = $1 WHERE chat_jid = $2",
+      [phoneJid, lidJid]
+    );
+    if (updatedMessages > 0) {
+      console.log(`[WhatsApp Merge] Se actualizaron ${updatedMessages} mensajes de ${lidJid} a ${phoneJid}.`);
+    }
+
+    await client.query('COMMIT');
+    console.log(`[WhatsApp Merge] Fusion exitosa para LID ${lidJid} -> PN ${phoneJid}`);
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('[WhatsApp Merge Error] Error al ejecutar fusion:', err);
+  } finally {
+    client.release();
+  }
+}
+
 async function start() {
   try {
     await ensureDatabaseMigrations();
 
     // Handler para recibir mensajes de WhatsApp y crear leads automáticamente si no existen
     whatsappService.events.on('message', async (msg) => {
+      // Guardar mensaje en la base de datos
+      const peerJid = msg.fromMe ? msg.to : msg.from;
+      try {
+        await pool.query(
+          `INSERT INTO whatsapp_messages (id, chat_jid, sender_jid, receiver_jid, body, timestamp, from_me)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
+           ON CONFLICT (id) DO NOTHING`,
+          [msg.id, peerJid, msg.from, msg.to, msg.body || '', msg.timestamp, msg.fromMe]
+        );
+      } catch (dbErr) {
+        console.error('[WhatsApp Service DB Error] No se pudo guardar el mensaje:', dbErr);
+      }
+
       if (msg.fromMe) return;
 
       const jid = msg.from;
-      const phone = jid.split('@')[0];
+      const phone = whatsappService.extractPhoneNumberFromJid(jid) || jid.split('@')[0];
 
       try {
         // Consultar tarjetas activas de ventas
@@ -1863,16 +2013,28 @@ async function start() {
             console.error('[WhatsApp Lead Picture Error] No se pudo obtener la imagen de perfil:', picErr);
           }
 
-          await pool.query(
+          const { rows: inserted } = await pool.query(
             `INSERT INTO cards (
               id, nf, rs, cuit, ca, ntel, t, ta, c, color, estado, equipo, creado_en, cover_image
-            ) VALUES ($1, $2, '', '', '', $3, '', '', $4, 'none', 'contactado', 'ventas', $5, $6)`,
+            ) VALUES ($1, $2, '', '', '', $3, '', '', $4, 'none', 'contactado', 'ventas', $5, $6)
+            RETURNING *`,
             [cardId, nf, phone, `Mensaje recibido: "${msg.body}"`, creadoEn, coverImage]
           );
+
+          if (inserted[0]) {
+            const card = cardDTO(inserted[0]);
+            cardEvents.emit('change', { action: 'create', card });
+          }
         }
       } catch (err) {
         console.error('[WhatsApp Lead Error] No se pudo procesar el lead entrante:', err);
       }
+    });
+
+    // Escuchar la correspondencia de alias LID -> PN para realizar la fusion en base de datos
+    whatsappService.events.on('lid_mapped', async ({ lid, pn }) => {
+      console.log(`[WhatsApp Lead] Mapeo de LID detectado: ${lid} -> ${pn}. Sincronizando BD...`);
+      await mergeChatAlias(lid, pn);
     });
 
     // Evento status de WhatsApp para sincronizar correspondencias de LID para leads activos
