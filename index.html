@@ -6544,12 +6544,20 @@
       box-shadow: none !important;
       padding: 0.2rem 0 !important;
       font-size: 0.95rem !important;
+      line-height: 1.25 !important;
       color: var(--text-hi) !important;
       pointer-events: none;
       cursor: default;
+      box-sizing: border-box !important;
+    }
+
+    .card-detail-modal.ventas-chat-mode.ventas-view-only .card-title-input {
+      display: block !important;
+      height: 34px !important;
+      min-height: 34px !important;
+      max-height: 34px !important;
+      overflow: hidden !important;
       resize: none !important;
-      height: auto !important;
-      min-height: unset !important;
     }
 
     /* Edit mode styles: show inputs clearly as input boxes */
@@ -6569,6 +6577,7 @@
     .card-detail-modal.ventas-chat-mode.ventas-edit-mode .card-title-input {
       height: 40px !important;
       min-height: 40px !important;
+      max-height: 40px !important;
       overflow: hidden !important;
       resize: none !important;
     }
@@ -12016,6 +12025,11 @@
     function autoGrowTitle() {
       const title = $('f-nf');
       if (!title) return;
+      const modalEl = document.querySelector('.card-detail-modal');
+      if (modalEl && modalEl.classList.contains('ventas-chat-mode')) {
+        title.style.height = '';
+        return;
+      }
       title.style.height = 'auto';
       title.style.height = Math.min(title.scrollHeight, 170) + 'px';
     }
