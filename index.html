@@ -3782,6 +3782,38 @@
       padding: 0.95rem 1.15rem;
       overflow-y: auto;
       min-width: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .card-detail-main>* {
+      flex-shrink: 0;
+    }
+
+    /* Footer con todas las opciones en una fila, al pie del panel */
+    .card-view-footer {
+      margin-top: auto;
+      padding-top: 0.7rem;
+      border-top: 1px solid var(--border2);
+      display: flex;
+      gap: 0.32rem;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .card-view-footer .trello-action.view-on {
+      background: var(--surface3);
+      color: var(--text-hi);
+      border-color: var(--border2);
+    }
+
+    .card-view-footer .trello-action.is-active,
+    .card-view-footer .trello-action.has-due {
+      color: var(--success);
+    }
+
+    .card-view-footer .trello-action.has-pauta {
+      color: var(--lime);
     }
 
     .card-detail-activity {
@@ -6480,6 +6512,7 @@
     .card-detail-modal.ventas-chat-mode .card-subtitle,
     .card-detail-modal.ventas-chat-mode .card-action-row,
     .card-detail-modal.ventas-chat-mode .card-title-row .more-actions-wrap,
+    .card-detail-modal.ventas-chat-mode .card-view-footer,
     .card-detail-modal.ventas-chat-mode .card-props,
     .card-detail-modal.ventas-chat-mode .trello-section:not(.client-details-section),
     .card-detail-modal.ventas-chat-mode #attachments-section,
@@ -7018,7 +7051,7 @@
             <input id="f-pauta-url" type="hidden" />
           </div>
 
-          <div class="card-props">
+          <div class="card-props" id="card-props" style="display:none">
             <div class="card-prop" id="card-prop-equipo" style="display:none">
               <span class="card-prop-label">Equipo asignado</span>
               <select id="f-equipo" class="card-select" onchange="onCardTeamChange()">
@@ -7076,7 +7109,7 @@
               onclick="showChecklistInput()">Anade un elemento</button>
           </section>
 
-          <section class="trello-section">
+          <section id="descripcion-section" class="trello-section">
             <div class="trello-section-title"><span>=</span> Descripcion</div>
             <textarea id="f-c" class="form-textarea trello-description"
               placeholder="Anadir una descripcion mas detallada..." oninput="syncModalPreview()"
@@ -7086,7 +7119,7 @@
           <section id="client-details-section" class="trello-section client-details-section" style="display:none">
             <div class="client-details-head">
               <span id="lbl-client-details-title">Datos del cliente</span>
-              <button class="btn btn-ghost btn-sm" type="button" onclick="toggleClientDetailsSection()">Cerrar</button>
+              <button class="btn btn-ghost btn-sm" type="button" onclick="setCardView('checklist')">Cerrar</button>
             </div>
             <div class="client-detail-grid">
               <div class="form-group" id="fg-rs">
@@ -7160,7 +7193,7 @@
           <section id="attachments-section" class="trello-section attachments-section" style="display:none">
             <div class="attachments-head">
               <span>Archivos adjuntos</span>
-              <button class="btn btn-ghost btn-sm" type="button" onclick="toggleAttachmentsSection()">Cerrar</button>
+              <button class="btn btn-ghost btn-sm" type="button" onclick="setCardView('checklist')">Cerrar</button>
             </div>
             <div id="attachment-list" class="attachment-list"></div>
             <label class="attachments-upload-btn" for="f-attachment-input">
@@ -7169,6 +7202,21 @@
             <input id="f-attachment-input" type="file" multiple style="display:none"
               onchange="handleFileUpload(this)" />
           </section>
+
+          <footer id="card-view-footer" class="card-view-footer" style="display:none">
+            <button class="trello-action" data-view-btn="members" type="button"
+              onclick="openMembersFromMenu(event)">Miembros</button>
+            <button id="checklist-footer-btn" class="trello-action" data-view-btn="checklist" type="button"
+              onclick="openChecklistFromMenu(event)"><span class="checklist-action-icon"></span> Checklist</button>
+            <button id="due-footer-btn" class="trello-action" type="button"
+              onclick="openDueFromMenu(event)">Evento</button>
+            <button id="pauta-footer-btn" class="trello-action" type="button" onclick="openPautaFromMenu()"
+              style="display:none">PAUTA</button>
+            <button id="details-footer-btn" class="trello-action" data-view-btn="details" type="button"
+              onclick="openClientDetailsFromMenu()">Datos del cliente</button>
+            <button id="attachments-footer-btn" class="trello-action" data-view-btn="attachments" type="button"
+              onclick="openAttachmentsFromMenu()">Archivos</button>
+          </footer>
         </main>
 
         <aside class="card-detail-activity">
@@ -9860,7 +9908,11 @@
       if (!section) return;
       modalChecklist = normalizeChecklist(modalChecklist);
       const stats = checklistStats(modalChecklist);
-      const isOpen = section.dataset.open === 'true' || stats.total > 0;
+      const isVentas = ($('f-equipo') && $('f-equipo').value === 'ventas');
+      // En devs/marketing la visibilidad la decide la vista activa, no el contenido
+      const isOpen = isVentas
+        ? (section.dataset.open === 'true' || stats.total > 0)
+        : (modalCardView === 'checklist');
       section.style.display = isOpen ? '' : 'none';
 
       const progressText = $('checklist-progress-text');
@@ -11137,33 +11189,38 @@
     }
 
     function syncDueButton() {
-      const btn = $('due-action-btn');
-      if (!btn) return;
       const value = $('f-vence') ? $('f-vence').value : '';
       const hora = $('f-vence-hora') ? $('f-vence-hora').value : '';
       if (!value && $('f-vence-hora')) $('f-vence-hora').value = '';
-      btn.textContent = value ? 'Evento: ' + formatDueDate(value, hora) : 'Evento';
-      btn.classList.toggle('has-due', !!value);
+      ['due-action-btn', 'due-footer-btn'].forEach(id => {
+        const btn = $(id);
+        if (!btn) return;
+        btn.textContent = value ? 'Evento: ' + formatDueDate(value, hora) : 'Evento';
+        btn.classList.toggle('has-due', !!value);
+      });
     }
 
     function syncChecklistButton() {
-      const btn = $('checklist-action-btn');
-      if (!btn) return;
-      btn.classList.toggle('is-active', modalChecklist.length > 0);
+      ['checklist-action-btn', 'checklist-footer-btn'].forEach(id => {
+        const btn = $(id);
+        if (btn) btn.classList.toggle('is-active', modalChecklist.length > 0);
+      });
     }
 
     function syncClientDataButton() {
-      const btn = $('client-details-action-btn');
-      if (!btn) return;
       const fields = ['f-rs', 'f-cuit', 'f-ca', 'f-ntel', 'f-t', 'f-ta'];
       const hasData = fields.some(id => { const el = $(id); return el && el.value.trim(); });
-      btn.classList.toggle('is-active', hasData);
+      ['client-details-action-btn', 'details-footer-btn'].forEach(id => {
+        const btn = $(id);
+        if (btn) btn.classList.toggle('is-active', hasData);
+      });
     }
 
     function syncAttachmentsButton() {
-      const btn = $('attachments-action-btn');
-      if (!btn) return;
-      btn.classList.toggle('is-active', modalAttachments.length > 0);
+      ['attachments-action-btn', 'attachments-footer-btn'].forEach(id => {
+        const btn = $(id);
+        if (btn) btn.classList.toggle('is-active', modalAttachments.length > 0);
+      });
     }
 
     function syncEquipoVisibility() {
@@ -11199,18 +11256,20 @@
     }
 
     function syncPautaButton() {
-      const btn = $('pauta-action-btn');
-      if (!btn) return;
       const team = $('f-equipo') ? $('f-equipo').value : '';
-      if (team !== 'marketing') {
-        btn.style.display = 'none';
-        btn.classList.remove('has-pauta');
-        return;
-      }
-      btn.style.display = '';
       const has = !!($('f-pauta-url') && $('f-pauta-url').value);
-      btn.classList.toggle('has-pauta', has);
-      btn.innerHTML = has ? 'PAUTA ' + icon('dot') : 'PAUTA';
+      ['pauta-action-btn', 'pauta-footer-btn'].forEach(id => {
+        const btn = $(id);
+        if (!btn) return;
+        if (team !== 'marketing') {
+          btn.style.display = 'none';
+          btn.classList.remove('has-pauta');
+          return;
+        }
+        btn.style.display = '';
+        btn.classList.toggle('has-pauta', has);
+        btn.innerHTML = has ? 'PAUTA ' + icon('dot') : 'PAUTA';
+      });
     }
 
     function renderPautaFrame() {
@@ -11432,6 +11491,7 @@
       modalChecklist = [];
       modalAttachments = [];
       checklistHideDone = false;
+      modalCardView = 'details'; // tarjeta nueva: arranca cargando los datos
       if ($('checklist-section')) $('checklist-section').dataset.open = 'false';
       $('modal-title').textContent = 'Nueva tarjeta';
       $('btn-del').style.display = 'none';
@@ -11452,6 +11512,7 @@
       syncAllActionButtons();
       syncModalPreview();
       applyModalSaveMode();
+      applyCardView();
 
       const activityAside = document.querySelector('.card-detail-activity');
       if (activityAside) {
@@ -11509,7 +11570,8 @@
       membersSearch = '';
       modalChecklist = normalizeChecklist(c.checklist);
       checklistHideDone = false;
-      // Para devs/marketing la checklist es el foco de la tarjeta: siempre visible.
+      // Para devs/marketing la checklist es el foco de la tarjeta: vista inicial.
+      modalCardView = 'checklist';
       if ($('checklist-section')) $('checklist-section').dataset.open = (!isVentas || modalChecklist.length) ? 'true' : 'false';
       closeMoreActionsMenu();
       $('modal-title').textContent = clientName(c);
@@ -11540,6 +11602,7 @@
       syncAllActionButtons();
       syncModalPreview();
       applyModalSaveMode();
+      applyCardView();
 
       if (isVentas) populateVentasPanel(c);
 
@@ -11596,9 +11659,6 @@
         : '<span class="member-empty">Sin miembros</span>';
 
       if (popover) popover.classList.toggle('open', membersPopoverOpen);
-      // La fila "Miembros" sólo ocupa lugar cuando hay miembros o se está eligiendo
-      const propRow = $('card-prop-miembros');
-      if (propRow) propRow.style.display = (assigned.length || membersPopoverOpen) ? '' : 'none';
       if (!body) return;
 
       const q = membersSearch.trim().toLowerCase();
@@ -11699,6 +11759,7 @@
       modalChecklist = normalizeChecklist(modalChecklist).map(item => ({ ...item, usuario: '' }));
       renderChecklist();
       syncPautaButton();
+      applyCardView();
       syncModalPreview();
       autosaveCardIfEnabled();
     }
@@ -11793,13 +11854,6 @@
       }
     }
 
-    function toggleClientDetailsSection() {
-      const section = $('client-details-section');
-      if (!section) return;
-      const isOpen = section.style.display !== 'none';
-      section.style.display = isOpen ? 'none' : '';
-    }
-
     function openModalWhatsappChat() {
       const phone = $('f-ntel') ? $('f-ntel').value.trim() : '';
       const currentCard = getCards().find(c => c.id === editingId);
@@ -11809,14 +11863,6 @@
         return;
       }
       switchActivityTab('whatsapp');
-    }
-
-    function toggleAttachmentsSection() {
-      const section = $('attachments-section');
-      if (!section) return;
-      const isOpen = section.style.display !== 'none';
-      section.style.display = isOpen ? 'none' : '';
-      if (!isOpen) renderAttachments();
     }
 
     /* ── Menú "Más opciones": agrupa Evento / PAUTA / Datos / Archivos ── */
@@ -11850,15 +11896,49 @@
       });
     }
 
+    /* ── Vistas del modal: cada opción renderiza sólo su sección ── */
+    let modalCardView = 'checklist';
+
+    function setCardView(view) {
+      modalCardView = view;
+      applyCardView();
+      const mainPanel = document.querySelector('.card-detail-main');
+      if (mainPanel) mainPanel.scrollTop = 0;
+    }
+
+    function applyCardView() {
+      const isVentas = ($('f-equipo') && $('f-equipo').value === 'ventas');
+      const footer = $('card-view-footer');
+      if (isVentas) {
+        // Ventas conserva su layout propio (panel + chat)
+        if (footer) footer.style.display = 'none';
+        return;
+      }
+      const show = (id, on) => { const el = $(id); if (el) el.style.display = on ? '' : 'none'; };
+      show('card-props', modalCardView === 'members');
+      show('card-prop-miembros', modalCardView === 'members');
+      show('checklist-section', modalCardView === 'checklist');
+      show('descripcion-section', modalCardView === 'details');
+      show('client-details-section', modalCardView === 'details');
+      show('attachments-section', modalCardView === 'attachments');
+      if (footer) {
+        footer.style.display = '';
+        footer.querySelectorAll('[data-view-btn]').forEach(b =>
+          b.classList.toggle('view-on', b.dataset.viewBtn === modalCardView));
+      }
+    }
+
     function openMembersFromMenu(event) {
       if (event) event.stopPropagation();
       closeMoreActionsMenu();
+      setCardView('members');
       openMembersPopover(event);
     }
 
     function openChecklistFromMenu(event) {
       if (event) event.stopPropagation();
       closeMoreActionsMenu();
+      setCardView('checklist');
       openChecklistSection();
     }
 
@@ -11875,16 +11955,13 @@
 
     function openClientDetailsFromMenu() {
       closeMoreActionsMenu();
-      const section = $('client-details-section');
-      if (section && section.style.display === 'none') toggleClientDetailsSection();
-      scrollModalSectionIntoView('client-details-section');
+      setCardView('details');
     }
 
     function openAttachmentsFromMenu() {
       closeMoreActionsMenu();
-      const section = $('attachments-section');
-      if (section && section.style.display === 'none') toggleAttachmentsSection();
-      scrollModalSectionIntoView('attachments-section');
+      setCardView('attachments');
+      renderAttachments();
     }
 
     // En captura: el modal corta la propagación con stopPropagation, así que
