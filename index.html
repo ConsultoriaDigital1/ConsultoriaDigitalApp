@@ -3901,6 +3901,17 @@
       display: inline-flex;
     }
 
+    /* El menú vive en la esquina superior derecha de la tarjeta */
+    .card-title-row .more-actions-wrap {
+      flex-shrink: 0;
+      margin-top: 0.22rem;
+    }
+
+    .card-title-row .more-actions-menu {
+      left: auto;
+      right: 0;
+    }
+
     .more-actions-dots {
       font-weight: 900;
       line-height: 1;
@@ -6468,6 +6479,7 @@
     /* Hide everything we don't need in Ventas expanded modal layout */
     .card-detail-modal.ventas-chat-mode .card-subtitle,
     .card-detail-modal.ventas-chat-mode .card-action-row,
+    .card-detail-modal.ventas-chat-mode .card-title-row .more-actions-wrap,
     .card-detail-modal.ventas-chat-mode .card-props,
     .card-detail-modal.ventas-chat-mode .trello-section:not(.client-details-section),
     .card-detail-modal.ventas-chat-mode #attachments-section,
@@ -6983,17 +6995,15 @@
               <textarea id="f-nf" class="card-title-input" rows="2" placeholder="Nombre fiscal..."
                 oninput="syncModalPreview()" onblur="autosaveCardIfEnabled()"></textarea>
             </div>
-          </div>
-          <div id="modal-card-subtitle" class="card-subtitle">en Iniciada</div>
-
-          <div class="card-action-row">
-            <button id="checklist-action-btn" class="trello-action" onclick="openChecklistSection()"><span
-                class="checklist-action-icon"></span> Checklist</button>
             <div class="more-actions-wrap" id="more-actions-wrap">
-              <button id="more-actions-btn" class="trello-action" type="button"
-                onclick="toggleMoreActionsMenu(event)"><span class="more-actions-dots">&#8943;</span> M&aacute;s
-                opciones</button>
+              <button id="more-actions-btn" class="trello-action" type="button" title="M&aacute;s opciones"
+                onclick="toggleMoreActionsMenu(event)"><span class="more-actions-dots">&#8943;</span></button>
               <div id="more-actions-menu" class="more-actions-menu" onclick="event.stopPropagation()">
+                <button id="members-action-btn" class="trello-action" type="button"
+                  onclick="openMembersFromMenu(event)">Miembros</button>
+                <button id="checklist-action-btn" class="trello-action" type="button"
+                  onclick="openChecklistFromMenu(event)"><span class="checklist-action-icon"></span>
+                  Checklist</button>
                 <button id="due-action-btn" class="trello-action" type="button"
                   onclick="openDueFromMenu(event)">Evento</button>
                 <button id="pauta-action-btn" class="trello-action" type="button" onclick="openPautaFromMenu()"
@@ -7018,7 +7028,7 @@
                 <option value="ventas">Ventas</option>
               </select>
             </div>
-            <div class="card-prop">
+            <div class="card-prop" id="card-prop-miembros" style="display:none">
               <span class="card-prop-label">Miembros</span>
               <div id="members-picker" class="members-picker">
                 <div id="members-assigned" class="members-assigned"></div>
@@ -11586,6 +11596,9 @@
         : '<span class="member-empty">Sin miembros</span>';
 
       if (popover) popover.classList.toggle('open', membersPopoverOpen);
+      // La fila "Miembros" sólo ocupa lugar cuando hay miembros o se está eligiendo
+      const propRow = $('card-prop-miembros');
+      if (propRow) propRow.style.display = (assigned.length || membersPopoverOpen) ? '' : 'none';
       if (!body) return;
 
       const q = membersSearch.trim().toLowerCase();
@@ -11837,6 +11850,18 @@
       });
     }
 
+    function openMembersFromMenu(event) {
+      if (event) event.stopPropagation();
+      closeMoreActionsMenu();
+      openMembersPopover(event);
+    }
+
+    function openChecklistFromMenu(event) {
+      if (event) event.stopPropagation();
+      closeMoreActionsMenu();
+      openChecklistSection();
+    }
+
     function openDueFromMenu(event) {
       if (event) event.stopPropagation();
       closeMoreActionsMenu();
@@ -11875,9 +11900,6 @@
       autoGrowTitle();
       const title = (($('f-nf') && $('f-nf').value.trim()) || ($('f-rs') && $('f-rs').value.trim()) || 'Nueva tarjeta');
       $('modal-title').textContent = title;
-      const team = $('f-equipo') ? (TEAMS[$('f-equipo').value] || $('f-equipo').value) : '';
-      const subtitle = $('modal-card-subtitle');
-      if (subtitle) subtitle.textContent = 'en ' + statusText(modalStatus) + (team ? ' - ' + team : '');
       const card = editingId ? getCards().find(x => x.id === editingId) : null;
       renderActivity(card);
       syncClientDataButton();
