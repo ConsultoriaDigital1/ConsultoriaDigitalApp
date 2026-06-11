@@ -10278,8 +10278,9 @@
         const serviceBadge = c.ta ? `<div class="kcard-sales-service" title="Servicio que necesita">${esc(c.ta)}</div>` : '';
 
         const hasPhone = !!(c.ntel || '').trim();
+        const hasChatAlias = hasPhone || !!(c.whatsappLidAlias || '').trim();
         const cleanPhone = cleanPhoneForWhatsapp(c.ntel);
-        const chatBtnClass = hasPhone ? '' : ' disabled';
+        const chatBtnClass = hasChatAlias ? '' : ' disabled';
         const chatBtnTitle = hasPhone ? `Iniciar chat en WhatsApp (${esc(c.ntel)})` : 'Sin número de teléfono';
 
         const formattedDate = c.vence ? formatDueDate(c.vence) : '';
@@ -13166,10 +13167,11 @@
           const msg = JSON.parse(e.data);
           // If the chat is open, is in Ventas, and the message belongs to the current phone, append it!
           const currentCard = getCards().find(c => c.id === editingId);
-          if (currentCard && currentCard.equipo === 'ventas' && currentCard.ntel) {
-            const cleanCurrentPhone = cleanPhoneForWhatsapp(currentCard.ntel);
-            const msgPhone = cleanPhoneForWhatsapp(msg.fromMe ? msg.to : msg.from);
-            if (cleanCurrentPhone === msgPhone && activeChatPhone === cleanCurrentPhone) {
+          if (currentCard && currentCard.equipo === 'ventas' && (currentCard.ntel || currentCard.whatsappLidAlias)) {
+            const currentChatTarget = currentCard.ntel ? cleanPhoneForWhatsapp(currentCard.ntel) : currentCard.whatsappLidAlias;
+            const msgPeer = msg.fromMe ? msg.to : msg.from;
+            const msgPhone = msgPeer && msgPeer.endsWith('@lid') ? msgPeer : cleanPhoneForWhatsapp(msgPeer);
+            if (currentChatTarget === msgPhone && activeChatPhone === currentChatTarget) {
               appendMessageToUI(msg);
               scrollToChatBottom();
             }
@@ -13356,9 +13358,10 @@
       if (tab === 'whatsapp') {
         const phoneInput = $('f-ntel');
         const phone = phoneInput ? phoneInput.value.trim() : '';
-        if (phone) {
-          const cleanPhone = cleanPhoneForWhatsapp(phone);
-          loadWhatsappChat(cleanPhone);
+        const currentCard = getCards().find(c => c.id === editingId);
+        const chatTarget = phone ? cleanPhoneForWhatsapp(phone) : (currentCard?.whatsappLidAlias || '');
+        if (chatTarget) {
+          loadWhatsappChat(chatTarget);
         } else {
           activeChatPhone = null;
           showChatEmptyState('no-phone');
@@ -13555,7 +13558,7 @@
       showChatEmptyState('loading');
 
       try {
-        const data = await api(`/api/whatsapp/chats/${phone}/messages`);
+        const data = await api(`/api/whatsapp/chats/${encodeURIComponent(phone)}/messages`);
         const messages = data.messages || [];
 
         if (activeChatPhone !== phone) return;
@@ -13654,7 +13657,7 @@
       scrollToChatBottom();
 
       try {
-        const data = await api(`/api/whatsapp/chats/${phone}/messages`, {
+        const data = await api(`/api/whatsapp/chats/${encodeURIComponent(phone)}/messages`, {
           method: 'POST',
           body: JSON.stringify({ message: text })
         });

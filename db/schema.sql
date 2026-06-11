@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS cards (
   cuit TEXT NOT NULL DEFAULT '',
   ca TEXT NOT NULL DEFAULT '',
   ntel TEXT NOT NULL DEFAULT '',
+  whatsapp_lid_alias TEXT NOT NULL DEFAULT '',
   t TEXT NOT NULL DEFAULT '',
   ta TEXT NOT NULL DEFAULT '',
   c TEXT NOT NULL DEFAULT '',
@@ -43,6 +44,8 @@ CREATE TABLE IF NOT EXISTS cards (
 ALTER TABLE cards ADD COLUMN IF NOT EXISTS checklist JSONB NOT NULL DEFAULT '[]'::jsonb;
 ALTER TABLE cards ADD COLUMN IF NOT EXISTS vence_hora TEXT NOT NULL DEFAULT '';
 ALTER TABLE cards ADD COLUMN IF NOT EXISTS usuarios JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE cards ADD COLUMN IF NOT EXISTS whatsapp_lid_alias TEXT NOT NULL DEFAULT '';
+CREATE INDEX IF NOT EXISTS idx_cards_whatsapp_lid_alias ON cards(whatsapp_lid_alias);
 
 -- Soft-delete: papelera de tarjetas
 ALTER TABLE cards ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;

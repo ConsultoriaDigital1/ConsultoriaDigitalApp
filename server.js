@@ -26,6 +26,8 @@ if (process.env.NODE_ENV === 'production' && SESSION_SECRET === 'dev-only-change
 }
 
 async function ensureDatabaseMigrations() {
+  await pool.query("ALTER TABLE cards ADD COLUMN IF NOT EXISTS whatsapp_lid_alias TEXT NOT NULL DEFAULT ''");
+  await pool.query("CREATE INDEX IF NOT EXISTS idx_cards_whatsapp_lid_alias ON cards(whatsapp_lid_alias)");
   await pool.query("ALTER TABLE cards ADD COLUMN IF NOT EXISTS pauta_url TEXT NOT NULL DEFAULT ''");
   await pool.query("ALTER TABLE cards ADD COLUMN IF NOT EXISTS attachments JSONB NOT NULL DEFAULT '[]'::jsonb");
   await pool.query("ALTER TABLE client_movements ADD COLUMN IF NOT EXISTS archivos JSONB NOT NULL DEFAULT '[]'::jsonb");
@@ -156,6 +158,7 @@ function cardDTO(row, descriptionHistory = []) {
     color: row.color,
     estado: row.estado,
     equipo: row.equipo,
+    whatsappLidAlias: row.whatsapp_lid_alias || '',
     usuario: row.usuario || usuarios[0] || null,
     usuarios,
     creadoPor: row.creado_por,
@@ -2079,16 +2082,26 @@ async function salesLeadExistsByPhone(phone) {
   });
 }
 
-async function ensureWhatsappLead({ jid, phone, body = '', pushName = '', timestamp = Date.now() }) {
-  if (!phone || phone.includes('@')) return null;
+async function salesLeadExistsByLid(lidAlias) {
+  if (!lidAlias) return true;
+  const { rows } = await pool.query(
+    "SELECT id FROM cards WHERE equipo = 'ventas' AND deleted_at IS NULL AND whatsapp_lid_alias = $1 LIMIT 1",
+    [lidAlias]
+  );
+  return !!rows[0];
+}
 
-  const exists = await salesLeadExistsByPhone(phone);
+async function ensureWhatsappLead({ jid, phone = '', lidAlias = '', body = '', pushName = '', timestamp = Date.now() }) {
+  if (phone && phone.includes('@')) return null;
+  if (!phone && !lidAlias) return null;
+
+  const exists = phone ? await salesLeadExistsByPhone(phone) : await salesLeadExistsByLid(lidAlias);
   if (exists) return null;
 
-  console.log(`[WhatsApp Lead] Creando nuevo lead para numero: ${phone}`);
+  console.log(`[WhatsApp Lead] Creando nuevo lead para ${phone ? `numero: ${phone}` : `LID temporal: ${lidAlias}`}`);
   const cardId = Date.now().toString(36) + crypto.randomBytes(4).toString('hex');
   const creadoEn = Number(timestamp) > 1000000000000 ? Number(timestamp) : Date.now();
-  const nf = pushName ? pushName : `WhatsApp Lead (${phone})`;
+  const nf = pushName ? pushName : (phone ? `WhatsApp Lead (${phone})` : 'WhatsApp Lead');
 
   let coverImage = '';
   try {
@@ -2099,10 +2112,10 @@ async function ensureWhatsappLead({ jid, phone, body = '', pushName = '', timest
 
   const { rows: inserted } = await pool.query(
     `INSERT INTO cards (
-      id, nf, rs, cuit, ca, ntel, t, ta, c, color, estado, equipo, creado_en, cover_image
-    ) VALUES ($1, $2, '', '', '', $3, '', '', $4, 'none', 'contactado', 'ventas', $5, $6)
+      id, nf, rs, cuit, ca, ntel, t, ta, c, color, estado, equipo, creado_en, cover_image, whatsapp_lid_alias
+    ) VALUES ($1, $2, '', '', '', $3, '', '', $4, 'none', 'contactado', 'ventas', $5, $6, $7)
     RETURNING *`,
-    [cardId, nf, phone, `Mensaje recibido: "${body}"`, creadoEn, coverImage]
+    [cardId, nf, phone || '', `Mensaje recibido: "${body}"`, creadoEn, coverImage, lidAlias || '']
   );
 
   if (inserted[0]) {
@@ -2112,6 +2125,45 @@ async function ensureWhatsappLead({ jid, phone, body = '', pushName = '', timest
   }
 
   return null;
+}
+
+async function syncPendingLidLeads() {
+  const { rows } = await pool.query(
+    `SELECT DISTINCT ON (chat_jid) chat_jid, body, timestamp
+     FROM whatsapp_messages
+     WHERE from_me = false AND chat_jid LIKE '%@lid'
+     ORDER BY chat_jid, timestamp DESC
+     LIMIT 100`
+  );
+
+  for (const row of rows) {
+    await ensureWhatsappLead({
+      jid: row.chat_jid,
+      lidAlias: row.chat_jid,
+      body: row.body,
+      timestamp: row.timestamp,
+    });
+  }
+}
+
+async function migrateVisibleLidNumbers() {
+  const { rowCount } = await pool.query(
+    `UPDATE cards c
+     SET whatsapp_lid_alias = c.ntel || '@lid',
+         ntel = '',
+         updated_at = NOW()
+     WHERE c.equipo = 'ventas'
+       AND c.deleted_at IS NULL
+       AND c.whatsapp_lid_alias = ''
+       AND c.ntel ~ '^[0-9]+$'
+       AND EXISTS (
+         SELECT 1 FROM whatsapp_messages m WHERE m.chat_jid = c.ntel || '@lid'
+       )`
+  );
+
+  if (rowCount > 0) {
+    console.log(`[WhatsApp Lead] Se ocultaron ${rowCount} LID antiguos que estaban guardados como telefono.`);
+  }
 }
 
 async function mergeChatAlias(lidJid, phoneJid) {
@@ -2126,8 +2178,8 @@ async function mergeChatAlias(lidJid, phoneJid) {
 
     // 1. Obtener todas las tarjetas activas de ventas asociadas al numero del LID
     const { rows: cardsToUpdate } = await client.query(
-      "SELECT id, ntel FROM cards WHERE ntel = $1 AND equipo = 'ventas' AND deleted_at IS NULL",
-      [lidNumber]
+      "SELECT id, ntel FROM cards WHERE (ntel = $1 OR whatsapp_lid_alias = $2) AND equipo = 'ventas' AND deleted_at IS NULL",
+      [lidNumber, lidJid]
     );
 
     if (cardsToUpdate.length > 0) {
@@ -2135,8 +2187,10 @@ async function mergeChatAlias(lidJid, phoneJid) {
       
       // Actualizar ntel de las tarjetas
       await client.query(
-        "UPDATE cards SET ntel = $1, updated_at = NOW() WHERE ntel = $2 AND equipo = 'ventas' AND deleted_at IS NULL",
-        [realNumber, lidNumber]
+        `UPDATE cards
+         SET ntel = $1, whatsapp_lid_alias = '', updated_at = NOW()
+         WHERE (ntel = $2 OR whatsapp_lid_alias = $3) AND equipo = 'ventas' AND deleted_at IS NULL`,
+        [realNumber, lidNumber, lidJid]
       );
 
       // Emitir evento de cambio por cada tarjeta actualizada para que el cliente web refresque en tiempo real
@@ -2178,6 +2232,8 @@ async function mergeChatAlias(lidJid, phoneJid) {
 async function start() {
   try {
     await ensureDatabaseMigrations();
+    await migrateVisibleLidNumbers();
+    await syncPendingLidLeads();
 
     // Handler para recibir mensajes de WhatsApp y crear leads automáticamente si no existen
     whatsappService.events.on('message', async (msg) => {
@@ -2199,7 +2255,18 @@ async function start() {
       const jid = msg.from;
       const phone = whatsappService.extractPhoneNumberFromJid(jid);
       if (!phone) {
-        console.log(`[WhatsApp Lead] Mensaje entrante con LID sin numero real (${jid}). Esperando mapeo LID -> PN.`);
+        console.log(`[WhatsApp Lead] Mensaje entrante con LID sin numero real (${jid}). Creando lead temporal sin telefono visible.`);
+        try {
+          await ensureWhatsappLead({
+            jid,
+            lidAlias: jid,
+            body: msg.body,
+            pushName: msg.pushName,
+            timestamp: msg.timestamp,
+          });
+        } catch (err) {
+          console.error('[WhatsApp Lead Error] No se pudo crear el lead temporal con LID:', err);
+        }
         return;
       }
 
