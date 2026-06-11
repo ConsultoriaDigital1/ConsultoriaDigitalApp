@@ -14,6 +14,7 @@ const pool = new Pool({
   ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
 });
 const cardEvents = new EventEmitter();
+const noteEvents = new EventEmitter();
 
 const PORT = Number(process.env.PORT || 3000);
 const COOKIE_NAME = 'cd_session';
@@ -411,6 +412,14 @@ function groupNotes(rows, user) {
   return notes;
 }
 
+function canReceiveNoteChange(user, note) {
+  if (!user || !note) return false;
+  if (note.scope === 'personal') return note.userId === user.id;
+  if (note.scope === 'team') return canAccessTeam(user, note.equipo);
+  if (note.scope === 'admin') return isAdmin(user);
+  return false;
+}
+
 async function visibleNotes(user) {
   const teams = allowedTeams(user);
   const { rows } = await pool.query(
@@ -614,6 +623,10 @@ function cleanChecklist(value) {
     const done = item && item.done === true;
     return { id, text, done, progress: !done && item && item.progress === true, usuario };
   }).filter(Boolean);
+}
+
+function sameChecklist(a, b) {
+  return JSON.stringify(cleanChecklist(a)) === JSON.stringify(cleanChecklist(b));
 }
 
 function cleanAttachments(value) {
@@ -983,14 +996,21 @@ app.get('/api/whatsapp/sse', requireAuth, (req, res) => {
     res.write(`event: card_change\ndata: ${JSON.stringify(change)}\n\n`);
   };
 
+  const onNoteChange = (change) => {
+    if (!canReceiveNoteChange(req.user, change.note)) return;
+    res.write(`event: note_change\ndata: ${JSON.stringify(change)}\n\n`);
+  };
+
   whatsappService.events.on('status', onStatusChange);
   whatsappService.events.on('message', onMessage);
   cardEvents.on('change', onCardChange);
+  noteEvents.on('change', onNoteChange);
 
   req.on('close', () => {
     whatsappService.events.off('status', onStatusChange);
     whatsappService.events.off('message', onMessage);
     cardEvents.off('change', onCardChange);
+    noteEvents.off('change', onNoteChange);
   });
 });
 
@@ -1051,7 +1071,9 @@ app.put('/api/notes/:scope', requireAuth, async (req, res, next) => {
         [mkId(), content, req.user.id]
       ));
     }
-    res.json({ note: noteDTO(rows[0]) });
+    const note = noteDTO(rows[0]);
+    noteEvents.emit('change', { action: 'upsert', note });
+    res.json({ note });
   } catch (err) {
     next(err);
   }
@@ -1715,7 +1737,8 @@ app.post('/api/cards', requireAuth, async (req, res, next) => {
       }
       await client.query('COMMIT');
       const card = cardDTO(rows[0], history);
-      cardEvents.emit('change', { action: 'create', card });
+      const changedFields = card.checklist.length ? ['checklist'] : [];
+      cardEvents.emit('change', { action: 'create', card, changedFields });
       res.status(201).json({ card });
     } catch (err) {
       await client.query('ROLLBACK').catch(() => { });
@@ -1781,6 +1804,7 @@ app.put('/api/cards/:id', requireAuth, async (req, res, next) => {
     data.usuarios = await validateAssignedUsers(req.user, data.usuarios, data.equipo);
     data.usuario = data.usuarios[0] || null;
     data.checklist = await validateChecklistUsers(req.user, data.checklist, data.equipo);
+    const checklistChanged = !sameChecklist(current.rows[0].checklist, data.checklist);
     const { rows } = await client.query(
       `UPDATE cards SET
         nf=$1, rs=$2, cuit=$3, ca=$4, ntel=$5, t=$6, ta=$7, c=$8, color=$9,
@@ -1810,7 +1834,7 @@ app.put('/api/cards/:id', requireAuth, async (req, res, next) => {
     const historyByCard = await descriptionHistoryByCardIds([req.params.id], client);
     await client.query('COMMIT');
     const card = cardDTO(rows[0], historyByCard.get(req.params.id) || []);
-    cardEvents.emit('change', { action: 'update', card });
+    cardEvents.emit('change', { action: 'update', card, changedFields: checklistChanged ? ['checklist'] : [] });
     res.json({ card });
   } catch (err) {
     await client.query('ROLLBACK').catch(() => { });

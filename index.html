@@ -9820,7 +9820,7 @@
       if (input) input.value = '';
       checklistHideDone = false;
       renderChecklist();
-      autosaveCardIfEnabled();
+      autosaveCardIfEnabled(true);
       if (input) input.focus();
     }
 
@@ -12287,11 +12287,16 @@
     let autosaveTimer = null;
     const AUTOSAVE_DELAY_MS = 1500;
 
-    function autosaveCardIfEnabled() {
+    function autosaveCardIfEnabled(immediate = false) {
       if (!currentUser) return;
       if (!editingId) return; // las tarjetas nuevas se crean con Guardar
       syncClientDataButton();
       if (autosaveTimer) clearTimeout(autosaveTimer);
+      if (immediate) {
+        autosaveTimer = null;
+        runAutosaveCard();
+        return;
+      }
       autosaveTimer = setTimeout(() => { autosaveTimer = null; runAutosaveCard(); }, AUTOSAVE_DELAY_MS);
     }
 
@@ -13079,6 +13084,58 @@
       if (note.scope === 'admin') notesCache.admin = note;
     }
 
+    function refreshNoteTextarea(scope, team) {
+      const id = noteDomId(scope, team);
+      const el = $(id);
+      const content = getNoteContent(scope, team);
+      if (el && document.activeElement !== el) {
+        el.value = content;
+        const cc = $(id + '-cc');
+        if (cc) cc.textContent = content.length + ' car.';
+      }
+      const st = $(noteStatusId(scope, team));
+      const dot = $(noteStatusId(scope, team) + '-dot');
+      if (dot && document.activeElement !== el) dot.classList.remove('saving', 'error');
+      if (st && document.activeElement !== el) st.textContent = 'Guardado';
+    }
+
+    function refreshNoteChat(scope, team) {
+      const id = noteDomId(scope, team);
+      const chat = $(id + '-chat');
+      if (!chat) return;
+      const input = $(id + '-input');
+      const inputValue = input ? input.value : '';
+      const msgs = parseNoteMessages(getNoteContent(scope, team));
+      chat.innerHTML = buildChatHtml(msgs, scope, team);
+      chat.scrollTop = chat.scrollHeight;
+      if (input) input.value = inputValue;
+      const st = $(noteStatusId(scope, team));
+      const dot = $(noteStatusId(scope, team) + '-dot');
+      if (dot) dot.classList.remove('saving', 'error');
+      if (st) st.textContent = 'Guardado';
+    }
+
+    function handleRemoteNoteChange(change) {
+      const note = change && change.note;
+      if (!note || !note.scope) return;
+      setNoteCache(note);
+
+      if (note.scope === 'personal') {
+        refreshNoteTextarea('personal', '');
+        renderClientesNotes();
+        return;
+      }
+
+      if (note.scope === 'team') {
+        refreshNoteChat('team', note.equipo || '');
+        return;
+      }
+
+      if (note.scope === 'admin') {
+        refreshNoteChat('admin', '');
+      }
+    }
+
     function noteDefs() {
       const team = noteTeam();
       const defs = [
@@ -13771,6 +13828,15 @@
           handleRemoteCardChange(change);
         } catch (err) {
           console.error('Error parsing card change event', err);
+        }
+      });
+
+      whatsappEventSource.addEventListener('note_change', (e) => {
+        try {
+          const change = JSON.parse(e.data);
+          handleRemoteNoteChange(change);
+        } catch (err) {
+          console.error('Error parsing note change event', err);
         }
       });
 
