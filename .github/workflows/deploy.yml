@@ -1,0 +1,48 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Verificar sintaxis del servidor
+        run: |
+          node --check server.js
+          node --check whatsapp-service.js
+          node --check google-calendar.js
+          node --check db/schema.js
+          node --check db/seed.js
+
+  deploy:
+    needs: check
+    runs-on: ubuntu-latest
+    # Se salta el deploy si todavia no estan configurados los secrets del VPS
+    if: ${{ vars.DEPLOY_ENABLED == 'true' }}
+    steps:
+      - name: Deploy por SSH al VPS
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          script_stop: true
+          script: |
+            cd /var/www/consultoria-digital
+            git fetch origin main
+            git reset --hard origin/main
+            npm ci --omit=dev
+            pm2 restart consultoria-digital --update-env
+            pm2 save

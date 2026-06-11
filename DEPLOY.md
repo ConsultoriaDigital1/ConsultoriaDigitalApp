@@ -1,5 +1,20 @@
 # Despliegue VPS
 
+## 0. Auto-deploy con GitHub Actions
+
+Cada push a `main` ejecuta `.github/workflows/deploy.yml`: chequea sintaxis y luego entra por SSH al VPS para hacer `git pull`, `npm ci` y `pm2 restart`.
+
+Para activarlo, en GitHub → Settings del repo:
+
+1. **Secrets and variables → Actions → Secrets**:
+   - `VPS_HOST`: IP o dominio del VPS
+   - `VPS_USER`: usuario SSH (ej. `deploy`)
+   - `VPS_SSH_KEY`: clave privada SSH (contenido completo, generada con `ssh-keygen -t ed25519`; la publica va en `~/.ssh/authorized_keys` del VPS)
+   - `VPS_PORT` (opcional): puerto SSH si no es 22
+2. **Secrets and variables → Actions → Variables**: crear `DEPLOY_ENABLED` con valor `true`. Mientras no exista, el workflow solo corre el chequeo de sintaxis y se salta el deploy.
+
+El workflow asume que el repo ya esta clonado en `/var/www/consultoria-digital` y que PM2 corre el proceso `consultoria-digital` (pasos 2 y 3 de abajo). Tambien se puede disparar a mano desde la pestana Actions ("Run workflow").
+
 ## 1. Preparar la base PostgreSQL
 
 ```bash
