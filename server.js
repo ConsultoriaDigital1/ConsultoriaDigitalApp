@@ -840,6 +840,11 @@ app.get('/api/whatsapp/chats/:phone/messages', requireAuth, async (req, res, nex
       // ignore
     }
 
+    const mappedLid = whatsappService.getMappedLidJid(req.params.phone);
+    if (mappedLid) {
+      candidateJids.add(mappedLid);
+    }
+
     const { rows: dbMessages } = await pool.query(
       `SELECT id, sender_jid AS "from", receiver_jid AS "to", body, timestamp, from_me AS "fromMe"
        FROM whatsapp_messages
@@ -2254,12 +2259,13 @@ async function start() {
 
       const jid = msg.from;
       const phone = whatsappService.extractPhoneNumberFromJid(jid);
+      const lidAlias = msg.lidAlias || '';
       if (!phone) {
         console.log(`[WhatsApp Lead] Mensaje entrante con LID sin numero real (${jid}). Creando lead temporal sin telefono visible.`);
         try {
           await ensureWhatsappLead({
             jid,
-            lidAlias: jid,
+            lidAlias: lidAlias || jid,
             body: msg.body,
             pushName: msg.pushName,
             timestamp: msg.timestamp,
@@ -2311,10 +2317,10 @@ async function start() {
 
           const { rows: inserted } = await pool.query(
             `INSERT INTO cards (
-              id, nf, rs, cuit, ca, ntel, t, ta, c, color, estado, equipo, creado_en, cover_image
-            ) VALUES ($1, $2, '', '', '', $3, '', '', $4, 'none', 'contactado', 'ventas', $5, $6)
+              id, nf, rs, cuit, ca, ntel, t, ta, c, color, estado, equipo, creado_en, cover_image, whatsapp_lid_alias
+            ) VALUES ($1, $2, '', '', '', $3, '', '', $4, 'none', 'contactado', 'ventas', $5, $6, $7)
             RETURNING *`,
-            [cardId, nf, phone, `Mensaje recibido: "${msg.body}"`, creadoEn, coverImage]
+            [cardId, nf, phone, `Mensaje recibido: "${msg.body}"`, creadoEn, coverImage, lidAlias]
           );
 
           if (inserted[0]) {

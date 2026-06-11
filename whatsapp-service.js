@@ -48,7 +48,10 @@ function normalizeLidJid(value) {
   if (!value) return null;
   const raw = String(value).trim();
   if (!raw) return null;
-  if (isLidJid(raw)) return raw.split(':')[0];
+  if (isLidJid(raw)) {
+    const user = raw.split('@')[0].split(':')[0];
+    return user ? `${user}@lid` : null;
+  }
   return null;
 }
 
@@ -83,6 +86,17 @@ function getMappedPhoneJid(lid) {
   const normalized = normalizeLidJid(lid);
   if (!normalized) return null;
   return lidToPnMap.get(normalized) || null;
+}
+
+function getMappedLidJid(phone) {
+  const pn = normalizePhoneJid(phone);
+  if (!pn) return null;
+
+  for (const [lid, mappedPn] of lidToPnMap.entries()) {
+    if (mappedPn === pn) return lid;
+  }
+
+  return null;
 }
 
 function loadMappings() {
@@ -120,6 +134,11 @@ function addContactMapping(contact, source) {
   let lid = null;
   let pn = null;
 
+  if (contact.pnJid && contact.lidJid) {
+    lid = contact.lidJid;
+    pn = contact.pnJid;
+  }
+
   if (contact.id && contact.lid) {
     if (isLidJid(contact.id) && isPhoneJid(contact.lid)) {
       lid = contact.id;
@@ -136,6 +155,20 @@ function addContactMapping(contact, source) {
   }
 
   rememberLidMapping(lid, pn, source);
+}
+
+function addChatMapping(chat, source) {
+  if (!chat) return;
+
+  addContactMapping(chat, source);
+
+  if (chat.id && chat.pnJid) {
+    rememberLidMapping(chat.id, chat.pnJid, source);
+  }
+
+  if (chat.id && chat.lidJid) {
+    rememberLidMapping(chat.lidJid, chat.id, source);
+  }
 }
 
 function extractPhoneNumberFromJid(jid) {
@@ -222,8 +255,10 @@ function getMessagePhoneJid(m) {
 
   const candidatePn = [
     m.key?.senderPn,
+    m.key?.pnJid,
     m.key?.participant,
     m.participant,
+    m.message?.senderKeyDistributionMessage?.groupId,
     getMappedPhoneJid(rawJid),
   ].find((candidate) => normalizePhoneJid(candidate));
 
@@ -237,6 +272,7 @@ function getMessagePhoneJid(m) {
 
 function formatMessage(m) {
   const jid = getMessagePhoneJid(m);
+  const rawJid = m.key?.remoteJid;
   const fromMe = !!m.key.fromMe;
   const me = myJid();
   return {
@@ -247,6 +283,7 @@ function formatMessage(m) {
     timestamp: toUnixSeconds(m.messageTimestamp),
     fromMe,
     pushName: m.pushName || '',
+    lidAlias: isLidJid(rawJid) ? normalizeLidJid(rawJid) : '',
   };
 }
 
@@ -368,6 +405,18 @@ async function init() {
       }
     });
 
+    sock.ev.on('chats.upsert', (chats) => {
+      for (const chat of chats) {
+        addChatMapping(chat, 'chats.upsert');
+      }
+    });
+
+    sock.ev.on('chats.update', (updates) => {
+      for (const update of updates) {
+        addChatMapping(update, 'chats.update');
+      }
+    });
+
     sock.ev.on('contacts.upsert', (contacts) => {
       for (const contact of contacts) {
         addContactMapping(contact, 'contacts.upsert');
@@ -380,7 +429,13 @@ async function init() {
       }
     });
 
-    sock.ev.on('messaging-history.set', ({ contacts }) => {
+    sock.ev.on('messaging-history.set', ({ chats, contacts }) => {
+      if (chats) {
+        for (const chat of chats) {
+          addChatMapping(chat, 'messaging-history.set');
+        }
+      }
+
       if (contacts) {
         for (const contact of contacts) {
           addContactMapping(contact, 'messaging-history.set');
@@ -527,15 +582,18 @@ async function sendMessage(phone, messageText) {
 
   try {
     const sent = await sock.sendMessage(jid, { text: messageText });
+    const sentJid = sent.key?.remoteJid;
+    const chatJid = rememberLidMapping(sentJid, jid, 'sendMessage') || jid;
     const formatted = {
       id: sent.key.id,
       from: myJid(),
-      to: jid,
+      to: chatJid,
       body: messageText,
       timestamp: toUnixSeconds(sent.messageTimestamp),
       fromMe: true,
+      lidAlias: isLidJid(sentJid) ? normalizeLidJid(sentJid) : '',
     };
-    storeMessage(jid, formatted);
+    storeMessage(chatJid, formatted);
     whatsappEvents.emit('message', formatted);
     return formatted;
   } catch (err) {
@@ -581,5 +639,6 @@ module.exports = {
   getProfilePictureBase64,
   cleanPhoneForWhatsapp,
   extractPhoneNumberFromJid,
+  getMappedLidJid,
   events: whatsappEvents,
 };
