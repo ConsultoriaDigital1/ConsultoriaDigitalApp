@@ -79,6 +79,23 @@ async function ensureDatabaseMigrations() {
   `);
 }
 
+app.disable('x-powered-by');
+app.set('trust proxy', 1); // detras de nginx: usar la IP real del cliente (X-Forwarded-For)
+
+// Headers de seguridad basicos (anti clickjacking, MIME sniffing, etc.)
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'same-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  if (process.env.NODE_ENV === 'production') {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
+  next();
+});
+
+// Las rutas de auth no necesitan bodies grandes: limite chico para evitar DoS sin sesion
+app.use('/api/auth', express.json({ limit: '10kb' }));
 app.use(express.json({ limit: '100mb' }));
 
 function mkId() {
@@ -256,7 +273,9 @@ function requireExternalAuth(req, res, next) {
     return res.status(500).json({ error: 'Configuración externa no inicializada.' });
   }
 
-  if (!apiKey || apiKey !== expectedKey) {
+  const apiKeyBuf = Buffer.from(String(apiKey || ''));
+  const expectedBuf = Buffer.from(expectedKey);
+  if (apiKeyBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(apiKeyBuf, expectedBuf)) {
     return res.status(401).json({ error: 'No autorizado. API Key inválida o ausente.' });
   }
 
@@ -748,8 +767,43 @@ function validateCardRequired(data) {
   }
 }
 
+// Rate limiting de login en memoria: 10 intentos fallidos por IP cada 15 minutos
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+const LOGIN_MAX_ATTEMPTS = 10;
+const loginAttempts = new Map();
+
+function loginRateLimited(ip) {
+  const now = Date.now();
+  const entry = loginAttempts.get(ip);
+  if (!entry || now - entry.first > LOGIN_WINDOW_MS) return false;
+  return entry.count >= LOGIN_MAX_ATTEMPTS;
+}
+
+function recordLoginFailure(ip) {
+  const now = Date.now();
+  const entry = loginAttempts.get(ip);
+  if (!entry || now - entry.first > LOGIN_WINDOW_MS) {
+    loginAttempts.set(ip, { first: now, count: 1 });
+  } else {
+    entry.count += 1;
+  }
+  // Evitar crecimiento sin limite del mapa
+  if (loginAttempts.size > 10000) {
+    for (const [key, value] of loginAttempts) {
+      if (now - value.first > LOGIN_WINDOW_MS) loginAttempts.delete(key);
+    }
+  }
+}
+
+// Hash dummy para igualar el tiempo de respuesta cuando el usuario no existe
+const DUMMY_BCRYPT_HASH = bcrypt.hashSync('dummy-password-for-timing', 10);
+
 app.post('/api/auth/login', async (req, res, next) => {
   try {
+    const ip = req.ip || req.socket.remoteAddress || 'unknown';
+    if (loginRateLimited(ip)) {
+      return res.status(429).json({ error: 'Demasiados intentos. Proba de nuevo en unos minutos.' });
+    }
     const username = cleanUsername(req.body.username);
     const password = String(req.body.password || '');
 
@@ -771,9 +825,13 @@ app.post('/api/auth/login', async (req, res, next) => {
 
     const { rows } = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
     const user = rows[0];
-    if (!user || !(await bcrypt.compare(password, user.password_hash))) {
+    // Comparar siempre contra un hash (dummy si no existe) para no revelar usuarios por timing
+    const passwordOk = await bcrypt.compare(password, user ? user.password_hash : DUMMY_BCRYPT_HASH);
+    if (!user || !passwordOk || user.password_hash === 'NO_LOGIN') {
+      recordLoginFailure(ip);
       return res.status(401).json({ error: 'Usuario o contrasena incorrectos.' });
     }
+    loginAttempts.delete(ip);
     setSessionCookie(res, user.id);
     res.json({ user: userDTO(user) });
   } catch (err) {
@@ -2053,7 +2111,12 @@ app.get('*', (_req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 
 app.use((err, _req, res, _next) => {
   console.error(err);
-  res.status(err.status || 500).json({ error: err.message || 'Error interno.' });
+  const status = err.status || 500;
+  // Los errores 5xx en produccion no exponen mensajes internos (pg, fs, etc.)
+  const message = status < 500 || process.env.NODE_ENV !== 'production'
+    ? (err.message || 'Error interno.')
+    : 'Error interno.';
+  res.status(status).json({ error: message });
 });
 
 function cleanPhoneDigits(phone) {
