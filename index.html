@@ -1225,6 +1225,36 @@
 }
 .pend-item-text.progress { color: #f2a93b; font-style: italic; }
 .pend-item-client { font-size: 0.58rem; color: var(--muted); margin-top: 0.15rem; }
+.pend-item.in-progress {
+  border-color: rgba(242,169,59,0.45);
+  background: linear-gradient(90deg, rgba(242,169,59,0.07), var(--surface2) 55%);
+  box-shadow: inset 3px 0 0 #f2a93b;
+}
+.pend-progress-btn {
+  margin-top: 0.3rem; display: inline-flex; align-items: center; gap: 0.3rem;
+  background: transparent; border: 1px solid var(--border2); color: var(--muted);
+  font-size: 0.58rem; font-weight: 700; padding: 0.2rem 0.55rem;
+  border-radius: 999px; cursor: pointer;
+  transition: border-color 150ms, color 150ms, background 150ms;
+}
+.pend-progress-btn::before {
+  content: ''; width: 6px; height: 6px; border-radius: 50%;
+  background: currentColor; opacity: 0.55;
+}
+.pend-progress-btn:hover { border-color: rgba(242,169,59,0.55); color: #f2a93b; }
+.pend-progress-btn.active {
+  border-color: rgba(242,169,59,0.6); color: #f2a93b;
+  background: rgba(242,169,59,0.12);
+}
+.pend-progress-btn.active::before {
+  opacity: 1;
+  animation: pend-pulse 1.6s ease-in-out infinite;
+}
+@keyframes pend-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(242,169,59,0.5); }
+  50% { box-shadow: 0 0 0 4px rgba(242,169,59,0); }
+}
+.pend-progress-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .pend-item.pending-done { border-color: rgba(74,222,128,0.35); }
 .pend-item.pending-done .pend-item-text { text-decoration: line-through; color: var(--muted); }
 .pend-undo-btn {
@@ -9997,13 +10027,15 @@
         const pending = pendDoneTimers.get(key);
         const secs = pending ? Math.max(1, Math.ceil((pending.deadline - Date.now()) / 1000)) : 0;
         return `
-      <div class="pend-item${pending ? ' pending-done' : ''}">
+      <div class="pend-item${pending ? ' pending-done' : (item.progress ? ' in-progress' : '')}">
         <input class="pend-item-check" type="checkbox" ${pending ? 'checked' : ''}
           onchange="${pending ? `undoPendienteDone('${esc(card.id)}','${esc(item.id)}')` : `markPendienteDone('${esc(card.id)}','${esc(item.id)}')`}" />
         <div>
           <div class="pend-item-text${item.progress && !pending ? ' progress' : ''}">${esc(item.text)}</div>
-          <div class="pend-item-client">${esc(card.nf || card.rs || 'Sin nombre')}${item.progress && !pending ? ' · En proceso' : ''}</div>
-          ${pending ? `<button class="pend-undo-btn" type="button" onclick="undoPendienteDone('${esc(card.id)}','${esc(item.id)}')">Deshacer (${secs})</button>` : ''}
+          <div class="pend-item-client">${esc(card.nf || card.rs || 'Sin nombre')}</div>
+          ${pending
+            ? `<button class="pend-undo-btn" type="button" onclick="undoPendienteDone('${esc(card.id)}','${esc(item.id)}')">Deshacer (${secs})</button>`
+            : `<button class="pend-progress-btn${item.progress ? ' active' : ''}" type="button" onclick="togglePendienteProgress('${esc(card.id)}','${esc(item.id)}')" title="${item.progress ? 'Quitar de en proceso' : 'Marcar en proceso'}" aria-pressed="${item.progress ? 'true' : 'false'}">En proceso</button>`}
         </div>
       </div>`;
       }).join('');
@@ -10034,6 +10066,33 @@
       clearTimeout(pending.timeout);
       pendDoneTimers.delete(key);
       renderPendientesList();
+    }
+
+    let pendProgressBusy = false;
+
+    async function togglePendienteProgress(cardId, itemId) {
+      if (pendProgressBusy) return;
+      if (pendDoneTimers.has(cardId + '::' + itemId)) return;
+      const card = getCards().find(c => c.id === cardId);
+      if (!card) return;
+      const checklist = normalizeChecklist(card.checklist).map(item =>
+        item.id === itemId ? { ...item, progress: !item.progress } : item);
+      pendProgressBusy = true;
+      // Actualizacion optimista para que el cambio se vea al instante
+      card.checklist = checklist;
+      renderPendientesList();
+      try {
+        const saved = await api('/api/cards/' + cardId, {
+          method: 'PUT',
+          body: JSON.stringify({ ...card, checklist }),
+        });
+        replaceCard(saved.card);
+      } catch (err) {
+        toast(err.message || 'No se pudo guardar el cambio', 'error');
+      } finally {
+        pendProgressBusy = false;
+        renderPendientesList();
+      }
     }
 
     async function commitPendienteDone(cardId, itemId) {
