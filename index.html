@@ -9837,7 +9837,7 @@
       modalChecklist[index].done = done === true;
       if (modalChecklist[index].done) modalChecklist[index].progress = false;
       renderChecklist();
-      autosaveCardIfEnabled();
+      autosaveCardIfEnabled(true);
     }
 
     function toggleChecklistProgress(index) {
@@ -9845,7 +9845,7 @@
       if (modalChecklist[index].done) return;
       modalChecklist[index].progress = !modalChecklist[index].progress;
       renderChecklist();
-      autosaveCardIfEnabled();
+      autosaveCardIfEnabled(true);
     }
 
     function renameChecklistItem(index, value) {
@@ -9858,7 +9858,7 @@
       if (modalChecklist[index].text === text) return;
       modalChecklist[index].text = text.slice(0, 500);
       renderChecklist();
-      autosaveCardIfEnabled();
+      autosaveCardIfEnabled(true);
     }
 
     function assignChecklistItem(index, userId) {
@@ -9867,14 +9867,14 @@
       const exists = getUsers().some(u => u.id === userId && (!team || u.equipo === team));
       modalChecklist[index].usuario = exists ? userId : '';
       renderChecklist();
-      autosaveCardIfEnabled();
+      autosaveCardIfEnabled(true);
     }
 
     function deleteChecklistItem(index) {
       modalChecklist.splice(index, 1);
       if (!modalChecklist.length) checklistHideDone = false;
       renderChecklist();
-      autosaveCardIfEnabled();
+      autosaveCardIfEnabled(true);
     }
 
     function toggleChecklistDone() {
@@ -9890,7 +9890,7 @@
       if (section) section.dataset.open = 'false';
       hideChecklistInput(true);
       renderChecklist();
-      autosaveCardIfEnabled();
+      autosaveCardIfEnabled(true);
     }
 
     function checklistUserOptions(selected) {
@@ -12287,6 +12287,10 @@
     let autosaveTimer = null;
     const AUTOSAVE_DELAY_MS = 1500;
 
+    function hasPendingModalAutosave() {
+      return !!(autosaveBusy || autosavePending || autosaveTimer);
+    }
+
     function autosaveCardIfEnabled(immediate = false) {
       if (!currentUser) return;
       if (!editingId) return; // las tarjetas nuevas se crean con Guardar
@@ -13849,6 +13853,7 @@
 
     function syncModalCardFields(c) {
       if (!c) return;
+      if (editingId === c.id && hasPendingModalAutosave()) return;
       // Update non-focused inputs to prevent disrupting active editing
       const fields = {
         'f-nf': c.nf || '',
@@ -13894,7 +13899,7 @@
       }
 
       const isEditingChecklist = document.activeElement &&
-        (document.activeElement.closest('.checklist-item-input') || document.activeElement.closest('#checklist-add-input') || document.activeElement.closest('.checklist-item-text-input'));
+        (document.activeElement.closest('#checklist-section') || document.activeElement.closest('#checklist-new-text') || document.activeElement.closest('.checklist-item'));
       if (!isEditingChecklist) {
         modalChecklist = normalizeChecklist(c.checklist);
         renderChecklist();
