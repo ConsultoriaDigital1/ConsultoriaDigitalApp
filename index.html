@@ -3895,6 +3895,84 @@
       color: var(--lime);
     }
 
+    /* ── Menú "Más opciones" que agrupa las acciones secundarias ── */
+    .more-actions-wrap {
+      position: relative;
+      display: inline-flex;
+    }
+
+    .more-actions-dots {
+      font-weight: 900;
+      line-height: 1;
+    }
+
+    #more-actions-btn.open {
+      background: var(--surface3);
+      color: var(--text-hi);
+    }
+
+    .more-actions-menu {
+      display: none;
+      position: absolute;
+      top: calc(100% + 5px);
+      left: 0;
+      z-index: 80;
+      min-width: 185px;
+      padding: 0.3rem;
+      background: var(--surface2);
+      border: 1px solid var(--border2);
+      border-radius: 8px;
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.5);
+      flex-direction: column;
+      gap: 0.2rem;
+    }
+
+    .more-actions-menu.open {
+      display: flex;
+    }
+
+    .more-actions-menu .trello-action {
+      width: 100%;
+      justify-content: flex-start;
+      background: transparent;
+      border-color: transparent;
+      padding: 0.4rem 0.5rem;
+    }
+
+    .more-actions-menu .trello-action:hover {
+      background: var(--surface3);
+      color: var(--text-hi);
+    }
+
+    .more-actions-menu .trello-action.has-due,
+    .more-actions-menu .trello-action.is-active {
+      background: rgba(75, 206, 151, 0.14);
+      color: var(--success);
+    }
+
+    .more-actions-menu .trello-action.has-pauta {
+      background: rgba(231, 255, 79, 0.14);
+      color: var(--lime);
+    }
+
+    /* Destello al navegar a una sección desde el menú */
+    .trello-section.section-flash {
+      animation: sectionFlash 1.1s ease;
+      border-radius: 8px;
+    }
+
+    @keyframes sectionFlash {
+      0% {
+        box-shadow: 0 0 0 2px rgba(87, 157, 255, 0.65);
+        background: rgba(87, 157, 255, 0.08);
+      }
+
+      100% {
+        box-shadow: 0 0 0 2px transparent;
+        background: transparent;
+      }
+    }
+
     /* ── PAUTA: popup grande con iframe configurable por cliente ── */
     .pauta-modal {
       max-width: min(1400px, calc(100vw - 32px));
@@ -6911,13 +6989,22 @@
           <div class="card-action-row">
             <button id="checklist-action-btn" class="trello-action" onclick="openChecklistSection()"><span
                 class="checklist-action-icon"></span> Checklist</button>
-            <button id="due-action-btn" class="trello-action" onclick="openDuePopover(event)">Evento</button>
-            <button id="pauta-action-btn" class="trello-action" onclick="openPautaModal()"
-              style="display:none">PAUTA</button>
-            <button id="client-details-action-btn" class="trello-action" onclick="toggleClientDetailsSection()">Datos
-              del cliente</button>
-            <button id="attachments-action-btn" class="trello-action"
-              onclick="toggleAttachmentsSection()">Archivos</button>
+            <div class="more-actions-wrap" id="more-actions-wrap">
+              <button id="more-actions-btn" class="trello-action" type="button"
+                onclick="toggleMoreActionsMenu(event)"><span class="more-actions-dots">&#8943;</span> M&aacute;s
+                opciones</button>
+              <div id="more-actions-menu" class="more-actions-menu" onclick="event.stopPropagation()">
+                <button id="due-action-btn" class="trello-action" type="button"
+                  onclick="openDueFromMenu(event)">Evento</button>
+                <button id="pauta-action-btn" class="trello-action" type="button" onclick="openPautaFromMenu()"
+                  style="display:none">PAUTA</button>
+                <button id="client-details-action-btn" class="trello-action" type="button"
+                  onclick="openClientDetailsFromMenu()">Datos
+                  del cliente</button>
+                <button id="attachments-action-btn" class="trello-action" type="button"
+                  onclick="openAttachmentsFromMenu()">Archivos</button>
+              </div>
+            </div>
             <input id="f-pauta-url" type="hidden" />
           </div>
 
@@ -6950,13 +7037,6 @@
             </div>
           </div>
 
-          <section class="trello-section">
-            <div class="trello-section-title"><span>=</span> Descripcion</div>
-            <textarea id="f-c" class="form-textarea trello-description"
-              placeholder="Anadir una descripcion mas detallada..." oninput="syncModalPreview()"
-              onblur="autosaveCardIfEnabled()"></textarea>
-          </section>
-
           <section id="checklist-section" class="trello-section checklist-section" data-open="false"
             style="display:none">
             <div class="checklist-head">
@@ -6984,6 +7064,13 @@
             </div>
             <button id="checklist-add-toggle" class="btn btn-ghost btn-sm" type="button"
               onclick="showChecklistInput()">Anade un elemento</button>
+          </section>
+
+          <section class="trello-section">
+            <div class="trello-section-title"><span>=</span> Descripcion</div>
+            <textarea id="f-c" class="form-textarea trello-description"
+              placeholder="Anadir una descripcion mas detallada..." oninput="syncModalPreview()"
+              onblur="autosaveCardIfEnabled()"></textarea>
           </section>
 
           <section id="client-details-section" class="trello-section client-details-section" style="display:none">
@@ -9639,7 +9726,10 @@
       if (!section) return;
       section.dataset.open = 'true';
       renderChecklist();
-      showChecklistInput();
+      // Con lista larga conviene aterrizar al inicio (progreso + primeros items);
+      // el input solo se abre solo cuando la checklist está vacía.
+      if (!modalChecklist.length) showChecklistInput();
+      scrollModalSectionIntoView('checklist-section');
     }
 
     function showChecklistInput() {
@@ -10904,7 +10994,15 @@
       renderDueCalendar();
       const pop = $('due-popover');
       pop.classList.add('open');
-      positionDuePopover(event ? event.currentTarget : $('due-action-btn'));
+      positionDuePopover(event && event.currentTarget ? event.currentTarget : dueAnchorEl());
+    }
+
+    // El botón "Evento" vive dentro del menú "Más opciones"; si está oculto,
+    // el popover se ancla al botón del menú para no quedar mal posicionado.
+    function dueAnchorEl() {
+      const btn = $('due-action-btn');
+      if (btn && btn.offsetParent !== null) return btn;
+      return $('more-actions-btn') || btn;
     }
 
     function closeDuePopover() {
@@ -10930,7 +11028,7 @@
       duePickerYear = d.getFullYear();
       duePickerMonth = d.getMonth();
       renderDueCalendar();
-      positionDuePopover($('due-action-btn'));
+      positionDuePopover(dueAnchorEl());
     }
 
     function renderDueCalendar() {
@@ -11401,7 +11499,9 @@
       membersSearch = '';
       modalChecklist = normalizeChecklist(c.checklist);
       checklistHideDone = false;
-      if ($('checklist-section')) $('checklist-section').dataset.open = modalChecklist.length ? 'true' : 'false';
+      // Para devs/marketing la checklist es el foco de la tarjeta: siempre visible.
+      if ($('checklist-section')) $('checklist-section').dataset.open = (!isVentas || modalChecklist.length) ? 'true' : 'false';
+      closeMoreActionsMenu();
       $('modal-title').textContent = clientName(c);
       $('btn-del').style.display = '';
       setStatus(c.estado);
@@ -11432,6 +11532,12 @@
       applyModalSaveMode();
 
       if (isVentas) populateVentasPanel(c);
+
+      // En desktop scrollea .card-detail-main; en mobile (<900px) scrollea el shell.
+      const mainPanel = document.querySelector('.card-detail-main');
+      if (mainPanel) mainPanel.scrollTop = 0;
+      const shellPanel = document.querySelector('.card-detail-shell');
+      if (shellPanel) shellPanel.scrollTop = 0;
 
       const activityAside = document.querySelector('.card-detail-activity');
       if (activityAside) {
@@ -11699,6 +11805,71 @@
       section.style.display = isOpen ? 'none' : '';
       if (!isOpen) renderAttachments();
     }
+
+    /* ── Menú "Más opciones": agrupa Evento / PAUTA / Datos / Archivos ── */
+    function toggleMoreActionsMenu(event) {
+      if (event) event.stopPropagation();
+      const menu = $('more-actions-menu');
+      const btn = $('more-actions-btn');
+      if (!menu) return;
+      const open = !menu.classList.contains('open');
+      menu.classList.toggle('open', open);
+      if (btn) btn.classList.toggle('open', open);
+    }
+
+    function closeMoreActionsMenu() {
+      const menu = $('more-actions-menu');
+      const btn = $('more-actions-btn');
+      if (menu) menu.classList.remove('open');
+      if (btn) btn.classList.remove('open');
+    }
+
+    // Lleva la vista hasta la sección recién abierta (clave cuando la checklist es larga)
+    // y la destaca un instante para que el ojo la encuentre.
+    function scrollModalSectionIntoView(id) {
+      const section = $(id);
+      if (!section) return;
+      requestAnimationFrame(() => {
+        section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        section.classList.remove('section-flash');
+        void section.offsetWidth;
+        section.classList.add('section-flash');
+      });
+    }
+
+    function openDueFromMenu(event) {
+      if (event) event.stopPropagation();
+      closeMoreActionsMenu();
+      openDuePopover(null);
+    }
+
+    function openPautaFromMenu() {
+      closeMoreActionsMenu();
+      openPautaModal();
+    }
+
+    function openClientDetailsFromMenu() {
+      closeMoreActionsMenu();
+      const section = $('client-details-section');
+      if (section && section.style.display === 'none') toggleClientDetailsSection();
+      scrollModalSectionIntoView('client-details-section');
+    }
+
+    function openAttachmentsFromMenu() {
+      closeMoreActionsMenu();
+      const section = $('attachments-section');
+      if (section && section.style.display === 'none') toggleAttachmentsSection();
+      scrollModalSectionIntoView('attachments-section');
+    }
+
+    // En captura: el modal corta la propagación con stopPropagation, así que
+    // un listener normal en document nunca vería los clics dentro del modal.
+    document.addEventListener('click', e => {
+      const menu = $('more-actions-menu');
+      if (menu && menu.classList.contains('open') && !e.target.closest('.more-actions-wrap')) {
+        closeMoreActionsMenu();
+      }
+    }, true);
 
     function syncModalPreview() {
       autoGrowTitle();
