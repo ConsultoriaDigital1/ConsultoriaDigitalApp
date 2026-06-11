@@ -10281,6 +10281,10 @@
         const hasChatAlias = hasPhone || !!(c.whatsappLidAlias || '').trim();
         const cleanPhone = cleanPhoneForWhatsapp(c.ntel);
         const chatBtnClass = hasChatAlias ? '' : ' disabled';
+        const whatsappAliasBadge = !hasPhone && hasChatAlias ? `
+                <div class="kcard-sales-info-item" title="WhatsApp pendiente de numero: ${esc(c.whatsappLidAlias)}">
+                  ${icon('whatsapp')} <span style="font-family:monospace">ID ${esc(c.whatsappLidAlias.split('@')[0])}</span>
+                </div>` : '';
         const chatBtnTitle = hasPhone ? `Iniciar chat en WhatsApp (${esc(c.ntel)})` : 'Sin número de teléfono';
 
         const formattedDate = c.vence ? formatDueDate(c.vence) : '';
@@ -10300,11 +10304,12 @@
                 <div class="kcard-sales-info-item" title="Teléfono">
                   ${icon('phone')} <span style="font-family:monospace">${esc(c.ntel)}</span>
                 </div>` : ''}
+              ${whatsappAliasBadge}
               ${dateBadge}
             </div>
             <div class="kcard-sales-btn-group">
               <button class="kcard-sales-chat-btn${chatBtnClass}"
-                      title="${chatBtnTitle}"
+                      title="${hasPhone ? chatBtnTitle : (hasChatAlias ? 'WhatsApp pendiente de numero' : chatBtnTitle)}"
                       onclick="event.stopPropagation(); openDirectChat('${c.id}')">
                 ${icon('whatsapp')} Chat
               </button>
@@ -11348,8 +11353,9 @@
       btnWhatsapp.style.display = isVentas ? '' : 'none';
 
       const phone = $('f-ntel') ? $('f-ntel').value.trim() : '';
-      const hasPhone = !!phone;
-      if (hasPhone) {
+      const currentCard = getCards().find(c => c.id === editingId);
+      const hasChatTarget = !!phone || !!(currentCard?.whatsappLidAlias || '').trim();
+      if (hasChatTarget) {
         btnWhatsapp.classList.remove('disabled');
         btnWhatsapp.removeAttribute('disabled');
         btnWhatsapp.style.opacity = '1';
@@ -11371,7 +11377,9 @@
 
     function openModalWhatsappChat() {
       const phone = $('f-ntel') ? $('f-ntel').value.trim() : '';
-      if (!phone) {
+      const currentCard = getCards().find(c => c.id === editingId);
+      const chatTarget = phone || currentCard?.whatsappLidAlias || '';
+      if (!chatTarget) {
         toast('Ingresá un número de teléfono primero', 'error');
         return;
       }
