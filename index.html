@@ -1173,6 +1173,72 @@
       }
     }
 
+    /* ─── PANEL PENDIENTES ─── */
+.kanban-pendientes {
+  min-width: 300px; width: 300px; height: 100%; flex-shrink: 0;
+  display: flex; flex-direction: column;
+  background: var(--surface); border-radius: var(--r-md);
+  border: 1px solid rgba(251,146,60,0.13);
+  overflow: hidden;
+}
+.pend-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0.7rem 0.85rem 0.55rem; flex-shrink: 0;
+}
+.pend-title {
+  font-family: var(--font-disp); font-size: 0.82rem; font-weight: 800;
+  color: var(--text-hi); letter-spacing: 0.02em;
+}
+.pend-count {
+  font-size: 0.62rem; font-weight: 700; color: #fb923c;
+  background: rgba(251,146,60,0.12); border-radius: 999px;
+  padding: 0.12rem 0.5rem;
+}
+.pend-filters {
+  display: flex; gap: 0.35rem; padding: 0 0.85rem 0.55rem; flex-shrink: 0;
+}
+.pend-filter {
+  flex: 1; background: transparent; border: 1px solid var(--border2);
+  color: var(--muted); font-size: 0.6rem; font-weight: 700;
+  padding: 0.3rem 0.4rem; border-radius: 999px; cursor: pointer;
+  transition: border-color 150ms, color 150ms, background 150ms;
+}
+.pend-filter:hover { color: var(--text-hi); }
+.pend-filter.active {
+  border-color: rgba(251,146,60,0.5); color: #fb923c;
+  background: rgba(251,146,60,0.08);
+}
+.pend-list {
+  flex: 1; overflow-y: auto; padding: 0 0.6rem 0.6rem;
+  display: flex; flex-direction: column; gap: 0.35rem;
+}
+.pend-item {
+  display: grid; grid-template-columns: 18px minmax(0,1fr); gap: 0.45rem;
+  align-items: flex-start; padding: 0.45rem 0.5rem;
+  background: var(--surface2); border: 1px solid var(--border2);
+  border-radius: var(--r-sm, 6px);
+}
+.pend-item-check { margin-top: 2px; cursor: pointer; }
+.pend-item-text {
+  font-size: 0.68rem; color: var(--text-hi); line-height: 1.4;
+  word-break: break-word;
+}
+.pend-item-text.progress { color: #f2a93b; font-style: italic; }
+.pend-item-client { font-size: 0.58rem; color: var(--muted); margin-top: 0.15rem; }
+.pend-item.pending-done { border-color: rgba(74,222,128,0.35); }
+.pend-item.pending-done .pend-item-text { text-decoration: line-through; color: var(--muted); }
+.pend-undo-btn {
+  margin-top: 0.3rem; background: transparent;
+  border: 1px solid rgba(74,222,128,0.4); color: var(--success);
+  font-size: 0.58rem; font-weight: 700; padding: 0.2rem 0.55rem;
+  border-radius: 999px; cursor: pointer;
+}
+.pend-undo-btn:hover { background: rgba(74,222,128,0.1); }
+.pend-empty {
+  color: var(--muted); font-size: 0.64rem; text-align: center;
+  padding: 1rem 0.5rem;
+}
+
     @keyframes cnotes-dot-pop {
       0% {
         transform: scale(1);
@@ -9864,7 +9930,130 @@
       clearInterval(window._motivTimer);
       window._motivTimer = setInterval(() => motivNext(true), 9000);
 
+      // Panel de pendientes (checklists sin completar)
+      const pendPanel = document.createElement('div');
+      pendPanel.className = 'kanban-pendientes';
+      pendPanel.id = 'pendientes-panel';
+      pendPanel.innerHTML = `
+    <div class="pend-head">
+      <span class="pend-title">Pendientes</span>
+      <span class="pend-count" id="pend-count">0</span>
+    </div>
+    <div class="pend-filters">
+      <button class="pend-filter${pendientesFilter === 'todos' ? ' active' : ''}" type="button" onclick="setPendientesFilter('todos')">Mis clientes</button>
+      <button class="pend-filter${pendientesFilter === 'mias' ? ' active' : ''}" type="button" onclick="setPendientesFilter('mias')">Asignadas a mí</button>
+    </div>
+    <div class="pend-list" id="pend-list"></div>`;
+      board.appendChild(pendPanel);
+      renderPendientesList();
+
       initKanbanSortables();
+    }
+
+    /* ─────────────────────────────────────────
+       PANEL PENDIENTES
+    ───────────────────────────────────────── */
+    let pendientesFilter = localStorage.getItem('pendientesFilter') === 'mias' ? 'mias' : 'todos';
+    const pendDoneTimers = new Map(); // "cardId::itemId" -> { timeout, deadline }
+    let pendTickTimer = null;
+
+    function setPendientesFilter(filter) {
+      pendientesFilter = filter === 'mias' ? 'mias' : 'todos';
+      localStorage.setItem('pendientesFilter', pendientesFilter);
+      document.querySelectorAll('#pendientes-panel .pend-filter').forEach((b, i) =>
+        b.classList.toggle('active', (i === 0 ? 'todos' : 'mias') === pendientesFilter));
+      renderPendientesList();
+    }
+
+    function pendienteItems() {
+      if (!currentUser) return [];
+      const uid = currentUser.id;
+      let cards = getCards().filter(c => c.equipo !== 'ventas' && !c.deletedAt);
+      if (activeTeam !== 'all' && activeTeam !== 'admin') cards = cards.filter(c => c.equipo === activeTeam);
+      const out = [];
+      cards.forEach(card => {
+        const member = cardUserIds(card).includes(uid);
+        normalizeChecklist(card.checklist).forEach(item => {
+          if (item.done) return;
+          if (pendientesFilter === 'mias' ? item.usuario !== uid : !member) return;
+          out.push({ card, item });
+        });
+      });
+      return out;
+    }
+
+    function renderPendientesList() {
+      const list = $('pend-list');
+      if (!list) return;
+      const entries = pendienteItems();
+      const countEl = $('pend-count');
+      if (countEl) countEl.textContent = entries.filter(({ card, item }) => !pendDoneTimers.has(card.id + '::' + item.id)).length;
+      if (!entries.length) {
+        list.innerHTML = `<div class="pend-empty">${pendientesFilter === 'mias' ? 'No tenés tareas asignadas pendientes 🎉' : 'Sin pendientes en tus clientes 🎉'}</div>`;
+        return;
+      }
+      list.innerHTML = entries.map(({ card, item }) => {
+        const key = card.id + '::' + item.id;
+        const pending = pendDoneTimers.get(key);
+        const secs = pending ? Math.max(1, Math.ceil((pending.deadline - Date.now()) / 1000)) : 0;
+        return `
+      <div class="pend-item${pending ? ' pending-done' : ''}">
+        <input class="pend-item-check" type="checkbox" ${pending ? 'checked' : ''}
+          onchange="${pending ? `undoPendienteDone('${esc(card.id)}','${esc(item.id)}')` : `markPendienteDone('${esc(card.id)}','${esc(item.id)}')`}" />
+        <div>
+          <div class="pend-item-text${item.progress && !pending ? ' progress' : ''}">${esc(item.text)}</div>
+          <div class="pend-item-client">${esc(card.nf || card.rs || 'Sin nombre')}${item.progress && !pending ? ' · En proceso' : ''}</div>
+          ${pending ? `<button class="pend-undo-btn" type="button" onclick="undoPendienteDone('${esc(card.id)}','${esc(item.id)}')">Deshacer (${secs})</button>` : ''}
+        </div>
+      </div>`;
+      }).join('');
+      syncPendTicker();
+    }
+
+    function syncPendTicker() {
+      if (pendDoneTimers.size && !pendTickTimer) {
+        pendTickTimer = setInterval(renderPendientesList, 1000);
+      } else if (!pendDoneTimers.size && pendTickTimer) {
+        clearInterval(pendTickTimer);
+        pendTickTimer = null;
+      }
+    }
+
+    function markPendienteDone(cardId, itemId) {
+      const key = cardId + '::' + itemId;
+      if (pendDoneTimers.has(key)) return;
+      const timeout = setTimeout(() => commitPendienteDone(cardId, itemId), 5000);
+      pendDoneTimers.set(key, { timeout, deadline: Date.now() + 5000 });
+      renderPendientesList();
+    }
+
+    function undoPendienteDone(cardId, itemId) {
+      const key = cardId + '::' + itemId;
+      const pending = pendDoneTimers.get(key);
+      if (!pending) return;
+      clearTimeout(pending.timeout);
+      pendDoneTimers.delete(key);
+      renderPendientesList();
+    }
+
+    async function commitPendienteDone(cardId, itemId) {
+      const key = cardId + '::' + itemId;
+      pendDoneTimers.delete(key);
+      const card = getCards().find(c => c.id === cardId);
+      if (!card) { renderPendientesList(); return; }
+      const checklist = normalizeChecklist(card.checklist).map(item =>
+        item.id === itemId ? { ...item, done: true, progress: false } : item);
+      try {
+        const saved = await api('/api/cards/' + cardId, {
+          method: 'PUT',
+          body: JSON.stringify({ ...card, checklist }),
+        });
+        replaceCard(saved.card);
+        renderBoard();
+      } catch (err) {
+        toast(err.message || 'No se pudo guardar el pendiente', 'error');
+        renderPendientesList();
+      }
     }
 
     function renderVentas() {
