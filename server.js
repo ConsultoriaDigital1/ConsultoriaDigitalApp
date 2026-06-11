@@ -283,6 +283,30 @@ function requireExternalAuth(req, res, next) {
   next();
 }
 
+function getByPath(obj, pathParts) {
+  return pathParts.reduce((value, key) => {
+    if (value == null || typeof value !== 'object') return undefined;
+    return value[key];
+  }, obj);
+}
+
+function extractExternalPhone(body) {
+  const candidates = [
+    body?.phone,
+    body?.cleanedSenderPN,
+    body?.senderPn,
+    body?.senderPN,
+    body?.senderPhone,
+    getByPath(body, ['data', 'messages', 'key', 'cleanedSenderPN']),
+    getByPath(body, ['data', 'messages', 'key', 'senderPn']),
+    getByPath(body, ['body', 'data', 'messages', 'key', 'cleanedSenderPN']),
+    getByPath(body, ['body', 'data', 'messages', 'key', 'senderPn']),
+  ];
+
+  const phone = candidates.find((value) => cleanPhoneDigits(value));
+  return phone ? cleanPhoneDigits(phone) : '';
+}
+
 async function requireAuth(req, res, next) {
   try {
     const cookies = parseCookies(req.headers.cookie);
@@ -1845,7 +1869,8 @@ app.put('/api/cards/:id', requireAuth, async (req, res, next) => {
 });
 
 app.post('/api/external/cards/update-status', requireExternalAuth, async (req, res, next) => {
-  const { phone, cardId, estado, motivo, createIfMissing, nombreFiscal, razonSocial, cuit } = req.body;
+  const { cardId, estado, motivo, createIfMissing, nombreFiscal, razonSocial, cuit } = req.body;
+  const phone = extractExternalPhone(req.body);
 
   if (!estado) {
     return res.status(400).json({ error: 'El campo "estado" es obligatorio.' });
@@ -1878,22 +1903,12 @@ app.post('/api/external/cards/update-status', requireExternalAuth, async (req, r
         "SELECT id, ntel FROM cards WHERE equipo = 'ventas' AND deleted_at IS NULL"
       );
 
-      const cleanDigits = (p) => String(p || '').replace(/\D/g, '');
-      const cleanLocal = (p) => {
-        let s = p;
-        if (s.startsWith('549')) s = s.slice(3);
-        else if (s.startsWith('54')) s = s.slice(2);
-        if (s.startsWith('0')) s = s.slice(1);
-        if (s.length === 10 && s.startsWith('15')) s = s.slice(2);
-        return s;
-      };
-
-      const incomingClean = cleanDigits(phone);
-      const incomingLocal = cleanLocal(incomingClean);
+      const incomingClean = cleanPhoneDigits(phone);
+      const incomingLocal = phoneLocalForm(incomingClean);
 
       const matched = rows.find((row) => {
-        const cardClean = cleanDigits(row.ntel);
-        const cardLocal = cleanLocal(cardClean);
+        const cardClean = cleanPhoneDigits(row.ntel);
+        const cardLocal = phoneLocalForm(cardClean);
         if (!cardClean || !incomingClean) return false;
         return cardClean === incomingClean || (cardLocal === incomingLocal && cardLocal.length >= 7);
       });
