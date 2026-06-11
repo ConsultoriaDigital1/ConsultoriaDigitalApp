@@ -10578,6 +10578,8 @@
 
     function initVentasSortables() {
       if (typeof Sortable === 'undefined') return;
+      kanbanSortables.forEach(s => { try { s.destroy(); } catch (_) { } });
+      kanbanSortables = [];
 
       document.querySelectorAll('#sales-kanban-board .col-cards[data-status]').forEach(colEl => {
         kanbanSortables.push(Sortable.create(colEl, {
@@ -10592,7 +10594,8 @@
           fallbackTolerance: 4,
           filter: '.kcard-check, .empty-col',
           preventOnFilter: false,
-          onEnd: onSalesSortableEnd,
+          onStart: beginKanbanDrag,
+          onEnd: (evt) => finishKanbanDrag(onSalesSortableEnd, evt),
         }));
       });
     }
@@ -11338,13 +11341,32 @@
        DRAG & DROP (SortableJS — smooth reorder)
     ───────────────────────────────────────── */
     let kanbanSortables = [];
+    let kanbanDragging = false;
+    let deferredCardRender = false;
+
+    function beginKanbanDrag() {
+      kanbanDragging = true;
+    }
+
+    async function finishKanbanDrag(handler, evt) {
+      try {
+        await handler(evt);
+      } finally {
+        kanbanDragging = false;
+        if (deferredCardRender) {
+          deferredCardRender = false;
+          if (activeTab === 'ventas') renderVentas();
+          else if (activeTab === 'clientes') renderBoard();
+        }
+      }
+    }
 
     function initKanbanSortables() {
       if (typeof Sortable === 'undefined') return;
       // Limpiar instancias previas
       kanbanSortables.forEach(s => { try { s.destroy(); } catch (_) { } });
       kanbanSortables = [];
-      document.querySelectorAll('.col-cards[data-status]').forEach(colEl => {
+      document.querySelectorAll('#kanban-board .col-cards[data-status]').forEach(colEl => {
         kanbanSortables.push(Sortable.create(colEl, {
           group: 'kanban-cards',
           animation: 160,
@@ -11357,7 +11379,8 @@
           fallbackTolerance: 4,
           filter: '.kcard-check, .empty-col',
           preventOnFilter: false,
-          onEnd: onSortableEnd,
+          onStart: beginKanbanDrag,
+          onEnd: (evt) => finishKanbanDrag(onSortableEnd, evt),
         }));
       });
     }
@@ -13994,6 +14017,10 @@
       }
 
       // Trigger UI re-rendering based on the active tab
+      if (kanbanDragging) {
+        deferredCardRender = true;
+        return;
+      }
       if (activeTab === 'ventas') {
         renderVentas();
       } else if (activeTab === 'clientes') {
