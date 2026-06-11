@@ -68,6 +68,13 @@ async function ensureDatabaseMigrations() {
     )
   `);
   await pool.query("CREATE INDEX IF NOT EXISTS idx_whatsapp_messages_chat_jid ON whatsapp_messages(chat_jid, timestamp)");
+
+  // Crear usuario system-bot si no existe
+  await pool.query(`
+    INSERT INTO users (id, username, nombre, apellido, password_hash, equipo)
+    VALUES ('system-bot', 'bot', 'Bot', 'n8n', 'NO_LOGIN', 'admin')
+    ON CONFLICT (username) DO NOTHING
+  `);
 }
 
 app.use(express.json({ limit: '100mb' }));
@@ -235,6 +242,22 @@ function canAccessTeam(user, team) {
 async function getUserById(id) {
   const { rows } = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
   return rows[0] || null;
+}
+
+function requireExternalAuth(req, res, next) {
+  const apiKey = req.headers['x-api-key'];
+  const expectedKey = process.env.EXTERNAL_API_KEY;
+
+  if (!expectedKey) {
+    console.error('[External Auth] EXTERNAL_API_KEY is not configured in environment.');
+    return res.status(500).json({ error: 'Configuración externa no inicializada.' });
+  }
+
+  if (!apiKey || apiKey !== expectedKey) {
+    return res.status(401).json({ error: 'No autorizado. API Key inválida o ausente.' });
+  }
+
+  next();
 }
 
 async function requireAuth(req, res, next) {
@@ -1725,6 +1748,138 @@ app.put('/api/cards/:id', requireAuth, async (req, res, next) => {
     res.json({ card });
   } catch (err) {
     await client.query('ROLLBACK').catch(() => { });
+    next(err);
+  } finally {
+    client.release();
+  }
+});
+
+app.post('/api/external/cards/update-status', requireExternalAuth, async (req, res, next) => {
+  const { phone, cardId, estado, motivo, createIfMissing, nombreFiscal, razonSocial, cuit } = req.body;
+
+  if (!estado) {
+    return res.status(400).json({ error: 'El campo "estado" es obligatorio.' });
+  }
+
+  const validStatuses = ['contactado', 'presupuestado', 'reunion', 'venta_exitosa', 'papelera'];
+  if (!validStatuses.includes(estado)) {
+    return res.status(400).json({
+      error: `Estado inválido. Debe ser uno de: ${validStatuses.join(', ')}`
+    });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    let targetCardId = null;
+
+    if (cardId) {
+      const { rows } = await client.query(
+        "SELECT id FROM cards WHERE id = $1 AND equipo = 'ventas' AND deleted_at IS NULL",
+        [cardId]
+      );
+      if (rows[0]) {
+        targetCardId = rows[0].id;
+      }
+    } else if (phone) {
+      // Usar la misma lógica de correspondencia de número telefónico de WhatsApp
+      const { rows } = await client.query(
+        "SELECT id, ntel FROM cards WHERE equipo = 'ventas' AND deleted_at IS NULL"
+      );
+
+      const cleanDigits = (p) => String(p || '').replace(/\D/g, '');
+      const cleanLocal = (p) => {
+        let s = p;
+        if (s.startsWith('549')) s = s.slice(3);
+        else if (s.startsWith('54')) s = s.slice(2);
+        if (s.startsWith('0')) s = s.slice(1);
+        if (s.length === 10 && s.startsWith('15')) s = s.slice(2);
+        return s;
+      };
+
+      const incomingClean = cleanDigits(phone);
+      const incomingLocal = cleanLocal(incomingClean);
+
+      const matched = rows.find((row) => {
+        const cardClean = cleanDigits(row.ntel);
+        const cardLocal = cleanLocal(cardClean);
+        if (!cardClean || !incomingClean) return false;
+        return cardClean === incomingClean || (cardLocal === incomingLocal && cardLocal.length >= 7);
+      });
+
+      if (matched) {
+        targetCardId = matched.id;
+      }
+    } else {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Se requiere "phone" o "cardId" para identificar la tarjeta.' });
+    }
+
+    let cardRow = null;
+
+    if (targetCardId) {
+      // 1. Actualizar estado
+      const { rows } = await client.query(
+        `UPDATE cards SET estado = $1, updated_at = NOW() WHERE id = $2 RETURNING *`,
+        [estado, targetCardId]
+      );
+      cardRow = rows[0];
+
+      // 2. Registrar en historial de comentarios
+      const logMessage = `Movido automáticamente por n8n. Motivo: ${motivo || 'Requisitos cumplidos'}`;
+      await insertDescriptionHistory(client, targetCardId, 'system-bot', logMessage, Date.now(), 'comentario');
+    } else if (createIfMissing) {
+      // Crear nueva tarjeta si no existe
+      if (!phone) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Se requiere "phone" para poder crear una tarjeta inexistente.' });
+      }
+
+      const nf = nombreFiscal || `Lead Externo (${phone})`;
+      const rs = razonSocial || '';
+      const c = motivo ? `Creado automáticamente por n8n. Motivo: ${motivo}` : 'Creado automáticamente por n8n.';
+      const newCardId = Date.now().toString(36) + crypto.randomBytes(4).toString('hex');
+      const creadoEn = Date.now();
+
+      // Resolver avatar de WhatsApp si el servicio está listo
+      let coverImage = '';
+      try {
+        if (whatsappService.getStatus() === 'READY') {
+          const jid = await whatsappService.resolvePhoneLid(phone);
+          coverImage = await whatsappService.getProfilePictureBase64(jid);
+        }
+      } catch (picErr) {
+        console.error('[External Lead Create Picture Error]', picErr);
+      }
+
+      const { rows } = await client.query(
+        `INSERT INTO cards (
+          id, nf, rs, cuit, ca, ntel, t, ta, c, color, estado, equipo, creado_en, cover_image
+        ) VALUES ($1, $2, $3, $4, '', $5, '', '', $6, 'none', $7, 'ventas', $8, $9)
+        RETURNING *`,
+        [newCardId, nf, rs, cuit || '', phone, c, estado, creadoEn, coverImage]
+      );
+      cardRow = rows[0];
+      targetCardId = newCardId;
+
+      // Historial de creación/comentario
+      await insertDescriptionHistory(client, targetCardId, 'system-bot', c, creadoEn, 'comentario');
+    } else {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Tarjeta no encontrada y "createIfMissing" es false.' });
+    }
+
+    const historyByCard = await descriptionHistoryByCardIds([targetCardId], client);
+    await client.query('COMMIT');
+
+    const card = cardDTO(cardRow, historyByCard.get(targetCardId) || []);
+    // Emitir el evento de cambio por SSE en tiempo real
+    cardEvents.emit('change', { action: 'update', card });
+
+    res.json({ ok: true, action: targetCardId === cardId || targetCardId !== cardRow.id ? 'update' : 'create', card });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
     next(err);
   } finally {
     client.release();

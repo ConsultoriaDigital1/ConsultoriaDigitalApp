@@ -11480,7 +11480,14 @@
     </div>
   ` : '';
       const historyItems = history.map(h => {
-        const user = users.find(u => u.id === h.userId) || actor || currentUser;
+        let user;
+        let botAvatarStyle = '';
+        if (h.userId === 'system-bot') {
+          user = { nombre: 'Bot', apellido: 'n8n', username: 'bot', equipo: 'admin', avatarImage: '' };
+          botAvatarStyle = 'background: linear-gradient(135deg, #10b981, #059669); color: white;';
+        } else {
+          user = users.find(u => u.id === h.userId) || actor || currentUser;
+        }
         const userName = user ? (user.nombre + ' ' + (user.apellido || '')).trim() : 'Usuario';
         const text = String(h.description || '').trim();
         const kind = h.kind || 'descripcion';
@@ -11497,7 +11504,7 @@
         }
         return `
       <div class="activity-item">
-        <div class="activity-avatar" style="${avatarStyle(user)}">${avatarText(user)}</div>
+        <div class="activity-avatar" style="${botAvatarStyle || avatarStyle(user)}">${avatarText(user)}</div>
         <div>
           <strong>${esc(userName)}</strong> ${verb}
           <div class="activity-date">${esc(fmtActivityDate(h.creadoEn))}</div>
@@ -11525,12 +11532,19 @@
         if (latestComment && latestComment.description) {
           const blocks = latestComment.description.trim().split(/\n\n+/);
           const lastBlockText = blocks[blocks.length - 1] || '';
-          const user = users.find(u => u.id === latestComment.userId) || actor || currentUser;
+          let user;
+          let botAvatarStyle = '';
+          if (latestComment.userId === 'system-bot') {
+            user = { nombre: 'Bot', apellido: 'n8n', username: 'bot', equipo: 'admin', avatarImage: '' };
+            botAvatarStyle = 'background: linear-gradient(135deg, #10b981, #059669); color: white;';
+          } else {
+            user = users.find(u => u.id === latestComment.userId) || actor || currentUser;
+          }
           const userName = user ? (user.nombre + ' ' + (user.apellido || '')).trim() : 'Usuario';
 
           latestCommentBox.innerHTML = `
         <div class="activity-item">
-          <div class="activity-avatar" style="${avatarStyle(user)}">${avatarText(user)}</div>
+          <div class="activity-avatar" style="${botAvatarStyle || avatarStyle(user)}">${avatarText(user)}</div>
           <div>
             <strong>${esc(userName)}</strong>
             <div class="activity-date">${esc(fmtActivityDate(latestComment.creadoEn))}</div>
