@@ -36,6 +36,55 @@ const AUTH_DIR = path.join(os.homedir(), '.baileys_auth', 'consultoria-digital')
 const MAPPING_FILE = path.join(__dirname, '.local', 'lid-mappings.json');
 const lidToPnMap = new Map();
 
+function isLidJid(jid) {
+  return typeof jid === 'string' && jid.endsWith('@lid');
+}
+
+function isPhoneJid(jid) {
+  return typeof jid === 'string' && jid.endsWith('@s.whatsapp.net');
+}
+
+function normalizeLidJid(value) {
+  if (!value) return null;
+  const raw = String(value).trim();
+  if (!raw) return null;
+  if (isLidJid(raw)) return raw.split(':')[0];
+  return null;
+}
+
+function normalizePhoneJid(value) {
+  if (!value) return null;
+  const raw = String(value).trim();
+  if (!raw || isLidJid(raw)) return null;
+  if (isPhoneJid(raw)) return jidNormalizedUser(raw);
+
+  const cleaned = cleanPhoneForWhatsapp(raw);
+  if (!cleaned || !/^\d{8,15}$/.test(cleaned)) return null;
+  return `${cleaned}@s.whatsapp.net`;
+}
+
+function rememberLidMapping(lidValue, pnValue, source) {
+  const lid = normalizeLidJid(lidValue);
+  const pn = normalizePhoneJid(pnValue);
+
+  if (!lid || !pn) return null;
+
+  if (lidToPnMap.get(lid) !== pn) {
+    lidToPnMap.set(lid, pn);
+    saveMappings();
+    console.log(`[WhatsApp Service] Mapped LID ${lid} to PN JID ${pn} from ${source}`);
+    whatsappEvents.emit('lid_mapped', { lid, pn });
+  }
+
+  return pn;
+}
+
+function getMappedPhoneJid(lid) {
+  const normalized = normalizeLidJid(lid);
+  if (!normalized) return null;
+  return lidToPnMap.get(normalized) || null;
+}
+
 function loadMappings() {
   try {
     if (fs.existsSync(MAPPING_FILE)) {
@@ -72,28 +121,21 @@ function addContactMapping(contact, source) {
   let pn = null;
 
   if (contact.id && contact.lid) {
-    if (contact.id.endsWith('@lid') && contact.lid.endsWith('@s.whatsapp.net')) {
+    if (isLidJid(contact.id) && isPhoneJid(contact.lid)) {
       lid = contact.id;
       pn = contact.lid;
-    } else if (contact.id.endsWith('@s.whatsapp.net') && contact.lid.endsWith('@lid')) {
+    } else if (isPhoneJid(contact.id) && isLidJid(contact.lid)) {
       lid = contact.lid;
       pn = contact.id;
     }
   }
 
-  if (contact.id && contact.id.endsWith('@lid') && contact.phoneNumber) {
+  if (contact.id && isLidJid(contact.id) && contact.phoneNumber) {
     lid = contact.id;
-    pn = contact.phoneNumber.includes('@') ? contact.phoneNumber : (contact.phoneNumber + '@s.whatsapp.net');
+    pn = contact.phoneNumber;
   }
 
-  if (lid && pn) {
-    if (lidToPnMap.get(lid) !== pn) {
-      lidToPnMap.set(lid, pn);
-      saveMappings();
-      console.log(`[WhatsApp Service] Mapped LID ${lid} to PN JID ${pn} from ${source}`);
-      whatsappEvents.emit('lid_mapped', { lid, pn });
-    }
-  }
+  rememberLidMapping(lid, pn, source);
 }
 
 function extractPhoneNumberFromJid(jid) {
@@ -174,16 +216,27 @@ function myJid() {
   return sock?.user?.id ? jidNormalizedUser(sock.user.id) : '';
 }
 
-function formatMessage(m) {
-  const rawJid = m.key.remoteJid;
-  let jid = rawJid;
-  if (rawJid && rawJid.endsWith('@lid')) {
-    const pn = m.key?.senderPn || lidToPnMap.get(rawJid) || sock?.signalRepository?.lidMapping?.getPNForLID(rawJid);
-    if (pn) {
-      jid = pn;
-    }
+function getMessagePhoneJid(m) {
+  const rawJid = m.key?.remoteJid;
+  if (!isLidJid(rawJid)) return rawJid;
+
+  const candidatePn = [
+    m.key?.senderPn,
+    m.key?.participant,
+    m.participant,
+    getMappedPhoneJid(rawJid),
+  ].find((candidate) => normalizePhoneJid(candidate));
+
+  if (candidatePn) {
+    return rememberLidMapping(rawJid, candidatePn, 'message metadata') || rawJid;
   }
 
+  const pnFromSignal = sock?.signalRepository?.lidMapping?.getPNForLID?.(rawJid);
+  return rememberLidMapping(rawJid, pnFromSignal, 'signalRepository') || rawJid;
+}
+
+function formatMessage(m) {
+  const jid = getMessagePhoneJid(m);
   const fromMe = !!m.key.fromMe;
   const me = myJid();
   return {
@@ -212,7 +265,7 @@ function storeMessage(jid, msg) {
 }
 
 function isIndividualChat(jid) {
-  return !!jid && (jid.endsWith('@s.whatsapp.net') || jid.endsWith('@lid'));
+  return !!jid && (isPhoneJid(jid) || isLidJid(jid));
 }
 
 async function handleConnectionUpdate(update) {
@@ -264,22 +317,12 @@ function handleMessagesUpsert({ messages, type }) {
     const rawJid = m.key?.remoteJid;
     if (!isIndividualChat(rawJid)) continue;
 
-    // Si viene un LID y viene acompañado de senderPn, guardamos ese mapeo de inmediato
-    if (rawJid && rawJid.endsWith('@lid') && m.key?.senderPn) {
-      addContactMapping({ id: rawJid, lid: m.key.senderPn }, 'messages.upsert.senderPn');
-    }
-
-    // Resolve LID to PN if possible
-    let resolvedJid = rawJid;
-    if (rawJid && rawJid.endsWith('@lid')) {
-      const pn = m.key?.senderPn || lidToPnMap.get(rawJid) || sock?.signalRepository?.lidMapping?.getPNForLID(rawJid);
-      if (pn) {
-        resolvedJid = pn;
-        console.log(`[WhatsApp Service] Resolved JID from LID ${rawJid} to PN ${resolvedJid}`);
-      }
-    }
-
     const formatted = formatMessage(m);
+    const resolvedJid = formatted.fromMe ? formatted.to : formatted.from;
+
+    if (rawJid !== resolvedJid) {
+      console.log(`[WhatsApp Service] Resolved JID from LID ${rawJid} to PN ${resolvedJid}`);
+    }
     
     // Store message in the in-memory store
     storeMessage(resolvedJid, formatted);
@@ -363,7 +406,7 @@ function getQrCode() {
 
 async function resolveWhatsappJid(phone) {
   // If it's already a full JID, return it directly
-  if (phone.endsWith('@s.whatsapp.net') || phone.endsWith('@lid')) {
+  if (isPhoneJid(phone) || isLidJid(phone)) {
     return phone;
   }
 
@@ -390,33 +433,23 @@ async function resolveWhatsappJid(phone) {
     const match = results && results[0];
     
     if (!match || !match.exists) {
-      // Fallback: If it's not registered or onWhatsApp failed (e.g. because input is a LID, not a PN),
-      // but it looks like a valid numeric ID, treat it as a LID JID.
-      if (/^\d+$/.test(phone) && phone.length >= 10) {
-        console.log(`[WhatsApp Service] onWhatsApp failed/empty for ${phone}, treating as LID JID.`);
-        return phone + '@lid';
+      if (isLidJid(phone)) {
+        return phone;
       }
       throw new Error(`El número ${phone} no está registrado en WhatsApp.`);
     }
 
     const pn = match.jid;
-    const lid = match.lid || sock?.signalRepository?.lidMapping?.getLIDForPN(pn);
+    const lid = match.lid || sock?.signalRepository?.lidMapping?.getLIDForPN?.(pn);
     if (lid) {
-      if (lidToPnMap.get(lid) !== pn) {
-        lidToPnMap.set(lid, pn);
-        saveMappings();
-        console.log(`[WhatsApp Service] Mapped and saved LID ${lid} to PN JID ${pn}`);
-        whatsappEvents.emit('lid_mapped', { lid, pn });
-      }
+      rememberLidMapping(lid, pn, 'onWhatsApp');
     } else {
       console.log(`[WhatsApp Service] Could not find LID for JID ${pn}`);
     }
     return match.jid; // jid normalizado, ej: 549XXXXXXXXXX@s.whatsapp.net
   } catch (err) {
-    // If onWhatsApp fails (e.g. network error), check if we can fall back to LID
-    if (/^\d+$/.test(phone) && phone.length >= 10) {
-      console.log(`[WhatsApp Service] resolveWhatsappJid error: ${err.message}, falling back to LID.`);
-      return phone + '@lid';
+    if (isLidJid(phone)) {
+      return phone;
     }
     throw err;
   }
@@ -428,7 +461,7 @@ async function getChatHistory(phone) {
   }
 
   const jid = await resolveWhatsappJid(phone); // E.g. 5493794558038@s.whatsapp.net
-  let lidJid = sock?.signalRepository?.lidMapping?.getLIDForPN(jid);
+  let lidJid = sock?.signalRepository?.lidMapping?.getLIDForPN?.(jid);
   if (!lidJid) {
     // Fallback to local map search in reverse
     for (const [l, p] of lidToPnMap.entries()) {

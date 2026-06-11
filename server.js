@@ -2048,6 +2048,72 @@ app.use((err, _req, res, _next) => {
   res.status(err.status || 500).json({ error: err.message || 'Error interno.' });
 });
 
+function cleanPhoneDigits(phone) {
+  return String(phone || '').replace(/\D/g, '');
+}
+
+function phoneLocalForm(phone) {
+  let s = cleanPhoneDigits(phone);
+  if (s.startsWith('549')) s = s.slice(3);
+  else if (s.startsWith('54')) s = s.slice(2);
+  if (s.startsWith('0')) s = s.slice(1);
+  if (s.length === 10 && s.startsWith('15')) s = s.slice(2);
+  return s;
+}
+
+async function salesLeadExistsByPhone(phone) {
+  const incomingClean = cleanPhoneDigits(phone);
+  const incomingLocal = phoneLocalForm(incomingClean);
+
+  if (!incomingClean) return true;
+
+  const { rows } = await pool.query(
+    "SELECT ntel FROM cards WHERE equipo = 'ventas' AND deleted_at IS NULL"
+  );
+
+  return rows.some((row) => {
+    const cardClean = cleanPhoneDigits(row.ntel);
+    const cardLocal = phoneLocalForm(cardClean);
+    if (!cardClean) return false;
+    return cardClean === incomingClean || (cardLocal === incomingLocal && cardLocal.length >= 7);
+  });
+}
+
+async function ensureWhatsappLead({ jid, phone, body = '', pushName = '', timestamp = Date.now() }) {
+  if (!phone || phone.includes('@')) return null;
+
+  const exists = await salesLeadExistsByPhone(phone);
+  if (exists) return null;
+
+  console.log(`[WhatsApp Lead] Creando nuevo lead para numero: ${phone}`);
+  const cardId = Date.now().toString(36) + crypto.randomBytes(4).toString('hex');
+  const creadoEn = Number(timestamp) > 1000000000000 ? Number(timestamp) : Date.now();
+  const nf = pushName ? pushName : `WhatsApp Lead (${phone})`;
+
+  let coverImage = '';
+  try {
+    coverImage = await whatsappService.getProfilePictureBase64(jid);
+  } catch (picErr) {
+    console.error('[WhatsApp Lead Picture Error] No se pudo obtener la imagen de perfil:', picErr);
+  }
+
+  const { rows: inserted } = await pool.query(
+    `INSERT INTO cards (
+      id, nf, rs, cuit, ca, ntel, t, ta, c, color, estado, equipo, creado_en, cover_image
+    ) VALUES ($1, $2, '', '', '', $3, '', '', $4, 'none', 'contactado', 'ventas', $5, $6)
+    RETURNING *`,
+    [cardId, nf, phone, `Mensaje recibido: "${body}"`, creadoEn, coverImage]
+  );
+
+  if (inserted[0]) {
+    const card = cardDTO(inserted[0]);
+    cardEvents.emit('change', { action: 'create', card });
+    return card;
+  }
+
+  return null;
+}
+
 async function mergeChatAlias(lidJid, phoneJid) {
   const lidNumber = lidJid.split('@')[0];
   const realNumber = phoneJid.split('@')[0];
@@ -2088,7 +2154,11 @@ async function mergeChatAlias(lidJid, phoneJid) {
 
     // 2. Fusionar mensajes en whatsapp_messages
     const { rowCount: updatedMessages } = await client.query(
-      "UPDATE whatsapp_messages SET chat_jid = $1 WHERE chat_jid = $2",
+      `UPDATE whatsapp_messages
+       SET chat_jid = CASE WHEN chat_jid = $2 THEN $1 ELSE chat_jid END,
+           sender_jid = CASE WHEN sender_jid = $2 THEN $1 ELSE sender_jid END,
+           receiver_jid = CASE WHEN receiver_jid = $2 THEN $1 ELSE receiver_jid END
+       WHERE chat_jid = $2 OR sender_jid = $2 OR receiver_jid = $2`,
       [phoneJid, lidJid]
     );
     if (updatedMessages > 0) {
@@ -2127,7 +2197,11 @@ async function start() {
       if (msg.fromMe) return;
 
       const jid = msg.from;
-      const phone = whatsappService.extractPhoneNumberFromJid(jid) || jid.split('@')[0];
+      const phone = whatsappService.extractPhoneNumberFromJid(jid);
+      if (!phone) {
+        console.log(`[WhatsApp Lead] Mensaje entrante con LID sin numero real (${jid}). Esperando mapeo LID -> PN.`);
+        return;
+      }
 
       try {
         // Consultar tarjetas activas de ventas
@@ -2190,6 +2264,31 @@ async function start() {
     whatsappService.events.on('lid_mapped', async ({ lid, pn }) => {
       console.log(`[WhatsApp Lead] Mapeo de LID detectado: ${lid} -> ${pn}. Sincronizando BD...`);
       await mergeChatAlias(lid, pn);
+
+      const phone = whatsappService.extractPhoneNumberFromJid(pn);
+      if (!phone) return;
+
+      try {
+        const { rows } = await pool.query(
+          `SELECT sender_jid AS "from", body, timestamp
+           FROM whatsapp_messages
+           WHERE chat_jid = $1 AND from_me = false
+           ORDER BY timestamp DESC
+           LIMIT 1`,
+          [pn]
+        );
+
+        if (rows[0]) {
+          await ensureWhatsappLead({
+            jid: pn,
+            phone,
+            body: rows[0].body,
+            timestamp: rows[0].timestamp,
+          });
+        }
+      } catch (err) {
+        console.error('[WhatsApp Lead] Error creando lead luego del mapeo LID:', err);
+      }
     });
 
     // Evento status de WhatsApp para sincronizar correspondencias de LID para leads activos
