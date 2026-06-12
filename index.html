@@ -8191,6 +8191,7 @@
       if (tab === 'clientes') renderClientesSubTab();
       if (tab === 'libreta') applyLibretaUrl();
       if (tab === 'flujo') applyFlujoUrl();
+      if (tab === 'cobranzas') renderCobranzasSubTab();
     }
 
     function applyAdminSubTab() {
@@ -8342,6 +8343,262 @@
     <div id="clients-results"></div>
   `;
       renderClientsResults();
+    }
+
+    // ════════════════════════════════════════════
+    // COBRANZAS: pendientes de cobro + factura ARCA + aviso n8n
+    // ════════════════════════════════════════════
+    let cobranzasData = null;
+
+    function renderCobranzasSubTab() {
+      const cont = $('admin-sub-cobranzas');
+      if (!cont) return;
+      cont.innerHTML = `
+    <div class="admin-section-head" style="flex-wrap:wrap;gap:0.6rem;align-items:center">
+      <div style="min-width:0">
+        <div class="admin-section-title">Cobranzas</div>
+        <div class="admin-section-sub" id="cobranzas-sub">Cargando…</div>
+      </div>
+      <div id="cobranzas-status" style="display:flex;gap:0.5rem;margin-left:auto;flex-wrap:wrap"></div>
+    </div>
+    <div id="cobranzas-results"><div class="admin-placeholder">Cargando pendientes…</div></div>
+  `;
+      loadCobranzas();
+    }
+
+    async function loadCobranzas() {
+      try {
+        cobranzasData = await api('/api/admin/cobranzas');
+        renderCobranzasResults();
+      } catch (err) {
+        const box = $('cobranzas-results');
+        if (box) box.innerHTML = `<div class="admin-placeholder"><strong>Error</strong> ${esc(err.message)}</div>`;
+      }
+    }
+
+    function cobranzaChip(label, ok, hint) {
+      return `<span title="${esc(hint || '')}" style="display:inline-flex;align-items:center;gap:0.35rem;padding:0.25rem 0.6rem;border-radius:999px;font-size:0.75rem;font-weight:600;border:1px solid var(--border2);background:var(--bg2);color:${ok ? 'var(--lime, #84cc16)' : 'var(--muted, #888)'}">
+        ${icon(ok ? 'check' : 'warn')} ${esc(label)}
+      </span>`;
+    }
+
+    function fmtAvisoFecha(ms) {
+      if (!ms) return '<span class="admin-muted">Nunca</span>';
+      return esc(new Date(ms).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }));
+    }
+
+    function renderCobranzasResults() {
+      const box = $('cobranzas-results');
+      if (!box || !cobranzasData) return;
+      const d = cobranzasData;
+      const todayStr = new Date().toISOString().slice(0, 10);
+
+      const statusBox = $('cobranzas-status');
+      if (statusBox) {
+        const arcaLabel = !d.arca.configured ? 'ARCA sin configurar'
+          : d.arca.production ? 'ARCA producción' : 'ARCA homologación (prueba)';
+        statusBox.innerHTML =
+          cobranzaChip(arcaLabel, d.arca.configured, d.arca.configured ? `CUIT ${d.arca.cuit} · PtoVta ${d.arca.ptoVta}` : 'Definí ARCA_CUIT, ARCA_CERT_PATH y ARCA_KEY_PATH en .env') +
+          cobranzaChip(d.n8nConfigured ? 'n8n conectado' : 'n8n sin configurar', d.n8nConfigured, d.n8nConfigured ? '' : 'Definí N8N_WEBHOOK_URL en .env');
+      }
+
+      const sub = $('cobranzas-sub');
+      const totalPend = d.pendientes.reduce((a, c) => a + Number(c.saldo || 0), 0);
+      if (sub) sub.textContent = `${d.pendientes.length} cliente${d.pendientes.length === 1 ? '' : 's'} con saldo pendiente · Total ${moneyText(totalPend)}`;
+
+      if (!d.pendientes.length) {
+        box.innerHTML = `<div class="admin-placeholder"><strong>Sin pendientes</strong> Todos los clientes están al día. 🎉</div>`;
+        return;
+      }
+
+      const rows = d.pendientes
+        .slice()
+        .sort((a, b) => Number(b.saldo || 0) - Number(a.saldo || 0))
+        .map((c) => {
+          const vencido = c.vence && c.vence < todayStr;
+          const lastInv = (d.invoices || []).find((i) => i.clientId === c.id);
+          return `
+        <tr>
+          <td>
+            <div class="admin-client">${esc(c.nombreFantasia || c.razonSocial || '(Sin nombre)')}</div>
+            ${c.razonSocial ? `<div class="admin-muted">${esc(c.razonSocial)}</div>` : ''}
+          </td>
+          <td>${c.cuit ? `<span class="admin-data">${esc(c.cuit)}</span>` : '<span class="admin-muted">-</span>'}</td>
+          <td><span class="admin-money">${esc(moneyText(c.saldo))}</span></td>
+          <td>${c.vence ? `<span class="admin-due ${vencido ? 'overdue' : ''}">${esc(c.vence)}${vencido ? ' <small>vencido</small>' : ''}</span>` : '<span class="admin-muted">-</span>'}</td>
+          <td>${lastInv ? `<a class="admin-data" title="CAE ${esc(lastInv.cae)} — abrir PDF" href="/api/admin/cobranzas/invoices/${esc(lastInv.id)}/pdf" target="_blank" rel="noopener" onclick="event.stopPropagation()">${esc(lastInv.cbteLetra)} ${esc(lastInv.numero)} 📄</a>` : '<span class="admin-muted">-</span>'}</td>
+          <td>${fmtAvisoFecha(c.ultimoAviso)}</td>
+          <td>
+            <div class="ct-actions" style="display:flex;gap:0.4rem">
+              <button class="btn btn-lime btn-sm" onclick="openCobranzaInvoice('${c.id}')" ${d.arca.configured ? '' : 'disabled title="Configurá ARCA en .env"'}>${icon('receipt')} Facturar</button>
+              <button class="btn btn-subtle btn-sm" onclick="openCobranzaAviso('${c.id}')" ${d.n8nConfigured ? '' : 'disabled title="Configurá N8N_WEBHOOK_URL en .env"'}>${icon('send') || '✉'} Aviso</button>
+            </div>
+          </td>
+        </tr>`;
+        }).join('');
+
+      box.innerHTML = `
+    <div style="overflow-x:auto">
+      <table class="clients-table">
+        <thead>
+          <tr>
+            <th>Cliente</th><th>CUIT</th><th>Saldo</th><th>Vence</th><th>Última factura</th><th>Último aviso</th><th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+    }
+
+    function closeCobranzaOverlay() {
+      const el = $('cobranza-overlay');
+      if (el) el.remove();
+    }
+
+    function cobranzaOverlayShell(title, innerHtml) {
+      closeCobranzaOverlay();
+      const wrap = document.createElement('div');
+      wrap.id = 'cobranza-overlay';
+      wrap.style.cssText = 'position:fixed;inset:0;z-index:9000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.55);backdrop-filter:blur(2px)';
+      wrap.innerHTML = `
+      <div style="width:min(440px,92vw);background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r-md);padding:1.2rem;max-height:88vh;overflow:auto">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.9rem">
+          <strong style="font-size:1rem">${esc(title)}</strong>
+          <button class="btn btn-ghost btn-sm" onclick="closeCobranzaOverlay()">${icon('x')}</button>
+        </div>
+        ${innerHtml}
+      </div>`;
+      wrap.addEventListener('click', (e) => { if (e.target === wrap) closeCobranzaOverlay(); });
+      document.body.appendChild(wrap);
+    }
+
+    function openCobranzaInvoice(clientId) {
+      const c = (cobranzasData?.pendientes || []).find((x) => x.id === clientId);
+      if (!c) return;
+      const prod = cobranzasData?.arca?.production;
+      cobranzaOverlayShell(`Facturar a ${c.nombreFantasia || c.razonSocial}`, `
+      ${prod ? '' : `<div style="margin-bottom:0.8rem;padding:0.5rem 0.7rem;border-radius:var(--r-sm,6px);background:rgba(250,200,50,0.12);border:1px solid rgba(250,200,50,0.4);font-size:0.8rem">Modo <strong>homologación</strong>: la factura es de prueba, sin validez fiscal.</div>`}
+      <div style="display:grid;gap:0.7rem">
+        <label style="display:grid;gap:0.25rem;font-size:0.8rem">Importe (ARS)
+          <input id="cob-importe" type="number" min="1" step="0.01" value="${Number(c.saldo || 0).toFixed(2)}" class="clients-search-inp" style="width:100%">
+        </label>
+        <label style="display:grid;gap:0.25rem;font-size:0.8rem">Tipo de comprobante
+          <select id="cob-tipo" class="clients-search-inp" style="width:100%">
+            <option value="11" selected>Factura C (monotributo)</option>
+            <option value="6">Factura B</option>
+            <option value="1">Factura A</option>
+          </select>
+        </label>
+        <label style="display:grid;gap:0.25rem;font-size:0.8rem">Concepto
+          <select id="cob-concepto" class="clients-search-inp" style="width:100%">
+            <option value="2" selected>Servicios</option>
+            <option value="1">Productos</option>
+            <option value="3">Productos y servicios</option>
+          </select>
+        </label>
+        <label style="display:grid;gap:0.25rem;font-size:0.8rem">Detalle (aparece en el PDF)
+          <input id="cob-detalle" type="text" maxlength="500" value="Servicios de consultoría digital" class="clients-search-inp" style="width:100%">
+        </label>
+        <label style="display:grid;gap:0.25rem;font-size:0.8rem">CUIT del receptor (vacío = consumidor final)
+          <input id="cob-doc" type="text" value="${esc((c.cuit || '').replace(/\D/g, ''))}" class="clients-search-inp" style="width:100%" placeholder="Sin CUIT → consumidor final">
+        </label>
+        <label style="display:grid;gap:0.25rem;font-size:0.8rem">Condición IVA del receptor
+          <select id="cob-condiva" class="clients-search-inp" style="width:100%">
+            <option value="1">Responsable inscripto</option>
+            <option value="6">Monotributista</option>
+            <option value="5" selected>Consumidor final</option>
+            <option value="4">Exento</option>
+          </select>
+        </label>
+        <label style="display:flex;gap:0.5rem;align-items:center;font-size:0.8rem">
+          <input id="cob-mov" type="checkbox"> Sumar también como movimiento al debe del cliente
+        </label>
+        <button class="btn btn-lime" id="cob-submit" onclick="submitCobranzaInvoice('${c.id}')">${icon('receipt')} Emitir factura</button>
+        <div id="cob-result"></div>
+      </div>`);
+      // CUIT presente → preseleccionar RI
+      const doc = (c.cuit || '').replace(/\D/g, '');
+      if (doc.length === 11) $('cob-condiva').value = '1';
+    }
+
+    async function submitCobranzaInvoice(clientId) {
+      const btn = $('cob-submit');
+      const docNro = String($('cob-doc').value || '').replace(/\D/g, '');
+      const body = {
+        impTotal: Number($('cob-importe').value),
+        cbteTipo: Number($('cob-tipo').value),
+        concepto: Number($('cob-concepto').value),
+        docTipo: docNro.length === 11 ? 80 : 99,
+        docNro: docNro || '0',
+        condIvaReceptor: Number($('cob-condiva').value),
+        detalle: $('cob-detalle').value,
+        registrarMovimiento: $('cob-mov').checked,
+      };
+      if (!Number.isFinite(body.impTotal) || body.impTotal <= 0) {
+        toast('Ingresá un importe válido.', 'error');
+        return;
+      }
+      btn.disabled = true;
+      btn.textContent = 'Emitiendo…';
+      try {
+        const data = await api(`/api/admin/cobranzas/${encodeURIComponent(clientId)}/invoice`, {
+          method: 'POST', body: JSON.stringify(body),
+        });
+        const inv = data.invoice;
+        $('cob-result').innerHTML = `
+        <div style="margin-top:0.6rem;padding:0.7rem;border-radius:var(--r-sm,6px);border:1px solid var(--lime,#84cc16);font-size:0.85rem;display:grid;gap:0.3rem">
+          <strong>✓ Factura ${esc(inv.cbteLetra)} ${esc(inv.numero)} emitida</strong>
+          <span>CAE: <span class="admin-data">${esc(inv.cae)}</span> · Vto CAE: ${esc(inv.caeVto)}</span>
+          <a href="/api/admin/cobranzas/invoices/${esc(inv.id)}/pdf" target="_blank" rel="noopener"><strong>Descargar PDF</strong></a>
+          <a href="${esc(inv.qrUrl)}" target="_blank" rel="noopener">Ver QR / verificar en ARCA</a>
+          ${cobranzasData?.n8nConfigured ? `<button class="btn btn-subtle btn-sm" onclick="closeCobranzaOverlay();openCobranzaAviso('${clientId}','${inv.id}')">Enviar aviso al cliente</button>` : ''}
+        </div>`;
+        btn.style.display = 'none';
+        toast(`Factura ${inv.numero} emitida (CAE ${inv.cae})`, 'success');
+        loadCobranzas();
+        loadAppData?.();
+      } catch (err) {
+        btn.disabled = false;
+        btn.innerHTML = `${icon('receipt')} Emitir factura`;
+        toast(err.message || 'No se pudo emitir la factura.', 'error');
+      }
+    }
+
+    function openCobranzaAviso(clientId, invoiceId = '') {
+      const c = (cobranzasData?.pendientes || []).find((x) => x.id === clientId)
+        || (clientsCache || []).find((x) => x.id === clientId);
+      if (!c) return;
+      const nombre = c.nombreFantasia || c.razonSocial || 'cliente';
+      const defMsg = `Hola ${nombre}! Te recordamos que tenés un saldo pendiente de ${moneyText(c.saldo)} con Consultoría Digital. Cualquier consulta estamos a disposición. ¡Gracias!`;
+      cobranzaOverlayShell(`Enviar aviso a ${nombre}`, `
+      <div style="display:grid;gap:0.7rem">
+        <div style="font-size:0.8rem" class="admin-muted">
+          Se envía vía n8n a: ${esc(c.telAdmin || c.telDueno || c.mail1 || 'definir contacto en la ficha del cliente')}
+        </div>
+        <label style="display:grid;gap:0.25rem;font-size:0.8rem">Mensaje
+          <textarea id="cob-aviso-msg" rows="5" class="clients-search-inp" style="width:100%;resize:vertical">${esc(defMsg)}</textarea>
+        </label>
+        <button class="btn btn-lime" id="cob-aviso-submit" onclick="submitCobranzaAviso('${c.id}','${esc(invoiceId)}')">Enviar aviso</button>
+      </div>`);
+    }
+
+    async function submitCobranzaAviso(clientId, invoiceId) {
+      const btn = $('cob-aviso-submit');
+      btn.disabled = true;
+      btn.textContent = 'Enviando…';
+      try {
+        await api(`/api/admin/cobranzas/${encodeURIComponent(clientId)}/notify`, {
+          method: 'POST',
+          body: JSON.stringify({ mensaje: $('cob-aviso-msg').value, invoiceId: invoiceId || undefined }),
+        });
+        toast('Aviso enviado a n8n.', 'success');
+        closeCobranzaOverlay();
+        loadCobranzas();
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = 'Enviar aviso';
+        toast(err.message || 'No se pudo enviar el aviso.', 'error');
+      }
     }
 
     function renderClientsResults() {
@@ -10892,17 +11149,13 @@
     <div id="admin-sub-flujo" class="admin-subpanel">
       <iframe id="flujo-iframe" src="about:blank" referrerpolicy="no-referrer" loading="lazy" style="width:100%;height:calc(100vh - var(--topnav-h) - 220px);border:1px solid var(--border2);border-radius:var(--r-md);background:var(--bg2)"></iframe>
     </div>
-    <div id="admin-sub-cobranzas" class="admin-subpanel">
-      <div class="admin-placeholder">
-        <strong>Cobranzas</strong>
-        Próximamente: gestión de cobros y vencimientos.
-      </div>
-    </div>
+    <div id="admin-sub-cobranzas" class="admin-subpanel"></div>
   `;
 
       // Marcar tab activo y renderizar contenido del sub-tab actual
       applyAdminSubTab();
       renderClientesSubTab();
+      if (adminSubTab === 'cobranzas') renderCobranzasSubTab();
       loadAdminDashboard();
 
       // Restaurar estado activo de las tarjetas del dashboard

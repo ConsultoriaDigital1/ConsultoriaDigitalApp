@@ -191,6 +191,37 @@ CREATE TABLE IF NOT EXISTS client_movements (
 
 CREATE INDEX IF NOT EXISTS idx_client_movements_client ON client_movements(client_id, fecha, creado_en);
 
+-- COBRANZAS: facturas emitidas via ARCA (ex AFIP)
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS ultimo_aviso BIGINT NOT NULL DEFAULT 0;
+
+CREATE TABLE IF NOT EXISTS invoices (
+  id         TEXT PRIMARY KEY,
+  client_id  TEXT NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  cbte_tipo  INTEGER NOT NULL,
+  cbte_letra TEXT NOT NULL DEFAULT '',
+  pto_vta    INTEGER NOT NULL,
+  cbte_nro   BIGINT NOT NULL,
+  numero     TEXT NOT NULL DEFAULT '',
+  fecha      TEXT NOT NULL,
+  doc_tipo   INTEGER NOT NULL DEFAULT 99,
+  doc_nro    TEXT NOT NULL DEFAULT '0',
+  imp_total  NUMERIC(14,2) NOT NULL DEFAULT 0,
+  cae        TEXT NOT NULL,
+  cae_vto    TEXT NOT NULL DEFAULT '',
+  qr_url     TEXT NOT NULL DEFAULT '',
+  production BOOLEAN NOT NULL DEFAULT FALSE,
+  movement_id TEXT,
+  creado_por TEXT REFERENCES users(id) ON DELETE SET NULL,
+  creado_en  BIGINT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_invoices_client ON invoices(client_id, creado_en DESC);
+
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS detalle TEXT NOT NULL DEFAULT '';
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS imp_neto NUMERIC(14,2) NOT NULL DEFAULT 0;
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS imp_iva NUMERIC(14,2) NOT NULL DEFAULT 0;
+
 CREATE TABLE IF NOT EXISTS whatsapp_messages (
   id TEXT PRIMARY KEY,
   chat_jid TEXT NOT NULL,

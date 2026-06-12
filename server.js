@@ -7,6 +7,8 @@ const express = require('express');
 const { Pool } = require('pg');
 const EventEmitter = require('events');
 const gcal = require('./google-calendar');
+const arca = require('./arca-service');
+const { buildInvoicePdf } = require('./invoice-pdf');
 
 const app = express();
 const pool = new Pool({
@@ -71,6 +73,36 @@ async function ensureDatabaseMigrations() {
     )
   `);
   await pool.query("CREATE INDEX IF NOT EXISTS idx_whatsapp_messages_chat_jid ON whatsapp_messages(chat_jid, timestamp)");
+
+  // Cobranzas: facturas emitidas via ARCA y registro de avisos enviados
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS invoices (
+      id         TEXT PRIMARY KEY,
+      client_id  TEXT NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+      cbte_tipo  INTEGER NOT NULL,
+      cbte_letra TEXT NOT NULL DEFAULT '',
+      pto_vta    INTEGER NOT NULL,
+      cbte_nro   BIGINT NOT NULL,
+      numero     TEXT NOT NULL DEFAULT '',
+      fecha      TEXT NOT NULL,
+      doc_tipo   INTEGER NOT NULL DEFAULT 99,
+      doc_nro    TEXT NOT NULL DEFAULT '0',
+      imp_total  NUMERIC(14,2) NOT NULL DEFAULT 0,
+      cae        TEXT NOT NULL,
+      cae_vto    TEXT NOT NULL DEFAULT '',
+      qr_url     TEXT NOT NULL DEFAULT '',
+      production BOOLEAN NOT NULL DEFAULT FALSE,
+      movement_id TEXT,
+      creado_por TEXT REFERENCES users(id) ON DELETE SET NULL,
+      creado_en  BIGINT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_invoices_client ON invoices(client_id, creado_en DESC)');
+  await pool.query("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS detalle TEXT NOT NULL DEFAULT ''");
+  await pool.query("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS imp_neto NUMERIC(14,2) NOT NULL DEFAULT 0");
+  await pool.query("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS imp_iva NUMERIC(14,2) NOT NULL DEFAULT 0");
+  await pool.query("ALTER TABLE clients ADD COLUMN IF NOT EXISTS ultimo_aviso BIGINT NOT NULL DEFAULT 0");
 
   // Crear usuario system-bot si no existe
   await pool.query(`
@@ -350,6 +382,7 @@ function clientDTO(row, balance = null) {
     creadoPor: row.creado_por || null,
     creadoEn: Number(row.creado_en) || 0,
     deletedAt: row.deleted_at ? row.deleted_at.toISOString() : null,
+    ultimoAviso: Number(row.ultimo_aviso) || 0,
     saldo,
   };
 }
@@ -2130,6 +2163,190 @@ app.delete('/api/cards/:id/purge', requireAuth, async (req, res, next) => {
     cardEvents.emit('change', { action: 'purge', id: req.params.id });
     res.json({ ok: true });
   } catch (err) {
+    next(err);
+  }
+});
+
+// ── COBRANZAS: facturación ARCA + avisos via n8n ──
+function invoiceDTO(row) {
+  return {
+    id: row.id,
+    clientId: row.client_id,
+    cbteTipo: Number(row.cbte_tipo),
+    cbteLetra: row.cbte_letra || '',
+    ptoVta: Number(row.pto_vta),
+    cbteNro: Number(row.cbte_nro),
+    numero: row.numero || '',
+    fecha: row.fecha || '',
+    docTipo: Number(row.doc_tipo),
+    docNro: row.doc_nro || '0',
+    impTotal: Number(row.imp_total || 0),
+    impNeto: Number(row.imp_neto || 0),
+    impIVA: Number(row.imp_iva || 0),
+    detalle: row.detalle || '',
+    cae: row.cae,
+    caeVto: row.cae_vto || '',
+    qrUrl: row.qr_url || '',
+    production: Boolean(row.production),
+    creadoEn: Number(row.creado_en) || 0,
+  };
+}
+
+// Estado de configuración + clientes con saldo pendiente + últimas facturas
+app.get('/api/admin/cobranzas', requireAdmin, async (_req, res, next) => {
+  try {
+    const clients = await listClients();
+    const pendientes = clients.filter((c) => Number(c.saldo || 0) > 0);
+    const { rows: invRows } = await pool.query(
+      'SELECT * FROM invoices ORDER BY creado_en DESC LIMIT 50'
+    );
+    res.json({
+      arca: arca.status(),
+      n8nConfigured: Boolean(process.env.N8N_WEBHOOK_URL),
+      pendientes,
+      invoices: invRows.map(invoiceDTO),
+    });
+  } catch (err) { next(err); }
+});
+
+// Emitir factura electrónica en ARCA y registrarla como movimiento del cliente
+app.post('/api/admin/cobranzas/:clientId/invoice', requireAdmin, async (req, res, next) => {
+  try {
+    const client = await getClientById(req.params.clientId);
+    if (!client) return res.status(404).json({ error: 'Cliente no encontrado.' });
+    const b = req.body || {};
+
+    const cuitCliente = String(b.docNro || client.cuit || '').replace(/\D/g, '');
+    const docTipo = Number(b.docTipo || (cuitCliente.length === 11 ? 80 : 99));
+
+    const inv = await arca.emitInvoice({
+      cbteTipo: b.cbteTipo,
+      concepto: b.concepto,
+      docTipo,
+      docNro: docTipo === 99 ? '0' : cuitCliente,
+      impTotal: b.impTotal,
+      condIvaReceptor: b.condIvaReceptor,
+    });
+    const detalleFactura = String(b.detalle || '').trim().slice(0, 500);
+
+    const id = mkId();
+    const creadoEn = Date.now();
+    let movementId = null;
+
+    // Registrar también como movimiento (suma al debe del cliente) si se pidió
+    if (b.registrarMovimiento !== false) {
+      movementId = mkId();
+      await pool.query(
+        `INSERT INTO client_movements (
+           id, client_id, fecha, medio_pago, banco, detalle,
+           monto_factura, debe, haber, creado_por, creado_en, archivos
+         ) VALUES ($1,$2,$3,'','',$4,$5,$6,0,$7,$8,'[]'::jsonb)`,
+        [
+          movementId, client.id, inv.fecha,
+          `Factura ${inv.cbteLetra} ${inv.numero} — CAE ${inv.cae}`,
+          inv.impTotal, inv.impTotal, req.user.id, creadoEn,
+        ]
+      );
+    }
+
+    await pool.query(
+      `INSERT INTO invoices (
+         id, client_id, cbte_tipo, cbte_letra, pto_vta, cbte_nro, numero, fecha,
+         doc_tipo, doc_nro, imp_total, imp_neto, imp_iva, detalle, cae, cae_vto,
+         qr_url, production, movement_id, creado_por, creado_en
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)`,
+      [
+        id, client.id, inv.cbteTipo, inv.cbteLetra, inv.ptoVta, inv.cbteNro,
+        inv.numero, inv.fecha, inv.docTipo, inv.docNro, inv.impTotal,
+        inv.impNeto, inv.impIVA, detalleFactura, inv.cae, inv.caeVto,
+        inv.qrUrl, inv.production, movementId, req.user.id, creadoEn,
+      ]
+    );
+
+    res.status(201).json({ invoice: { id, clientId: client.id, creadoEn, detalle: detalleFactura, ...inv } });
+  } catch (err) { next(err); }
+});
+
+// Descargar el PDF de una factura emitida
+app.get('/api/admin/cobranzas/invoices/:id/pdf', requireAdmin, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM invoices WHERE id = $1', [req.params.id]);
+    if (!rows[0]) return res.status(404).json({ error: 'Factura no encontrada.' });
+    const inv = invoiceDTO(rows[0]);
+    const client = await getClientById(inv.clientId);
+    const dto = client ? clientDTO(client) : { razonSocial: '', nombreFantasia: '', direccion: '' };
+
+    const pdf = await buildInvoicePdf(inv, dto, arca.status().cuit || '');
+    const fname = `Factura_${inv.cbteLetra}_${inv.numero}.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${fname}"`);
+    res.send(pdf);
+  } catch (err) { next(err); }
+});
+
+// Enviar aviso de cobranza al cliente a través del webhook de n8n
+app.post('/api/admin/cobranzas/:clientId/notify', requireAdmin, async (req, res, next) => {
+  try {
+    const webhookUrl = process.env.N8N_WEBHOOK_URL;
+    if (!webhookUrl) {
+      return res.status(400).json({ error: 'N8N_WEBHOOK_URL no está configurada en .env (ver COBRANZAS_SETUP.md).' });
+    }
+    const client = await getClientById(req.params.clientId);
+    if (!client) return res.status(404).json({ error: 'Cliente no encontrado.' });
+
+    const balances = await clientBalances();
+    const saldo = Number((balances[client.id] || {}).saldo || 0);
+
+    const b = req.body || {};
+    let invoice = null;
+    if (b.invoiceId) {
+      const { rows } = await pool.query(
+        'SELECT * FROM invoices WHERE id = $1 AND client_id = $2',
+        [b.invoiceId, client.id]
+      );
+      if (rows[0]) invoice = invoiceDTO(rows[0]);
+    }
+
+    const payload = {
+      evento: 'aviso_cobranza',
+      enviadoEn: new Date().toISOString(),
+      mensaje: String(b.mensaje || '').trim(),
+      cliente: {
+        id: client.id,
+        nombreFantasia: client.nombre_fantasia || '',
+        razonSocial: client.razon_social || '',
+        cuit: client.cuit || '',
+        telAdmin: client.tel_admin || '',
+        telDueno: client.tel_dueno || '',
+        mail1: client.mail1 || '',
+        mail2: client.mail2 || '',
+        vence: client.vence || '',
+        saldo,
+      },
+      factura: invoice,
+    };
+
+    const headers = { 'Content-Type': 'application/json' };
+    if (process.env.N8N_WEBHOOK_TOKEN) headers['Authorization'] = `Bearer ${process.env.N8N_WEBHOOK_TOKEN}`;
+
+    const r = await fetch(webhookUrl, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!r.ok) {
+      const txt = await r.text().catch(() => '');
+      return res.status(502).json({ error: `n8n respondió ${r.status}. ${txt.slice(0, 200)}` });
+    }
+
+    const ahora = Date.now();
+    await pool.query('UPDATE clients SET ultimo_aviso = $2, updated_at = NOW() WHERE id = $1', [client.id, ahora]);
+    res.json({ ok: true, ultimoAviso: ahora });
+  } catch (err) {
+    if (err.name === 'TimeoutError' || err.name === 'AbortError') {
+      return res.status(504).json({ error: 'n8n no respondió a tiempo (15s). Verificá que el workflow esté activo.' });
+    }
     next(err);
   }
 });
