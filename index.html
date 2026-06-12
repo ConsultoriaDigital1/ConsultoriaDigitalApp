@@ -11008,10 +11008,7 @@
         const hasChatAlias = hasPhone || !!(c.whatsappLidAlias || '').trim();
         const cleanPhone = cleanPhoneForWhatsapp(c.ntel);
         const chatBtnClass = hasChatAlias ? '' : ' disabled';
-        const whatsappAliasBadge = !hasPhone && hasChatAlias ? `
-                <div class="kcard-sales-info-item" title="WhatsApp pendiente de numero: ${esc(c.whatsappLidAlias)}">
-                  ${icon('whatsapp')} <span style="font-family:monospace">ID ${esc(c.whatsappLidAlias.split('@')[0])}</span>
-                </div>` : '';
+        const whatsappAliasBadge = '';
         const chatBtnTitle = hasPhone ? `Iniciar chat en WhatsApp (${esc(c.ntel)})` : 'Sin número de teléfono';
 
         const formattedDate = c.vence ? formatDueDate(c.vence) : '';

@@ -88,6 +88,17 @@ function getMappedPhoneJid(lid) {
   return lidToPnMap.get(normalized) || null;
 }
 
+function getPhoneJidForLid(lid) {
+  const normalized = normalizeLidJid(lid);
+  if (!normalized) return null;
+
+  const mapped = getMappedPhoneJid(normalized);
+  if (mapped) return mapped;
+
+  const pnFromSignal = sock?.signalRepository?.lidMapping?.getPNForLID?.(normalized);
+  return rememberLidMapping(normalized, pnFromSignal, 'signalRepository lookup') || null;
+}
+
 function getMappedLidJid(phone) {
   const pn = normalizePhoneJid(phone);
   if (!pn) return null;
@@ -639,6 +650,8 @@ module.exports = {
   getProfilePictureBase64,
   cleanPhoneForWhatsapp,
   extractPhoneNumberFromJid,
+  getMappedPhoneJid,
+  getPhoneJidForLid,
   getMappedLidJid,
   events: whatsappEvents,
 };

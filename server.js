@@ -557,6 +557,7 @@ async function visibleCards(user) {
      ORDER BY position ASC NULLS LAST, creado_en DESC`,
     [teams]
   );
+  await applyKnownWhatsappMappings(rows);
   const historyByCard = await descriptionHistoryByCardIds(rows.map((row) => row.id));
   return rows.map((row) => cardDTO(row, historyByCard.get(row.id) || []));
 }
@@ -943,6 +944,39 @@ app.get('/api/bootstrap', requireAuth, async (req, res, next) => {
 // INTEGRACION WHATSAPP
 // ════════════════════════════════════════════
 const whatsappService = require('./whatsapp-service');
+
+async function applyKnownWhatsappMappings(rows, { emitChanges = false } = {}) {
+  if (!Array.isArray(rows) || !rows.length) return;
+
+  for (const row of rows) {
+    if (row.equipo !== 'ventas') continue;
+    if (String(row.ntel || '').trim()) continue;
+    if (!String(row.whatsapp_lid_alias || '').trim()) continue;
+
+    const mappedJid = whatsappService.getPhoneJidForLid(row.whatsapp_lid_alias);
+    const mappedPhone = whatsappService.extractPhoneNumberFromJid(mappedJid);
+    if (!mappedPhone) continue;
+
+    const { rows: updated } = await pool.query(
+      `UPDATE cards
+       SET ntel = $1, whatsapp_lid_alias = '', updated_at = NOW()
+       WHERE id = $2
+         AND equipo = 'ventas'
+         AND deleted_at IS NULL
+         AND COALESCE(ntel, '') = ''
+         AND whatsapp_lid_alias = $3
+       RETURNING *`,
+      [mappedPhone, row.id, row.whatsapp_lid_alias]
+    );
+
+    if (!updated[0]) continue;
+
+    Object.assign(row, updated[0]);
+    if (emitChanges) {
+      cardEvents.emit('change', { action: 'update', card: cardDTO(updated[0]) });
+    }
+  }
+}
 
 app.get('/api/whatsapp/status', requireAuth, (req, res) => {
   res.json({
@@ -2702,6 +2736,10 @@ async function start() {
             }
           }
           console.log('[WhatsApp Lead] Mapeo de leads activos completado.');
+          const { rows: lidRows } = await pool.query(
+            "SELECT * FROM cards WHERE equipo = 'ventas' AND deleted_at IS NULL AND COALESCE(ntel, '') = '' AND COALESCE(whatsapp_lid_alias, '') != ''"
+          );
+          await applyKnownWhatsappMappings(lidRows, { emitChanges: true });
         } catch (err) {
           console.error('[WhatsApp Lead] Error mapeando leads activos:', err);
         }
