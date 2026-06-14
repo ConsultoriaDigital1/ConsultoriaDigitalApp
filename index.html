@@ -1864,8 +1864,38 @@
       text-overflow: ellipsis;
     }
 
+    .kcard-sales-phone {
+      display: flex;
+      flex-direction: column;
+      gap: 0.1rem;
+      min-width: 0;
+    }
+
+    .kcard-sales-info-label {
+      color: var(--muted);
+      font-size: 0.56rem;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      line-height: 1;
+      text-transform: uppercase;
+    }
+
+    .kcard-sales-phone-value {
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+      min-width: 0;
+      color: var(--text-hi);
+      font-family: Consolas, monospace;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
     .kcard-sales-info-item svg,
-    .kcard-sales-info-item .ico {
+    .kcard-sales-info-item .ico,
+    .kcard-sales-phone-value svg,
+    .kcard-sales-phone-value .ico {
       color: var(--muted);
       width: 0.85em;
       height: 0.85em;
@@ -7001,6 +7031,11 @@
               oninput="syncVSPanel('nf',this.value)" onblur="autosaveCardIfEnabled()" />
           </div>
           <div class="vsp-field">
+            <span class="vsp-label">Teléfono</span>
+            <input id="vs-ntel" class="vsp-input" type="tel" placeholder="+54 9 11..."
+              oninput="syncVSPanel('ntel',this.value);syncModalWhatsappButton()" onblur="autosaveCardIfEnabled()" />
+          </div>
+          <div class="vsp-field">
             <span class="vsp-label">Empresa</span>
             <input id="vs-rs" class="vsp-input" type="text" placeholder="Razón social..."
               oninput="syncVSPanel('rs',this.value)" onblur="autosaveCardIfEnabled()" />
@@ -7009,11 +7044,6 @@
             <span class="vsp-label">CUIL / CUIT</span>
             <input id="vs-cuit" class="vsp-input" type="text" placeholder="30-12345678-9" maxlength="13"
               oninput="syncVSPanel('cuit',this.value)" onblur="autosaveCardIfEnabled()" />
-          </div>
-          <div class="vsp-field">
-            <span class="vsp-label">Teléfono</span>
-            <input id="vs-ntel" class="vsp-input" type="tel" placeholder="+54 9 11..."
-              oninput="syncVSPanel('ntel',this.value);syncModalWhatsappButton()" onblur="autosaveCardIfEnabled()" />
           </div>
           <div class="vsp-spacer"></div>
           <button id="vsp-btn-reunion" class="vsp-btn-reunion" onclick="quickMoveToReunionFromModal()">Pasar a
@@ -10723,7 +10753,7 @@
       </thead>
       <tbody>
         ${list.map(c => {
-        const title = (c.nf || c.rs || 'Sin nombre');
+        const title = clientName(c);
         const owner = byId.get(c.usuario);
         const ownerLabel = owner ? userFullName(owner) : '—';
         const deletedTxt = c.deletedAt
@@ -11025,8 +11055,9 @@
           <div class="kcard-sales-meta">
             <div class="kcard-sales-info">
               ${hasPhone ? `
-                <div class="kcard-sales-info-item" title="Teléfono">
-                  ${icon('phone')} <span style="font-family:monospace">${esc(c.ntel)}</span>
+                <div class="kcard-sales-phone" title="Telefono">
+                  <span class="kcard-sales-info-label">Telefono</span>
+                  <span class="kcard-sales-phone-value">${icon('phone')} ${esc(c.ntel)}</span>
                 </div>` : ''}
               ${whatsappAliasBadge}
               ${dateBadge}
@@ -11173,8 +11204,18 @@
       }
     }
 
+    function isAutoWhatsappLeadName(name) {
+      return /^(?:WhatsApp Lead(?: \(\d+\))?|Lead de WhatsApp|Contacto de WhatsApp|Contacto \d{6,})$/i.test(String(name || '').trim());
+    }
+
     function clientName(c) {
-      return String(c.nf || '').trim() || String(c.rs || '').trim() || '(Sin nombre)';
+      const nf = String(c.nf || '').trim();
+      if (c?.equipo === 'ventas' && isAutoWhatsappLeadName(nf)) {
+        const phone = String(c.ntel || '').trim();
+        const lid = String(c.whatsappLidAlias || '').split('@')[0].trim();
+        return String(c.rs || '').trim() || (phone ? `Contacto ${phone}` : (lid ? `Contacto ${lid}` : 'Contacto de WhatsApp'));
+      }
+      return nf || String(c.rs || '').trim() || '(Sin nombre)';
     }
 
     function adminRowHTML(c, users) {
@@ -11862,7 +11903,7 @@
       pickColor(c.color || 'none');
       $('f-equipo').value = c.equipo || currentUser.equipo;
       syncTeamSelect('f-equipo');
-      $('f-nf').value = c.nf || ''; $('f-rs').value = c.rs || '';
+      $('f-nf').value = (isVentas && isAutoWhatsappLeadName(c.nf)) ? clientName(c) : (c.nf || ''); $('f-rs').value = c.rs || '';
       $('f-cuit').value = c.cuit || ''; $('f-ca').value = c.ca || '';
       $('f-ntel').value = c.ntel || ''; $('f-t').value = c.t || '';
       $('f-ta').value = c.ta || ''; $('f-c').value = c.c || '';
@@ -12928,7 +12969,8 @@
       const c = getCards().find(x => x.id === id);
       if (!c) return;
 
-      const nf = (c.nf || '').trim();
+      const nf = clientName(c);
+      const ntel = (c.ntel || '').trim();
       const rs = (c.rs || '').trim();
       const cuit = (c.cuit || '').trim();
       const showReunion = c.estado !== 'reunion' && c.estado !== 'venta_exitosa';
@@ -12940,6 +12982,11 @@
     <div class="kcard-popup-row">
       <span class="kcard-popup-label">Nombre en WhatsApp</span>
       ${nf ? `<span class="kcard-popup-value">${esc(nf)}</span>` : '<span class="kcard-popup-empty">Sin nombre</span>'}
+    </div>
+    <div class="kcard-popup-divider"></div>
+    <div class="kcard-popup-row">
+      <span class="kcard-popup-label">Teléfono</span>
+      ${ntel ? `<span class="kcard-popup-value" style="font-family:monospace">${esc(ntel)}</span>` : '<span class="kcard-popup-empty">Sin teléfono</span>'}
     </div>
     <div class="kcard-popup-divider"></div>
     <div class="kcard-popup-row">
@@ -14142,8 +14189,9 @@
       if (!c) return;
       if (editingId === c.id && hasPendingModalAutosave()) return;
       // Update non-focused inputs to prevent disrupting active editing
+      const displayName = (c.equipo === 'ventas' && isAutoWhatsappLeadName(c.nf)) ? clientName(c) : (c.nf || '');
       const fields = {
-        'f-nf': c.nf || '',
+        'f-nf': displayName,
         'f-rs': c.rs || '',
         'f-cuit': c.cuit || '',
         'f-ca': c.ca || '',

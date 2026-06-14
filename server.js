@@ -945,6 +945,101 @@ app.get('/api/bootstrap', requireAuth, async (req, res, next) => {
 // ════════════════════════════════════════════
 const whatsappService = require('./whatsapp-service');
 
+const AUTO_WHATSAPP_LEAD_NAME_RE = /^(?:WhatsApp Lead(?: \(\d+\))?|Lead de WhatsApp|Contacto de WhatsApp|Contacto \d{6,})$/i;
+
+function isAutoWhatsappLeadName(name) {
+  return !String(name || '').trim() || AUTO_WHATSAPP_LEAD_NAME_RE.test(String(name || '').trim());
+}
+
+function looksLikePhoneName(name, phone = '') {
+  const cleanName = cleanPhoneDigits(name);
+  const cleanPhone = cleanPhoneDigits(phone);
+  if (!cleanName) return false;
+  if (cleanPhone && cleanName === cleanPhone) return true;
+  return cleanName.length >= 8 && cleanName === String(name || '').replace(/\D/g, '');
+}
+
+function whatsappLeadDisplayName({ pushName = '', jid = '', phone = '', lidAlias = '' } = {}) {
+  const name = String(
+    pushName ||
+    whatsappService.getContactNameForJid(jid) ||
+    whatsappService.getContactNameForJid(phone) ||
+    whatsappService.getContactNameForJid(lidAlias) ||
+    ''
+  ).trim();
+  if (!name || AUTO_WHATSAPP_LEAD_NAME_RE.test(name) || looksLikePhoneName(name, phone)) return '';
+  return name;
+}
+
+function whatsappLeadFallbackName({ jid = '', phone = '', lidAlias = '' } = {}) {
+  const cleanPhone = cleanPhoneDigits(phone || whatsappService.extractPhoneNumberFromJid(jid) || '');
+  if (cleanPhone) return `Contacto ${cleanPhone}`;
+
+  const lid = String(lidAlias || jid || '').split('@')[0].trim();
+  if (lid) return `Contacto ${lid}`;
+
+  return 'Contacto de WhatsApp';
+}
+
+function whatsappLeadCardName(args = {}) {
+  return whatsappLeadDisplayName(args) || whatsappLeadFallbackName(args);
+}
+
+async function updateAutoWhatsappLeadName({ phone = '', lidAlias = '', jid = '', pushName = '' } = {}) {
+  const nf = whatsappLeadCardName({ pushName, jid, phone, lidAlias });
+  if (!nf) return;
+
+  const { rows } = await pool.query(
+    `UPDATE cards
+     SET nf = $1, updated_at = NOW()
+     WHERE equipo = 'ventas'
+       AND deleted_at IS NULL
+       AND (ntel = $2 OR whatsapp_lid_alias = $3)
+       AND (COALESCE(nf, '') = '' OR nf ~ $4)
+     RETURNING *`,
+    [nf, phone || '', lidAlias || '', '^(WhatsApp Lead( \\([0-9]+\\))?|Lead de WhatsApp|Contacto de WhatsApp|Contacto [0-9]{6,})$']
+  );
+
+  for (const row of rows) {
+    cardEvents.emit('change', { action: 'update', card: cardDTO(row) });
+  }
+}
+
+async function refreshAutoWhatsappLeadNames({ emitChanges = false } = {}) {
+  const { rows } = await pool.query(
+    `SELECT *
+     FROM cards
+     WHERE equipo = 'ventas'
+       AND deleted_at IS NULL
+       AND (COALESCE(nf, '') = '' OR nf ~ $1)`,
+    ['^(WhatsApp Lead( \\([0-9]+\\))?|Lead de WhatsApp|Contacto de WhatsApp|Contacto [0-9]{6,})$']
+  );
+
+  for (const row of rows) {
+    const nf = whatsappLeadCardName({
+      phone: row.ntel || '',
+      lidAlias: row.whatsapp_lid_alias || '',
+      jid: row.ntel || row.whatsapp_lid_alias || '',
+    });
+    if (!nf || !isAutoWhatsappLeadName(row.nf)) continue;
+
+    const { rows: updated } = await pool.query(
+      `UPDATE cards
+       SET nf = $1, updated_at = NOW()
+       WHERE id = $2
+         AND equipo = 'ventas'
+         AND deleted_at IS NULL
+         AND (COALESCE(nf, '') = '' OR nf ~ $3)
+       RETURNING *`,
+      [nf, row.id, '^(WhatsApp Lead( \\([0-9]+\\))?|Lead de WhatsApp|Contacto de WhatsApp|Contacto [0-9]{6,})$']
+    );
+
+    if (emitChanges && updated[0]) {
+      cardEvents.emit('change', { action: 'update', card: cardDTO(updated[0]) });
+    }
+  }
+}
+
 async function applyKnownWhatsappMappings(rows, { emitChanges = false } = {}) {
   if (!Array.isArray(rows) || !rows.length) return;
 
@@ -956,17 +1051,25 @@ async function applyKnownWhatsappMappings(rows, { emitChanges = false } = {}) {
     const mappedJid = whatsappService.getPhoneJidForLid(row.whatsapp_lid_alias);
     const mappedPhone = whatsappService.extractPhoneNumberFromJid(mappedJid);
     if (!mappedPhone) continue;
+    const mappedName = whatsappLeadCardName({
+      jid: mappedJid,
+      phone: mappedPhone,
+      lidAlias: row.whatsapp_lid_alias,
+    });
 
     const { rows: updated } = await pool.query(
       `UPDATE cards
-       SET ntel = $1, whatsapp_lid_alias = '', updated_at = NOW()
+       SET ntel = $1,
+           whatsapp_lid_alias = '',
+           nf = CASE WHEN $4 <> '' AND (COALESCE(nf, '') = '' OR nf ~ $5) THEN $4 ELSE nf END,
+           updated_at = NOW()
        WHERE id = $2
          AND equipo = 'ventas'
          AND deleted_at IS NULL
          AND COALESCE(ntel, '') = ''
          AND whatsapp_lid_alias = $3
        RETURNING *`,
-      [mappedPhone, row.id, row.whatsapp_lid_alias]
+      [mappedPhone, row.id, row.whatsapp_lid_alias, mappedName, '^(WhatsApp Lead( \\([0-9]+\\))?|Lead de WhatsApp|Contacto de WhatsApp|Contacto [0-9]{6,})$']
     );
 
     if (!updated[0]) continue;
@@ -2459,7 +2562,7 @@ async function ensureWhatsappLead({ jid, phone = '', lidAlias = '', body = '', p
   console.log(`[WhatsApp Lead] Creando nuevo lead para ${phone ? `numero: ${phone}` : `LID temporal: ${lidAlias}`}`);
   const cardId = Date.now().toString(36) + crypto.randomBytes(4).toString('hex');
   const creadoEn = Number(timestamp) > 1000000000000 ? Number(timestamp) : Date.now();
-  const nf = pushName ? pushName : (phone ? `WhatsApp Lead (${phone})` : 'WhatsApp Lead');
+  const nf = whatsappLeadCardName({ pushName, jid, phone, lidAlias });
 
   let coverImage = '';
   try {
@@ -2613,6 +2716,7 @@ async function start() {
       const jid = msg.from;
       const phone = whatsappService.extractPhoneNumberFromJid(jid);
       const lidAlias = msg.lidAlias || '';
+      await updateAutoWhatsappLeadName({ phone: phone || '', lidAlias: lidAlias || jid, jid, pushName: msg.pushName });
       if (!phone) {
         console.log(`[WhatsApp Lead] Mensaje entrante con LID sin numero real (${jid}). Creando lead temporal sin telefono visible.`);
         try {
@@ -2659,7 +2763,7 @@ async function start() {
           console.log(`[WhatsApp Lead] Creando nuevo lead para número: ${phone}`);
           const cardId = Date.now().toString(36) + crypto.randomBytes(4).toString('hex');
           const creadoEn = Date.now();
-          const nf = msg.pushName ? msg.pushName : `WhatsApp Lead (${phone})`;
+          const nf = whatsappLeadCardName({ pushName: msg.pushName, jid, phone, lidAlias });
 
           let coverImage = '';
           try {
@@ -2693,6 +2797,7 @@ async function start() {
 
       const phone = whatsappService.extractPhoneNumberFromJid(pn);
       if (!phone) return;
+      await updateAutoWhatsappLeadName({ phone, lidAlias: lid, jid: pn });
 
       try {
         const { rows } = await pool.query(
@@ -2714,6 +2819,16 @@ async function start() {
         }
       } catch (err) {
         console.error('[WhatsApp Lead] Error creando lead luego del mapeo LID:', err);
+      }
+    });
+
+    whatsappService.events.on('contact_name', async ({ jid, name }) => {
+      const phone = whatsappService.extractPhoneNumberFromJid(jid) || '';
+      const lidAlias = String(jid || '').endsWith('@lid') ? jid : '';
+      try {
+        await updateAutoWhatsappLeadName({ phone, lidAlias, jid, pushName: name });
+      } catch (err) {
+        console.error('[WhatsApp Lead] Error actualizando nombre de contacto:', err);
       }
     });
 
@@ -2740,6 +2855,7 @@ async function start() {
             "SELECT * FROM cards WHERE equipo = 'ventas' AND deleted_at IS NULL AND COALESCE(ntel, '') = '' AND COALESCE(whatsapp_lid_alias, '') != ''"
           );
           await applyKnownWhatsappMappings(lidRows, { emitChanges: true });
+          await refreshAutoWhatsappLeadNames({ emitChanges: true });
         } catch (err) {
           console.error('[WhatsApp Lead] Error mapeando leads activos:', err);
         }

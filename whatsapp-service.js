@@ -35,6 +35,7 @@ const AUTH_DIR = path.join(os.homedir(), '.baileys_auth', 'consultoria-digital')
 
 const MAPPING_FILE = path.join(__dirname, '.local', 'lid-mappings.json');
 const lidToPnMap = new Map();
+const contactNameByJid = new Map();
 
 function isLidJid(jid) {
   return typeof jid === 'string' && jid.endsWith('@lid');
@@ -82,6 +83,36 @@ function rememberLidMapping(lidValue, pnValue, source) {
   return pn;
 }
 
+function contactDisplayName(contact) {
+  if (!contact) return '';
+  return String(
+    contact.notify ||
+    contact.name ||
+    contact.verifiedName ||
+    contact.verifiedBizName ||
+    contact.pushName ||
+    contact.subject ||
+    ''
+  ).trim();
+}
+
+function rememberContactName(jidValue, nameValue) {
+  const jid = normalizePhoneJid(jidValue) || normalizeLidJid(jidValue);
+  const name = String(nameValue || '').trim();
+  if (!jid || !name) return;
+  if (contactNameByJid.get(jid) === name) return;
+  contactNameByJid.set(jid, name);
+  whatsappEvents.emit('contact_name', { jid, name });
+}
+
+function rememberMessageContactName(jidValue, rawJidValue, message) {
+  const name = contactDisplayName(message);
+  if (!name) return '';
+  rememberContactName(jidValue, name);
+  rememberContactName(rawJidValue, name);
+  return name;
+}
+
 function getMappedPhoneJid(lid) {
   const normalized = normalizeLidJid(lid);
   if (!normalized) return null;
@@ -97,6 +128,25 @@ function getPhoneJidForLid(lid) {
 
   const pnFromSignal = sock?.signalRepository?.lidMapping?.getPNForLID?.(normalized);
   return rememberLidMapping(normalized, pnFromSignal, 'signalRepository lookup') || null;
+}
+
+function getContactNameForJid(value) {
+  const phoneJid = normalizePhoneJid(value);
+  const lidJid = normalizeLidJid(value);
+  const direct = (phoneJid && contactNameByJid.get(phoneJid)) || (lidJid && contactNameByJid.get(lidJid));
+  if (direct) return direct;
+
+  if (lidJid) {
+    const mappedPhone = getPhoneJidForLid(lidJid);
+    return mappedPhone ? (contactNameByJid.get(mappedPhone) || '') : '';
+  }
+
+  if (phoneJid) {
+    const mappedLid = getMappedLidJid(phoneJid);
+    return mappedLid ? (contactNameByJid.get(mappedLid) || '') : '';
+  }
+
+  return '';
 }
 
 function getMappedLidJid(phone) {
@@ -144,6 +194,7 @@ loadMappings();
 function addContactMapping(contact, source) {
   let lid = null;
   let pn = null;
+  const displayName = contactDisplayName(contact);
 
   if (contact.pnJid && contact.lidJid) {
     lid = contact.lidJid;
@@ -164,6 +215,11 @@ function addContactMapping(contact, source) {
     lid = contact.id;
     pn = contact.phoneNumber;
   }
+
+  rememberContactName(contact.id, displayName);
+  rememberContactName(contact.pnJid, displayName);
+  rememberContactName(contact.lidJid, displayName);
+  rememberContactName(contact.phoneNumber, displayName);
 
   rememberLidMapping(lid, pn, source);
 }
@@ -286,6 +342,7 @@ function formatMessage(m) {
   const rawJid = m.key?.remoteJid;
   const fromMe = !!m.key.fromMe;
   const me = myJid();
+  const pushName = rememberMessageContactName(jid, rawJid, m);
   return {
     id: m.key.id,
     from: fromMe ? me : jid,
@@ -293,7 +350,7 @@ function formatMessage(m) {
     body: extractText(m.message),
     timestamp: toUnixSeconds(m.messageTimestamp),
     fromMe,
-    pushName: m.pushName || '',
+    pushName,
     lidAlias: isLidJid(rawJid) ? normalizeLidJid(rawJid) : '',
   };
 }
@@ -652,6 +709,7 @@ module.exports = {
   extractPhoneNumberFromJid,
   getMappedPhoneJid,
   getPhoneJidForLid,
+  getContactNameForJid,
   getMappedLidJid,
   events: whatsappEvents,
 };
