@@ -1175,7 +1175,7 @@
 
     /* ─── PANEL PENDIENTES ─── */
 .kanban-pendientes {
-  min-width: 300px; width: 300px; height: 100%; flex-shrink: 0;
+  min-width: 520px; width: 520px; height: 100%; flex-shrink: 0;
   display: flex; flex-direction: column;
   background: var(--surface); border-radius: var(--r-md);
   border: 1px solid rgba(251,146,60,0.13);
@@ -1436,102 +1436,6 @@
       gap: 0;
       background: var(--surface);
       border-radius: var(--r-md);
-    }
-
-    /* ─── PANEL MOTIVACIONAL ─── */
-    .kanban-motiv {
-      min-width: 210px;
-      width: 210px;
-      height: 100%;
-      flex-shrink: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 0.85rem;
-      padding: 1.6rem 1.1rem;
-      background: linear-gradient(160deg, #1e2d3d 0%, #111827 100%);
-      border-radius: var(--r-md);
-      border: 1px solid rgba(96, 165, 250, 0.13);
-      position: relative;
-      overflow: hidden;
-    }
-
-    .kanban-motiv::before {
-      content: '';
-      position: absolute;
-      inset: 0;
-      pointer-events: none;
-      background: radial-gradient(ellipse at 30% 20%, rgba(96, 165, 250, 0.09) 0%, transparent 60%),
-        radial-gradient(ellipse at 80% 85%, rgba(74, 222, 128, 0.07) 0%, transparent 50%);
-    }
-
-    .motiv-label {
-      font-size: 0.55rem;
-      letter-spacing: 0.13em;
-      text-transform: uppercase;
-      color: var(--muted);
-      opacity: 0.55;
-      position: relative;
-    }
-
-    .motiv-icon {
-      font-size: 2.2rem;
-      line-height: 1;
-      position: relative;
-      filter: drop-shadow(0 0 8px rgba(96, 165, 250, 0.35));
-      transition: opacity 0.5s ease;
-    }
-
-    .motiv-divider {
-      width: 36px;
-      height: 2px;
-      border-radius: 999px;
-      background: linear-gradient(90deg, transparent, rgba(96, 165, 250, 0.45), transparent);
-    }
-
-    .motiv-quote {
-      font-family: var(--font-disp);
-      font-size: 0.78rem;
-      font-weight: 700;
-      color: var(--text-hi);
-      text-align: center;
-      line-height: 1.55;
-      letter-spacing: 0.01em;
-      position: relative;
-      transition: opacity 0.5s ease;
-    }
-
-    .motiv-author {
-      font-size: 0.65rem;
-      color: var(--muted);
-      text-align: center;
-      font-style: italic;
-      position: relative;
-      transition: opacity 0.5s ease;
-    }
-
-    .motiv-icon.mfade,
-    .motiv-quote.mfade,
-    .motiv-author.mfade {
-      opacity: 0;
-    }
-
-    .motiv-next-btn {
-      background: transparent;
-      border: 1px solid rgba(96, 165, 250, 0.2);
-      color: var(--muted);
-      font-size: 0.62rem;
-      padding: 0.28rem 0.75rem;
-      border-radius: 999px;
-      cursor: pointer;
-      position: relative;
-      transition: border-color 150ms, color 150ms;
-    }
-
-    .motiv-next-btn:hover {
-      border-color: rgba(96, 165, 250, 0.55);
-      color: var(--text-hi);
     }
 
     .col-head {
@@ -7968,37 +7872,6 @@
     const SALES_STATUSES = ['presupuestado', 'reunion', 'venta_exitosa'];
     const SALES_STATUS_LABEL = { presupuestado: 'PRESUPUESTADO', reunion: 'REUNIÓN', venta_exitosa: 'VENTA EXITOSA' };
 
-    const MOTIV_QUOTES = [
-      { icon: '🚀', text: 'El progreso, no la perfección, es lo que importa.', author: '— WorkFlow' },
-      { icon: '🎯', text: 'Enfocate en lo que podés controlar hoy.', author: '— Método Kanban' },
-      { icon: '⚡', text: 'La constancia supera al talento cuando el talento no es constante.', author: '— Tim Notke' },
-      { icon: '🔥', text: 'Hecho es mejor que perfecto.', author: '— Mark Zuckerberg' },
-      { icon: '💡', text: 'Cada tarea completada es un paso hacia el resultado final.', author: '— Equipo CD' },
-      { icon: '💎', text: 'Cada gran logro comenzó con la decisión de intentarlo.', author: '— J.F.K.' },
-      { icon: '🧠', text: 'La simplicidad es la máxima sofisticación.', author: '— Leonardo da Vinci' },
-      { icon: '🌊', text: 'El flujo de trabajo eficiente nace del orden y la claridad.', author: '— Equipo CD' },
-      { icon: '✨', text: 'Un equipo alineado mueve montañas.', author: '— Equipo CD' },
-      { icon: '🏆', text: 'El éxito es la suma de pequeños esfuerzos repetidos día tras día.', author: '— R. Collier' },
-    ];
-    let motivIdx = 0;
-    function motivNext(autoReset) {
-      motivIdx = (motivIdx + 1) % MOTIV_QUOTES.length;
-      const panel = document.getElementById('motiv-panel');
-      if (!panel) return;
-      const q = MOTIV_QUOTES[motivIdx];
-      const els = [panel.querySelector('.motiv-icon'), panel.querySelector('.motiv-quote'), panel.querySelector('.motiv-author')];
-      els.forEach(el => el && el.classList.add('mfade'));
-      setTimeout(() => {
-        if (els[0]) els[0].textContent = q.icon;
-        if (els[1]) els[1].textContent = q.text;
-        if (els[2]) els[2].textContent = q.author;
-        els.forEach(el => el && el.classList.remove('mfade'));
-      }, 500);
-      if (!autoReset) {
-        clearInterval(window._motivTimer);
-        window._motivTimer = setInterval(() => motivNext(true), 9000);
-      }
-    }
     const TEAMS = {
       all: 'Todos los equipos', marketing: 'Equipo de Marketing',
       desarrollo: 'Equipo de Desarrollo', admin: 'Administración', ventas: 'Ventas',
@@ -10398,22 +10271,6 @@
       </button>`;
         board.appendChild(col);
       });
-
-      // Panel motivacional
-      const q0 = MOTIV_QUOTES[motivIdx];
-      const motivPanel = document.createElement('div');
-      motivPanel.className = 'kanban-motiv';
-      motivPanel.id = 'motiv-panel';
-      motivPanel.innerHTML = `
-    <div class="motiv-label">Frase del día</div>
-    <div class="motiv-icon">${q0.icon}</div>
-    <div class="motiv-divider"></div>
-    <div class="motiv-quote">${q0.text}</div>
-    <div class="motiv-author">${q0.author}</div>
-    <button class="motiv-next-btn" onclick="motivNext(false)">siguiente →</button>`;
-      board.appendChild(motivPanel);
-      clearInterval(window._motivTimer);
-      window._motivTimer = setInterval(() => motivNext(true), 9000);
 
       // Panel de pendientes (checklists sin completar)
       const pendPanel = document.createElement('div');
