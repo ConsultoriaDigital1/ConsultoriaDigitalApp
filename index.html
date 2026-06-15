@@ -5674,6 +5674,11 @@
       padding: 0 0.2rem;
     }
 
+    .note-msg-time {
+      opacity: 0.7;
+      font-variant-numeric: tabular-nums;
+    }
+
     .note-msg-actions {
       display: flex;
       gap: 0.25rem;
@@ -13356,6 +13361,13 @@
       return content.trim() ? [{ author: 'Sistema', text: content, time: new Date(0).toISOString() }] : [];
     }
 
+    function fmtNoteTime(iso) {
+      if (!iso) return '';
+      const d = new Date(iso);
+      if (isNaN(d.getTime()) || d.getFullYear() < 2000) return '';
+      return d.toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+    }
+
     function buildChatHtml(msgs, scope, team) {
       if (!msgs.length) return `<div class="note-chat-empty">Sin mensajes aún...</div>`;
       const me = noteAuthorName();
@@ -13367,10 +13379,11 @@
       <button class="note-action-btn" onclick="startEditNoteMessage('${sc}','${tm}',${idx})">Editar</button>
       <button class="note-action-btn del" onclick="deleteNoteMessage('${sc}','${tm}',${idx})">Eliminar</button>
     </div>` : '';
+        const timeStr = fmtNoteTime(m.time);
         return `<div class="note-msg ${mine ? 'mine' : 'other'}">
       ${actions}
       <div class="note-bubble">${esc(m.text).replace(/\n/g, '<br>')}</div>
-      <div class="note-msg-author">${esc(m.author)}</div>
+      <div class="note-msg-author">${esc(m.author)}${timeStr ? ` <span class="note-msg-time">· ${esc(timeStr)}</span>` : ''}</div>
     </div>`;
       }).join('');
     }
