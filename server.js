@@ -339,6 +339,10 @@ function extractExternalPhone(body) {
   return phone ? cleanPhoneDigits(phone) : '';
 }
 
+function externalBool(value) {
+  return value === true || value === 1 || String(value || '').toLowerCase() === 'true';
+}
+
 async function requireAuth(req, res, next) {
   try {
     const cookies = parseCookies(req.headers.cookie);
@@ -2038,8 +2042,11 @@ app.put('/api/cards/:id', requireAuth, async (req, res, next) => {
   }
 });
 
-app.post('/api/external/cards/update-status', requireExternalAuth, async (req, res, next) => {
-  const { cardId, estado, motivo, createIfMissing, nombreFiscal, razonSocial, cuit } = req.body;
+async function handleExternalCardStatusUpdate(req, res, next, options = {}) {
+  const { cardId, motivo, nombreFiscal, razonSocial, cuit } = req.body;
+  const estado = String(options.estado || req.body.estado || '').trim();
+  const fromEstado = String(options.fromEstado || req.body.fromEstado || req.body.estadoDesde || '').trim();
+  const createIfMissing = options.createIfMissing ?? externalBool(req.body.createIfMissing);
   const phone = extractExternalPhone(req.body);
 
   if (!estado) {
@@ -2053,24 +2060,31 @@ app.post('/api/external/cards/update-status', requireExternalAuth, async (req, r
     });
   }
 
+  if (fromEstado && !validStatuses.includes(fromEstado)) {
+    return res.status(400).json({
+      error: `Estado origen invalido. Debe ser uno de: ${validStatuses.join(', ')}`
+    });
+  }
+
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
 
-    let targetCardId = null;
+    let targetCard = null;
+    let action = 'update';
 
     if (cardId) {
       const { rows } = await client.query(
-        "SELECT id FROM cards WHERE id = $1 AND equipo = 'ventas' AND deleted_at IS NULL",
+        "SELECT * FROM cards WHERE id = $1 AND equipo = 'ventas' AND deleted_at IS NULL FOR UPDATE",
         [cardId]
       );
       if (rows[0]) {
-        targetCardId = rows[0].id;
+        targetCard = rows[0];
       }
     } else if (phone) {
       // Usar la misma lógica de correspondencia de número telefónico de WhatsApp
       const { rows } = await client.query(
-        "SELECT id, ntel FROM cards WHERE equipo = 'ventas' AND deleted_at IS NULL"
+        "SELECT * FROM cards WHERE equipo = 'ventas' AND deleted_at IS NULL ORDER BY creado_en ASC FOR UPDATE"
       );
 
       const incomingClean = cleanPhoneDigits(phone);
@@ -2084,7 +2098,7 @@ app.post('/api/external/cards/update-status', requireExternalAuth, async (req, r
       });
 
       if (matched) {
-        targetCardId = matched.id;
+        targetCard = matched;
       }
     } else {
       await client.query('ROLLBACK');
@@ -2093,17 +2107,48 @@ app.post('/api/external/cards/update-status', requireExternalAuth, async (req, r
 
     let cardRow = null;
 
-    if (targetCardId) {
+    if (targetCard) {
+      if (fromEstado && targetCard.estado !== fromEstado) {
+        const historyByCard = await descriptionHistoryByCardIds([targetCard.id], client);
+        await client.query('COMMIT');
+        return res.json({
+          ok: true,
+          action: 'skipped',
+          reason: `La tarjeta esta en "${targetCard.estado}", no en "${fromEstado}".`,
+          card: cardDTO(targetCard, historyByCard.get(targetCard.id) || []),
+        });
+      }
+
+      if (targetCard.estado === estado) {
+        const historyByCard = await descriptionHistoryByCardIds([targetCard.id], client);
+        await client.query('COMMIT');
+        return res.json({
+          ok: true,
+          action: 'noop',
+          reason: `La tarjeta ya estaba en "${estado}".`,
+          card: cardDTO(targetCard, historyByCard.get(targetCard.id) || []),
+        });
+      }
+
       // 1. Actualizar estado
       const { rows } = await client.query(
-        `UPDATE cards SET estado = $1, updated_at = NOW() WHERE id = $2 RETURNING *`,
-        [estado, targetCardId]
+        `UPDATE cards
+         SET estado = $1,
+             position = (
+               SELECT COALESCE(MAX(position), 0) + 1
+               FROM cards
+               WHERE equipo = 'ventas' AND estado = $1 AND deleted_at IS NULL
+             ),
+             updated_at = NOW()
+         WHERE id = $2
+         RETURNING *`,
+        [estado, targetCard.id]
       );
       cardRow = rows[0];
+      const statusChangeLogMessage = `Movido automaticamente por n8n de ${targetCard.estado} a ${estado}. Motivo: ${motivo || 'Requisitos cumplidos'}`;
 
       // 2. Registrar en historial de comentarios
-      const logMessage = `Movido automáticamente por n8n. Motivo: ${motivo || 'Requisitos cumplidos'}`;
-      await insertDescriptionHistory(client, targetCardId, 'system-bot', logMessage, Date.now(), 'comentario');
+      await insertDescriptionHistory(client, targetCard.id, 'system-bot', statusChangeLogMessage, Date.now(), 'comentario');
     } else if (createIfMissing) {
       // Crear nueva tarjeta si no existe
       if (!phone) {
@@ -2136,32 +2181,44 @@ app.post('/api/external/cards/update-status', requireExternalAuth, async (req, r
         [newCardId, nf, rs, cuit || '', phone, c, estado, creadoEn, coverImage]
       );
       cardRow = rows[0];
-      targetCardId = newCardId;
+      action = 'create';
 
       // Historial de creación/comentario
-      await insertDescriptionHistory(client, targetCardId, 'system-bot', c, creadoEn, 'comentario');
+      await insertDescriptionHistory(client, newCardId, 'system-bot', c, creadoEn, 'comentario');
     } else {
       await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Tarjeta no encontrada y "createIfMissing" es false.' });
     }
 
-    const historyByCard = await descriptionHistoryByCardIds([targetCardId], client);
+    const historyByCard = await descriptionHistoryByCardIds([cardRow.id], client);
     await client.query('COMMIT');
 
-    const card = cardDTO(cardRow, historyByCard.get(targetCardId) || []);
+    const card = cardDTO(cardRow, historyByCard.get(cardRow.id) || []);
     // Emitir el evento de cambio por SSE en tiempo real
-    cardEvents.emit('change', { action: 'update', card });
+    cardEvents.emit('change', { action, card });
 
-    res.json({ ok: true, action: targetCardId === cardId || targetCardId !== cardRow.id ? 'update' : 'create', card });
+    res.json({ ok: true, action, card });
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
     next(err);
   } finally {
     client.release();
   }
+}
+
+// Rutas externas para n8n
+app.post('/api/external/cards/update-status', requireExternalAuth, (req, res, next) => {
+  handleExternalCardStatusUpdate(req, res, next);
 });
 
-// ── Helpers fecha Argentina ──
+app.post('/api/external/leads/presupuestar', requireExternalAuth, (req, res, next) => {
+  handleExternalCardStatusUpdate(req, res, next, {
+    estado: 'presupuestado',
+    fromEstado: 'contactado',
+  });
+});
+
+// Helpers fecha Argentina
 function todayInArgentina() {
   // YYYY-MM-DD usando America/Argentina/Cordoba (UTC-3, sin DST)
   const fmt = new Intl.DateTimeFormat('en-CA', {
@@ -2525,39 +2582,124 @@ function phoneLocalForm(phone) {
   return s;
 }
 
-async function salesLeadExistsByPhone(phone) {
-  const incomingClean = cleanPhoneDigits(phone);
-  const incomingLocal = phoneLocalForm(incomingClean);
+function whatsappLeadLookupTerms({ jid = '', phone = '', lidAlias = '' } = {}) {
+  const phones = new Set();
+  const locals = new Set();
+  const aliases = new Set();
 
-  if (!incomingClean) return true;
+  const addPhone = (value) => {
+    const clean = cleanPhoneDigits(value);
+    if (!clean) return;
+    phones.add(clean);
+    const local = phoneLocalForm(clean);
+    if (local && local.length >= 7) locals.add(local);
+  };
 
-  const { rows } = await pool.query(
-    "SELECT ntel FROM cards WHERE equipo = 'ventas' AND deleted_at IS NULL"
-  );
+  const addAlias = (value) => {
+    const alias = String(value || '').trim();
+    if (!alias) return;
+    if (alias.includes('@')) aliases.add(alias);
+  };
 
-  return rows.some((row) => {
-    const cardClean = cleanPhoneDigits(row.ntel);
-    const cardLocal = phoneLocalForm(cardClean);
-    if (!cardClean) return false;
-    return cardClean === incomingClean || (cardLocal === incomingLocal && cardLocal.length >= 7);
-  });
+  addPhone(phone);
+  addPhone(whatsappService.extractPhoneNumberFromJid(jid));
+  addPhone(whatsappService.extractPhoneNumberFromJid(lidAlias));
+
+  addAlias(jid);
+  addAlias(lidAlias);
+
+  const mappedLidFromPhone = whatsappService.getMappedLidJid(phone || jid);
+  const mappedPhoneFromLid = whatsappService.getPhoneJidForLid(lidAlias || jid);
+  addAlias(mappedLidFromPhone);
+  addAlias(mappedPhoneFromLid);
+  addPhone(whatsappService.extractPhoneNumberFromJid(mappedPhoneFromLid));
+
+  return {
+    phones: [...phones],
+    locals: [...locals],
+    aliases: [...aliases],
+  };
 }
 
-async function salesLeadExistsByLid(lidAlias) {
-  if (!lidAlias) return true;
+function whatsappLeadRowMatches(row, lookup) {
+  const cardPhone = cleanPhoneDigits(row.ntel);
+  const cardLocal = phoneLocalForm(cardPhone);
+  const cardAlias = String(row.whatsapp_lid_alias || '').trim();
+  if (cardPhone && lookup.phones.includes(cardPhone)) return true;
+  if (cardLocal && cardLocal.length >= 7 && lookup.locals.includes(cardLocal)) return true;
+  if (cardAlias && lookup.aliases.includes(cardAlias)) return true;
+  return false;
+}
+
+async function findExistingWhatsappLead(args = {}) {
+  const lookup = whatsappLeadLookupTerms(args);
+  if (!lookup.phones.length && !lookup.aliases.length) return null;
+
   const { rows } = await pool.query(
-    "SELECT id FROM cards WHERE equipo = 'ventas' AND deleted_at IS NULL AND whatsapp_lid_alias = $1 LIMIT 1",
-    [lidAlias]
+    `SELECT *
+     FROM cards
+     WHERE equipo = 'ventas'
+       AND deleted_at IS NULL
+       AND (
+         ntel = ANY($1)
+         OR whatsapp_lid_alias = ANY($2)
+         OR regexp_replace(COALESCE(ntel, ''), '\\D', '', 'g') = ANY($1)
+       )
+     ORDER BY creado_en ASC
+     LIMIT 20`,
+    [lookup.phones.length ? lookup.phones : [''], lookup.aliases.length ? lookup.aliases : ['']]
   );
-  return !!rows[0];
+
+  let match = rows.find((row) => whatsappLeadRowMatches(row, lookup));
+  if (!match && lookup.locals.length) {
+    const { rows: fallbackRows } = await pool.query(
+      "SELECT * FROM cards WHERE equipo = 'ventas' AND deleted_at IS NULL AND COALESCE(ntel, '') != ''"
+    );
+    match = fallbackRows.find((row) => whatsappLeadRowMatches(row, lookup));
+  }
+  return match || null;
+}
+
+async function attachWhatsappAliasToLead(card, { phone = '', lidAlias = '', jid = '', pushName = '' } = {}) {
+  if (!card || card.equipo !== 'ventas') return null;
+  const cleanPhone = cleanPhoneDigits(phone || whatsappService.extractPhoneNumberFromJid(jid) || '');
+  const alias = String(lidAlias || '').trim();
+  const nf = whatsappLeadCardName({ pushName, jid, phone: cleanPhone, lidAlias: alias });
+  const shouldSetPhone = cleanPhone && cleanPhone !== String(card.ntel || '').trim();
+  const shouldSetAlias = alias && !String(card.whatsapp_lid_alias || '').trim() && alias !== `${cleanPhone}@s.whatsapp.net`;
+  const shouldSetName = nf && isAutoWhatsappLeadName(card.nf);
+  if (!shouldSetPhone && !shouldSetAlias && !shouldSetName) return null;
+
+  const { rows } = await pool.query(
+    `UPDATE cards
+     SET ntel = CASE WHEN $2 <> '' THEN $2 ELSE ntel END,
+         whatsapp_lid_alias = CASE WHEN $3 <> '' AND COALESCE(whatsapp_lid_alias, '') = '' THEN $3 ELSE whatsapp_lid_alias END,
+         nf = CASE WHEN $4 <> '' AND (COALESCE(nf, '') = '' OR nf ~ $5) THEN $4 ELSE nf END,
+         updated_at = NOW()
+     WHERE id = $1
+       AND equipo = 'ventas'
+       AND deleted_at IS NULL
+     RETURNING *`,
+    [card.id, shouldSetPhone ? cleanPhone : '', shouldSetAlias ? alias : '', shouldSetName ? nf : '', '^(WhatsApp Lead( \\([0-9]+\\))?|Lead de WhatsApp|Contacto de WhatsApp|Contacto [0-9]{6,})$']
+  );
+
+  if (rows[0]) {
+    const updated = cardDTO(rows[0]);
+    cardEvents.emit('change', { action: 'update', card: updated });
+    return updated;
+  }
+  return null;
 }
 
 async function ensureWhatsappLead({ jid, phone = '', lidAlias = '', body = '', pushName = '', timestamp = Date.now() }) {
   if (phone && phone.includes('@')) return null;
   if (!phone && !lidAlias) return null;
 
-  const exists = phone ? await salesLeadExistsByPhone(phone) : await salesLeadExistsByLid(lidAlias);
-  if (exists) return null;
+  const existing = await findExistingWhatsappLead({ jid, phone, lidAlias });
+  if (existing) {
+    await attachWhatsappAliasToLead(existing, { phone, lidAlias, jid, pushName });
+    return null;
+  }
 
   console.log(`[WhatsApp Lead] Creando nuevo lead para ${phone ? `numero: ${phone}` : `LID temporal: ${lidAlias}`}`);
   const cardId = Date.now().toString(36) + crypto.randomBytes(4).toString('hex');
@@ -2717,6 +2859,23 @@ async function start() {
       const phone = whatsappService.extractPhoneNumberFromJid(jid);
       const lidAlias = msg.lidAlias || '';
       await updateAutoWhatsappLeadName({ phone: phone || '', lidAlias: lidAlias || jid, jid, pushName: msg.pushName });
+      try {
+        if (!phone) {
+          console.log(`[WhatsApp Lead] Mensaje entrante con LID sin numero real (${jid}). Buscando tarjeta existente antes de crear temporal.`);
+        }
+        await ensureWhatsappLead({
+          jid,
+          phone: phone || '',
+          lidAlias: lidAlias || (!phone ? jid : ''),
+          body: msg.body,
+          pushName: msg.pushName,
+          timestamp: msg.timestamp,
+        });
+      } catch (err) {
+        console.error('[WhatsApp Lead Error] No se pudo procesar el lead entrante:', err);
+      }
+      return;
+
       if (!phone) {
         console.log(`[WhatsApp Lead] Mensaje entrante con LID sin numero real (${jid}). Creando lead temporal sin telefono visible.`);
         try {
