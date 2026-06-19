@@ -10501,8 +10501,7 @@
       }
       board.className = 'kanban-wrap';
 
-      // Filter sales cards that are not soft-deleted
-      const sales = getCards().filter(c => c.equipo === 'ventas' && c.deletedAt === null);
+      const sales = uniqueSalesLeads(getCards()).filter(c => SALES_STATUSES.includes(c.estado));
 
       board.innerHTML = '';
       SALES_STATUSES.forEach(status => {
@@ -10591,26 +10590,45 @@
       }
     }
 
-    function contactadoLeadKey(c) {
+    function salesLeadRank(c) {
+      return { venta_exitosa: 4, reunion: 3, presupuestado: 2, contactado: 1 }[c.estado] || 0;
+    }
+
+    function salesLeadKey(c) {
       const phone = String(c.ntel || '').replace(/\D/g, '');
-      if (phone) return 'phone:' + phone;
+      if (phone) {
+        let local = phone;
+        if (local.startsWith('549')) local = local.slice(3);
+        else if (local.startsWith('54')) local = local.slice(2);
+        if (local.startsWith('0')) local = local.slice(1);
+        if (local.length === 10 && local.startsWith('15')) local = local.slice(2);
+        return local.length >= 7 ? 'local:' + local : 'phone:' + phone;
+      }
       const alias = String(c.whatsappLidAlias || '').trim();
       if (alias) return 'alias:' + alias;
       return 'id:' + c.id;
     }
 
-    function uniqueContactadosLeads(cards) {
+    function uniqueSalesLeads(cards) {
       const uniques = new Map();
       cards
-        .filter(c => c.equipo === 'ventas' && c.estado === 'contactado' && c.deletedAt === null)
+        .filter(c => c.equipo === 'ventas' && c.deletedAt === null)
         .forEach(c => {
-          const key = contactadoLeadKey(c);
+          const key = salesLeadKey(c);
           const existing = uniques.get(key);
-          if (!existing || Number(c.creadoEn || 0) < Number(existing.creadoEn || 0)) {
+          if (
+            !existing ||
+            salesLeadRank(c) > salesLeadRank(existing) ||
+            (salesLeadRank(c) === salesLeadRank(existing) && Number(c.creadoEn || 0) < Number(existing.creadoEn || 0))
+          ) {
             uniques.set(key, c);
           }
         });
       return [...uniques.values()];
+    }
+
+    function uniqueContactadosLeads(cards) {
+      return uniqueSalesLeads(cards).filter(c => c.estado === 'contactado');
     }
 
     function renderVentasTrash(board, users) {

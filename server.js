@@ -576,13 +576,25 @@ async function visibleUsers(user) {
 
 async function visibleCards(user) {
   const teams = allowedTeams(user);
-  const { rows } = await pool.query(
+  if (teams.includes('ventas')) {
+    await cleanupSalesDuplicates(pool);
+  }
+  let { rows } = await pool.query(
     `SELECT * FROM cards
      WHERE equipo = ANY($1) AND deleted_at IS NULL
      ORDER BY position ASC NULLS LAST, creado_en DESC`,
     [teams]
   );
   await applyKnownWhatsappMappings(rows);
+  if (teams.includes('ventas') && await cleanupSalesDuplicates(pool)) {
+    const refreshed = await pool.query(
+      `SELECT * FROM cards
+       WHERE equipo = ANY($1) AND deleted_at IS NULL
+       ORDER BY position ASC NULLS LAST, creado_en DESC`,
+      [teams]
+    );
+    rows = refreshed.rows;
+  }
   const historyByCard = await descriptionHistoryByCardIds(rows.map((row) => row.id));
   return rows.map((row) => cardDTO(row, historyByCard.get(row.id) || []));
 }
@@ -1924,6 +1936,12 @@ app.post('/api/cards', requireAuth, async (req, res, next) => {
     data.usuarios = await validateAssignedUsers(req.user, data.usuarios, data.equipo);
     data.usuario = data.usuarios[0] || null;
     data.checklist = await validateChecklistUsers(req.user, data.checklist, data.equipo);
+    if (data.equipo === 'ventas' && cleanPhoneDigits(data.ntel)) {
+      const duplicate = await findActiveSalesDuplicateByPhone(data.ntel);
+      if (duplicate) {
+        return res.status(409).json({ error: 'Ya existe una tarjeta activa de ventas con ese telefono.' });
+      }
+    }
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
@@ -2023,6 +2041,13 @@ app.put('/api/cards/:id', requireAuth, async (req, res, next) => {
     data.usuarios = await validateAssignedUsers(req.user, data.usuarios, data.equipo);
     data.usuario = data.usuarios[0] || null;
     data.checklist = await validateChecklistUsers(req.user, data.checklist, data.equipo);
+    if (data.equipo === 'ventas' && cleanPhoneDigits(data.ntel)) {
+      const duplicate = await findActiveSalesDuplicateByPhone(data.ntel, { excludeId: req.params.id, db: client });
+      if (duplicate) {
+        await client.query('ROLLBACK');
+        return res.status(409).json({ error: 'Ya existe una tarjeta activa de ventas con ese telefono.' });
+      }
+    }
     const checklistChanged = !sameChecklist(current.rows[0].checklist, data.checklist);
     const { rows } = await client.query(
       `UPDATE cards SET
@@ -2111,7 +2136,8 @@ async function handleExternalCardStatusUpdate(req, res, next, options = {}) {
       );
 
       const lookup = whatsappLeadLookupTerms({ phone, jid, lidAlias });
-      const matched = rows.find((row) => whatsappLeadRowMatches(row, lookup));
+      const matchedRows = rows.filter((row) => whatsappLeadRowMatches(row, lookup));
+      const matched = matchedRows.length ? chooseSalesKeeper(matchedRows) : null;
 
       if (matched) {
         targetCard = matched;
@@ -2135,13 +2161,16 @@ async function handleExternalCardStatusUpdate(req, res, next, options = {}) {
         });
       }
 
-      if (targetCard.estado === estado) {
+      if (targetCard.estado === estado || salesStatusRank(targetCard.estado) > salesStatusRank(estado)) {
+        await cleanupSalesDuplicates(client, { emitChanges: false });
         const historyByCard = await descriptionHistoryByCardIds([targetCard.id], client);
         await client.query('COMMIT');
         return res.json({
           ok: true,
           action: 'noop',
-          reason: `La tarjeta ya estaba en "${estado}".`,
+          reason: targetCard.estado === estado
+            ? `La tarjeta ya estaba en "${estado}".`
+            : `La tarjeta ya esta mas avanzada en "${targetCard.estado}".`,
           card: cardDTO(targetCard, historyByCard.get(targetCard.id) || []),
         });
       }
@@ -2206,6 +2235,25 @@ async function handleExternalCardStatusUpdate(req, res, next, options = {}) {
       return res.status(404).json({ error: 'Tarjeta no encontrada y "createIfMissing" es false.' });
     }
 
+    await cleanupSalesDuplicates(client, { emitChanges: false });
+    const { rows: activeCardRows } = await client.query(
+      "SELECT * FROM cards WHERE id = $1 AND deleted_at IS NULL",
+      [cardRow.id]
+    );
+    if (activeCardRows[0]) {
+      cardRow = activeCardRows[0];
+    } else {
+      const lookup = whatsappLeadLookupTerms({
+        phone: cardRow.ntel || phone,
+        jid,
+        lidAlias: cardRow.whatsapp_lid_alias || lidAlias,
+      });
+      const { rows: survivorRows } = await client.query(
+        "SELECT * FROM cards WHERE equipo = 'ventas' AND deleted_at IS NULL ORDER BY creado_en ASC"
+      );
+      const survivors = survivorRows.filter((row) => whatsappLeadRowMatches(row, lookup));
+      if (survivors.length) cardRow = chooseSalesKeeper(survivors);
+    }
     const historyByCard = await descriptionHistoryByCardIds([cardRow.id], client);
     await client.query('COMMIT');
 
@@ -2598,6 +2646,125 @@ function phoneLocalForm(phone) {
   return s;
 }
 
+function salesStatusRank(status) {
+  return { venta_exitosa: 4, reunion: 3, presupuestado: 2, contactado: 1 }[status] || 0;
+}
+
+function salesDuplicateKeys(row) {
+  const keys = [];
+  const phone = cleanPhoneDigits(row.ntel);
+  const local = phoneLocalForm(phone);
+  const alias = String(row.whatsapp_lid_alias || '').trim();
+  if (phone) keys.push(`phone:${phone}`);
+  if (local && local.length >= 7) keys.push(`local:${local}`);
+  if (alias) keys.push(`alias:${alias}`);
+  return keys;
+}
+
+function chooseSalesKeeper(rows) {
+  return [...rows].sort((a, b) => {
+    const rankDiff = salesStatusRank(b.estado) - salesStatusRank(a.estado);
+    if (rankDiff) return rankDiff;
+    const phoneDiff = (cleanPhoneDigits(b.ntel) ? 1 : 0) - (cleanPhoneDigits(a.ntel) ? 1 : 0);
+    if (phoneDiff) return phoneDiff;
+    return Number(a.creado_en || 0) - Number(b.creado_en || 0);
+  })[0];
+}
+
+async function cleanupSalesDuplicates(db = pool, { emitChanges = false } = {}) {
+  const { rows } = await db.query(
+    `SELECT *
+     FROM cards
+     WHERE equipo = 'ventas'
+       AND deleted_at IS NULL
+     ORDER BY creado_en ASC
+     FOR UPDATE`
+  );
+
+  const byId = new Map(rows.map(row => [row.id, row]));
+  const parent = new Map(rows.map(row => [row.id, row.id]));
+  const keyOwner = new Map();
+
+  const find = (id) => {
+    const p = parent.get(id);
+    if (p === id) return id;
+    const root = find(p);
+    parent.set(id, root);
+    return root;
+  };
+  const union = (a, b) => {
+    const rootA = find(a);
+    const rootB = find(b);
+    if (rootA !== rootB) parent.set(rootB, rootA);
+  };
+
+  for (const row of rows) {
+    for (const key of salesDuplicateKeys(row)) {
+      if (keyOwner.has(key)) union(row.id, keyOwner.get(key));
+      else keyOwner.set(key, row.id);
+    }
+  }
+
+  const groups = new Map();
+  for (const row of rows) {
+    if (!salesDuplicateKeys(row).length) continue;
+    const root = find(row.id);
+    if (!groups.has(root)) groups.set(root, []);
+    groups.get(root).push(row);
+  }
+
+  const duplicateIds = [];
+  for (const group of groups.values()) {
+    if (group.length < 2) continue;
+    const keeper = chooseSalesKeeper(group);
+    for (const row of group) {
+      if (row.id !== keeper.id) duplicateIds.push(row.id);
+    }
+  }
+
+  if (!duplicateIds.length) return 0;
+
+  const { rows: deletedRows } = await db.query(
+    `UPDATE cards
+     SET deleted_at = NOW(), updated_at = NOW()
+     WHERE id = ANY($1)
+     RETURNING *`,
+    [duplicateIds]
+  );
+
+  if (deletedRows.length) {
+    console.log(`[Ventas Dedup] ${deletedRows.length} tarjeta(s) duplicada(s) enviadas a papelera.`);
+  }
+
+  if (emitChanges) {
+    for (const row of deletedRows) {
+      cardEvents.emit('change', { action: 'delete', id: row.id, card: cardDTO(row) });
+    }
+  }
+
+  return deletedRows.length;
+}
+
+async function findActiveSalesDuplicateByPhone(phone, { excludeId = '', db = pool } = {}) {
+  const clean = cleanPhoneDigits(phone);
+  if (!clean) return null;
+  const probeKeys = new Set(salesDuplicateKeys({ ntel: clean, whatsapp_lid_alias: '' }));
+
+  const { rows } = await db.query(
+    `SELECT *
+     FROM cards
+     WHERE equipo = 'ventas'
+       AND deleted_at IS NULL
+       AND id <> $1
+       AND COALESCE(ntel, '') <> ''
+     ORDER BY creado_en ASC`,
+    [excludeId || '']
+  );
+  const matches = rows.filter(row => salesDuplicateKeys(row).some(key => probeKeys.has(key)));
+
+  return matches.length ? chooseSalesKeeper(matches) : null;
+}
+
 function whatsappLeadLookupTerms({ jid = '', phone = '', lidAlias = '' } = {}) {
   const phones = new Set();
   const locals = new Set();
@@ -2714,6 +2881,7 @@ async function ensureWhatsappLead({ jid, phone = '', lidAlias = '', body = '', p
   const existing = await findExistingWhatsappLead({ jid, phone, lidAlias });
   if (existing) {
     await attachWhatsappAliasToLead(existing, { phone, lidAlias, jid, pushName });
+    await cleanupSalesDuplicates(pool, { emitChanges: true });
     return null;
   }
 
@@ -2738,7 +2906,13 @@ async function ensureWhatsappLead({ jid, phone = '', lidAlias = '', body = '', p
   );
 
   if (inserted[0]) {
-    const card = cardDTO(inserted[0]);
+    await cleanupSalesDuplicates(pool, { emitChanges: true });
+    const { rows: activeInserted } = await pool.query(
+      "SELECT * FROM cards WHERE id = $1 AND deleted_at IS NULL",
+      [inserted[0].id]
+    );
+    if (!activeInserted[0]) return null;
+    const card = cardDTO(activeInserted[0]);
     cardEvents.emit('change', { action: 'create', card });
     return card;
   }
@@ -2873,6 +3047,7 @@ async function start() {
     await ensureDatabaseMigrations();
     await migrateVisibleLidNumbers();
     await syncPendingLidLeads();
+    await cleanupSalesDuplicates(pool);
 
     // Handler para recibir mensajes de WhatsApp y crear leads automáticamente si no existen
     whatsappService.events.on('message', async (msg) => {
