@@ -339,6 +339,27 @@ function extractExternalPhone(body) {
   return phone ? cleanPhoneDigits(phone) : '';
 }
 
+function extractExternalJid(body) {
+  const candidates = [
+    body?.jid,
+    body?.chatJid,
+    body?.remoteJid,
+    body?.lidAlias,
+    getByPath(body, ['key', 'remoteJid']),
+    getByPath(body, ['data', 'jid']),
+    getByPath(body, ['data', 'chatJid']),
+    getByPath(body, ['data', 'remoteJid']),
+    getByPath(body, ['data', 'messages', 'key', 'remoteJid']),
+    getByPath(body, ['body', 'jid']),
+    getByPath(body, ['body', 'chatJid']),
+    getByPath(body, ['body', 'remoteJid']),
+    getByPath(body, ['body', 'data', 'messages', 'key', 'remoteJid']),
+  ];
+
+  const jid = candidates.find((value) => String(value || '').includes('@'));
+  return jid ? String(jid).trim() : '';
+}
+
 function externalBool(value) {
   return value === true || value === 1 || String(value || '').toLowerCase() === 'true';
 }
@@ -2048,6 +2069,8 @@ async function handleExternalCardStatusUpdate(req, res, next, options = {}) {
   const fromEstado = String(options.fromEstado || req.body.fromEstado || req.body.estadoDesde || '').trim();
   const createIfMissing = options.createIfMissing ?? externalBool(req.body.createIfMissing);
   const phone = extractExternalPhone(req.body);
+  const jid = extractExternalJid(req.body);
+  const lidAlias = jid.endsWith('@lid') ? jid : String(req.body.lidAlias || '').trim();
 
   if (!estado) {
     return res.status(400).json({ error: 'El campo "estado" es obligatorio.' });
@@ -2081,28 +2104,21 @@ async function handleExternalCardStatusUpdate(req, res, next, options = {}) {
       if (rows[0]) {
         targetCard = rows[0];
       }
-    } else if (phone) {
+    } else if (phone || jid || lidAlias) {
       // Usar la misma lógica de correspondencia de número telefónico de WhatsApp
       const { rows } = await client.query(
         "SELECT * FROM cards WHERE equipo = 'ventas' AND deleted_at IS NULL ORDER BY creado_en ASC FOR UPDATE"
       );
 
-      const incomingClean = cleanPhoneDigits(phone);
-      const incomingLocal = phoneLocalForm(incomingClean);
-
-      const matched = rows.find((row) => {
-        const cardClean = cleanPhoneDigits(row.ntel);
-        const cardLocal = phoneLocalForm(cardClean);
-        if (!cardClean || !incomingClean) return false;
-        return cardClean === incomingClean || (cardLocal === incomingLocal && cardLocal.length >= 7);
-      });
+      const lookup = whatsappLeadLookupTerms({ phone, jid, lidAlias });
+      const matched = rows.find((row) => whatsappLeadRowMatches(row, lookup));
 
       if (matched) {
         targetCard = matched;
       }
     } else {
       await client.query('ROLLBACK');
-      return res.status(400).json({ error: 'Se requiere "phone" o "cardId" para identificar la tarjeta.' });
+      return res.status(400).json({ error: 'Se requiere "phone", "jid" o "cardId" para identificar la tarjeta.' });
     }
 
     let cardRow = null;
@@ -2779,33 +2795,53 @@ async function mergeChatAlias(lidJid, phoneJid) {
   try {
     await client.query('BEGIN');
 
-    // 1. Obtener todas las tarjetas activas de ventas asociadas al numero del LID
-    const { rows: cardsToUpdate } = await client.query(
-      "SELECT id, ntel FROM cards WHERE (ntel = $1 OR whatsapp_lid_alias = $2) AND equipo = 'ventas' AND deleted_at IS NULL",
-      [lidNumber, lidJid]
+    // 1. Obtener tarjetas activas asociadas al LID o al numero real y conservar una sola.
+    const { rows: cardsToMerge } = await client.query(
+      `SELECT *
+       FROM cards
+       WHERE equipo = 'ventas'
+         AND deleted_at IS NULL
+         AND (
+           regexp_replace(COALESCE(ntel, ''), '\\D', '', 'g') = $1
+           OR regexp_replace(COALESCE(ntel, ''), '\\D', '', 'g') = $2
+           OR whatsapp_lid_alias = $3
+         )
+       ORDER BY creado_en ASC
+       FOR UPDATE`,
+      [realNumber, lidNumber, lidJid]
     );
 
-    if (cardsToUpdate.length > 0) {
-      console.log(`[WhatsApp Merge] Encontradas ${cardsToUpdate.length} tarjetas con LID ${lidNumber}. Actualizando a ${realNumber}...`);
-      
-      // Actualizar ntel de las tarjetas
-      await client.query(
+    if (cardsToMerge.length > 0) {
+      console.log(`[WhatsApp Merge] Encontradas ${cardsToMerge.length} tarjetas para fusionar. Conservando una con numero ${realNumber}...`);
+
+      const keeper = cardsToMerge.find(row => cleanPhoneDigits(row.ntel) === realNumber) || cardsToMerge[0];
+      const duplicateIds = cardsToMerge.filter(row => row.id !== keeper.id).map(row => row.id);
+
+      const { rows: updatedKeeper } = await client.query(
         `UPDATE cards
          SET ntel = $1, whatsapp_lid_alias = '', updated_at = NOW()
-         WHERE (ntel = $2 OR whatsapp_lid_alias = $3) AND equipo = 'ventas' AND deleted_at IS NULL`,
-        [realNumber, lidNumber, lidJid]
+         WHERE id = $2
+         RETURNING *`,
+        [realNumber, keeper.id]
       );
 
-      // Emitir evento de cambio por cada tarjeta actualizada para que el cliente web refresque en tiempo real
-      for (const cardRow of cardsToUpdate) {
-        const { rows: updatedCard } = await client.query(
-          "SELECT * FROM cards WHERE id = $1",
-          [cardRow.id]
+      if (duplicateIds.length > 0) {
+        const { rows: deletedDuplicates } = await client.query(
+          `UPDATE cards
+           SET deleted_at = NOW(), updated_at = NOW()
+           WHERE id = ANY($1)
+           RETURNING *`,
+          [duplicateIds]
         );
-        if (updatedCard[0]) {
-          const card = cardDTO(updatedCard[0]);
-          cardEvents.emit('change', { action: 'update', card });
+
+        for (const row of deletedDuplicates) {
+          const card = cardDTO(row);
+          cardEvents.emit('change', { action: 'delete', id: row.id, card });
         }
+      }
+
+      if (updatedKeeper[0]) {
+        cardEvents.emit('change', { action: 'update', card: cardDTO(updatedKeeper[0]) });
       }
     }
 

@@ -10566,7 +10566,7 @@
         }
       }
 
-      const visibleContactados = getCards().filter(c => c.equipo === 'ventas' && c.estado === 'contactado' && c.deletedAt === null);
+      const visibleContactados = uniqueContactadosLeads(getCards());
       if (contCountEl) {
         if (visibleContactados.length > 0) {
           contCountEl.textContent = visibleContactados.length;
@@ -10589,6 +10589,28 @@
           subEl.textContent = 'Tablero Kanban de Ventas';
         }
       }
+    }
+
+    function contactadoLeadKey(c) {
+      const phone = String(c.ntel || '').replace(/\D/g, '');
+      if (phone) return 'phone:' + phone;
+      const alias = String(c.whatsappLidAlias || '').trim();
+      if (alias) return 'alias:' + alias;
+      return 'id:' + c.id;
+    }
+
+    function uniqueContactadosLeads(cards) {
+      const uniques = new Map();
+      cards
+        .filter(c => c.equipo === 'ventas' && c.estado === 'contactado' && c.deletedAt === null)
+        .forEach(c => {
+          const key = contactadoLeadKey(c);
+          const existing = uniques.get(key);
+          if (!existing || Number(c.creadoEn || 0) < Number(existing.creadoEn || 0)) {
+            uniques.set(key, c);
+          }
+        });
+      return [...uniques.values()];
     }
 
     function renderVentasTrash(board, users) {
@@ -10647,7 +10669,7 @@
     }
 
     function renderVentasContactados(board, users) {
-      const list = getCards().filter(c => c.equipo === 'ventas' && c.estado === 'contactado' && c.deletedAt === null);
+      const list = uniqueContactadosLeads(getCards());
       if (!list.length) {
         board.innerHTML = `
       <div class="admin-empty" style="padding:2rem;text-align:center;color:var(--muted)">

@@ -48,6 +48,15 @@ Buscar por telefono:
 }
 ```
 
+Buscar por JID de WhatsApp, si el workflow todavia no tiene telefono normalizado:
+
+```json
+{
+  "jid": "231253974491241@lid",
+  "motivo": "Lead calificado por workflow de n8n"
+}
+```
+
 Buscar por id de tarjeta:
 
 ```json
@@ -66,6 +75,14 @@ Tambien se aceptan estos nombres de telefono si vienen de otro webhook:
 - `data.messages.key.cleanedSenderPN`
 - `data.messages.key.senderPn`
 
+Y estos nombres de JID/alias de WhatsApp:
+
+- `jid`
+- `chatJid`
+- `remoteJid`
+- `lidAlias`
+- `data.messages.key.remoteJid`
+
 ## Configuracion del nodo HTTP Request en n8n
 
 1. Method: `POST`
@@ -81,7 +98,8 @@ Tambien se aceptan estos nombres de telefono si vienen de otro webhook:
 
 ```json
 {
-  "phone": "={{ $json.phone }}",
+  "phone": "={{ $json.phone || $json.cleanedSenderPN || '' }}",
+  "jid": "={{ $json.jid || $json.remoteJid || '' }}",
   "motivo": "={{ $json.motivo || 'Lead calificado automaticamente' }}"
 }
 ```
@@ -103,7 +121,7 @@ Si tu workflow ya tiene el id de la tarjeta, es mejor usar:
 
 `action: "skipped"`: la tarjeta existe, pero no estaba en `contactado`; la app no la movio.
 
-`404`: no se encontro tarjeta para ese `phone` o `cardId`.
+`404`: no se encontro tarjeta para ese `phone`, `jid` o `cardId`.
 
 ## Endpoint generico disponible
 
