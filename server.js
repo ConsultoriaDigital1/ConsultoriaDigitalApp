@@ -420,6 +420,7 @@ function firstExternalText(body, candidates) {
     for (const candidate of candidates) {
       const value = Array.isArray(candidate) ? getByPath(payload, candidate) : payload?.[candidate];
       const text = String(value || '').trim();
+      if (text === '=' || text === '-' || text.toLowerCase() === 'undefined' || text.toLowerCase() === 'null') continue;
       if (text) return text;
     }
   }

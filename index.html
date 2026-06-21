@@ -6474,6 +6474,47 @@
       margin-bottom: 0.3rem;
     }
 
+    .card-detail-modal.ventas-chat-mode .ventas-edit-label-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.45rem;
+      margin-bottom: 0.3rem;
+    }
+
+    .card-detail-modal.ventas-chat-mode .ventas-edit-label-row .form-label,
+    .card-detail-modal.ventas-chat-mode .ventas-edit-label-row .ventas-only-label {
+      margin-bottom: 0;
+    }
+
+    .ventas-inline-edit-btn {
+      width: 24px;
+      height: 24px;
+      border: 1px solid rgba(148, 163, 184, 0.26);
+      border-radius: 7px;
+      background: rgba(15, 23, 42, 0.28);
+      color: var(--muted);
+      display: inline-grid;
+      place-items: center;
+      cursor: pointer;
+      transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
+    }
+
+    .ventas-inline-edit-btn .ico {
+      width: 13px;
+      height: 13px;
+    }
+
+    .ventas-inline-edit-btn:hover {
+      color: var(--accent);
+      background: rgba(217, 255, 64, 0.1);
+      border-color: rgba(217, 255, 64, 0.42);
+    }
+
+    .card-detail-modal:not(.ventas-chat-mode) .ventas-inline-edit-btn {
+      display: none;
+    }
+
     /* View only styles: make inputs look like plain text, no borders/bg */
     .card-detail-modal.ventas-chat-mode.ventas-view-only .card-title-input,
     .card-detail-modal.ventas-chat-mode.ventas-view-only #f-rs,
@@ -6977,7 +7018,11 @@
           <div class="card-title-row">
             <span class="card-title-check"></span>
             <div class="card-title-container" style="width: 100%;">
-              <label class="form-label ventas-only-label" style="display: none;">Nombre</label>
+              <div class="ventas-edit-label-row">
+                <label class="form-label ventas-only-label" style="display: none;">Nombre</label>
+                <button class="ventas-inline-edit-btn" type="button" onclick="editVentasLeadField('nf')"
+                  title="Editar nombre" aria-label="Editar nombre"><i class="ico-ph" data-ico="edit"></i></button>
+              </div>
               <textarea id="f-nf" class="card-title-input" rows="2" placeholder="Nombre fiscal..."
                 oninput="syncModalPreview()" onblur="autosaveCardIfEnabled()"></textarea>
             </div>
@@ -7076,12 +7121,21 @@
             </div>
             <div class="client-detail-grid">
               <div class="form-group" id="fg-rs">
-                <label class="form-label" id="lbl-rs">R.S. - Razon Social</label>
+                <div class="ventas-edit-label-row">
+                  <label class="form-label" id="lbl-rs">R.S. - Razon Social</label>
+                  <button class="ventas-inline-edit-btn" type="button" onclick="editVentasLeadField('rs')"
+                    title="Editar razon social" aria-label="Editar razon social"><i class="ico-ph"
+                      data-ico="edit"></i></button>
+                </div>
                 <input id="f-rs" class="form-input" type="text" placeholder="Razon social..."
                   oninput="syncModalPreview()" onblur="autosaveCardIfEnabled()" />
               </div>
               <div class="form-group" id="fg-cuit">
-                <label class="form-label">CUIT</label>
+                <div class="ventas-edit-label-row">
+                  <label class="form-label">CUIT</label>
+                  <button class="ventas-inline-edit-btn" type="button" onclick="editVentasLeadField('cuit')"
+                    title="Editar CUIT" aria-label="Editar CUIT"><i class="ico-ph" data-ico="edit"></i></button>
+                </div>
                 <input id="f-cuit" class="form-input" type="text" placeholder="30-12345678-9" maxlength="13"
                   oninput="fmtCuit(this)" onblur="autosaveCardIfEnabled()" />
               </div>
@@ -12280,6 +12334,19 @@
           toggleBtn.classList.add('btn-ghost');
         }
       }
+    }
+
+    function editVentasLeadField(field) {
+      const fieldIds = { nf: 'f-nf', rs: 'f-rs', cuit: 'f-cuit' };
+      const input = $(fieldIds[field]);
+      const modalEl = document.querySelector('.card-detail-modal');
+      if (!input || !modalEl || !modalEl.classList.contains('ventas-chat-mode')) return;
+      if (!ventasEditMode) toggleVentasEditMode();
+      setCardDetailsOpen(true);
+      setTimeout(() => {
+        input.focus();
+        if (typeof input.select === 'function') input.select();
+      }, 0);
     }
 
     function renderActivity(card) {
