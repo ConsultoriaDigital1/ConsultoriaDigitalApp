@@ -98,10 +98,12 @@ Buscar por id de tarjeta:
 Tambien se aceptan estos nombres de telefono si vienen de otro webhook:
 
 - `cleanedSenderPN`
+- `cleanedSenderPn`
 - `senderPn`
 - `senderPN`
 - `senderPhone`
 - `data.messages.key.cleanedSenderPN`
+- `data.messages.key.cleanedSenderPn`
 - `data.messages.key.senderPn`
 
 Y estos nombres de JID/alias de WhatsApp:
@@ -136,7 +138,7 @@ La app guarda `actividad` en el campo `ca` de la tarjeta y `servicio/interes` en
 
 ```json
 {
-  "phone": "={{ $json.phone || $json.cleanedSenderPN || '' }}",
+  "phone": "={{ $json.phone || $json.num || $json.cleanedSenderPn || $json.cleanedSenderPN || '' }}",
   "jid": "={{ $json.jid || $json.remoteJid || '' }}",
   "empresa": "={{ $json.empresa || $json.nombreEmpresa || $json.razonSocial || '' }}",
   "cuit": "={{ $json.cuit || $json.cuil || '' }}",
@@ -178,11 +180,211 @@ Si tu workflow ya tiene el id de la tarjeta, es mejor usar:
    - `jid`: el `remoteJid` si no tenes telefono.
    - `empresa`, `cuit`, `actividad`, `servicio`, `motivo`: desde la respuesta del agente.
 
-3. En el nodo **HTTP Request**, usa `POST /api/external/leads/enrich` con el header `x-api-key` cuando solo quieras guardar datos.
+Si el HTTP Request esta despues del **AI Agent**, no uses solo `$json`, porque en ese punto `$json` suele ser la salida del agente. Mantene los identificadores con referencias explicitas:
 
-4. Cuando el workflow determine que ya corresponde presupuestar, usa otro HTTP Request a `POST /api/external/leads/presupuestar` con el mismo body. Ese endpoint tambien actualiza los datos y mueve el lead si estaba en `contactado`.
+```json
+{
+  "phone": "={{ $('Edit Fields1').item.json.num || $('Webhook').item.json.body.data.messages.key.cleanedSenderPn || '' }}",
+  "jid": "={{ $('Webhook').item.json.body.data.messages.key.remoteJid || $('Webhook').item.json.body.data.messages.remoteJid || '' }}"
+}
+```
 
-5. Proba con un lead real: despues de ejecutar el workflow, la tarjeta debe mostrar empresa como titulo si venia con nombre automatico de WhatsApp, CUIT arriba a la derecha y `Actividad: ...` en el cuerpo.
+## Correccion exacta para el workflow de la captura
+
+No hace falta agregar nodos para resolver el error actual. Deja la cadena asi:
+
+```txt
+Webhook -> Edit Fields1 -> AI Agent -> HTTP Request5 -> Switch
+```
+
+Y cambia estos 4 grupos de nodos.
+
+### 1. Nodo Edit Fields1
+
+Objetivo: que el agente tenga memoria por chat. En tu captura `sessionId` esta quedando `null` porque lee `$json.num`, pero `num` se crea en ese mismo nodo y todavia no existe.
+
+Abrir **Edit Fields1** y dejar exactamente estos campos:
+
+```txt
+text
+={{ $json.body.data.messages.message.conversation || $json.body.data.messages.message.extendedTextMessage?.text || $json.body.data.messages.message.imageMessage?.caption || '' }}
+```
+
+```txt
+num
+={{ $json.body.data.messages.key.cleanedSenderPn || '' }}
+```
+
+```txt
+sessionId
+={{ $json.body.data.messages.key.remoteJid || $json.body.data.messages.remoteJid || $json.body.sessionId || $json.body.data.sessionId || $json.body.data.messages.key.cleanedSenderPn || '' }}
+```
+
+No actives **Include Other Input Fields**.
+
+### 2. Nodo HTTP Request5
+
+Objetivo: guardar en la tarjeta los datos que devolvio el agente sin perder el telefono/JID del webhook.
+
+Abrir **HTTP Request5**, que esta entre **AI Agent** y **Switch**.
+
+Configuracion:
+
+```txt
+Method: POST
+URL: https://app.consultoriadigital.io/api/external/leads/enrich
+Authentication: None
+Send Headers: true
+Specify Headers: Using Fields Below
+Header name: x-api-key
+Header value: TU_EXTERNAL_API_KEY
+Send Body: true
+Body Content Type: JSON
+Specify Body: Using Fields Below
+```
+
+En **Body Parameters**, agrega o reemplaza por estos campos:
+
+```txt
+phone
+={{ $('Edit Fields1').item.json.num || $('Webhook').item.json.body.data.messages.key.cleanedSenderPn || '' }}
+```
+
+```txt
+jid
+={{ $('Webhook').item.json.body.data.messages.key.remoteJid || $('Webhook').item.json.body.data.messages.remoteJid || '' }}
+```
+
+```txt
+output
+={{ $('AI Agent').item.json.output || '{}' }}
+```
+
+```txt
+motivo
+=Lead enriquecido por n8n
+```
+
+No agregues `empresa`, `cuit`, `actividad` ni `servicio` si ya vienen dentro de `output`; el backend los lee desde ahi.
+
+### 3. Nodo Switch
+
+Objetivo: que el ruteo lea la decision del **AI Agent**, no la respuesta de **HTTP Request5**.
+
+Abrir **Switch** y cambiar todas las reglas que usen algo parecido a:
+
+```txt
+{{ JSON.parse($json.output || '{}').presupuesto }}
+```
+
+o:
+
+```txt
+{{ JSON.parse($json.output || '{}').pdf }}
+```
+
+por referencias explicitas al agente:
+
+```txt
+={{ JSON.parse($('AI Agent').item.json.output || '{}').presupuesto }}
+```
+
+Reglas recomendadas segun tus ramas:
+
+```txt
+Output 0 - presupuesto is empty
+={{ JSON.parse($('AI Agent').item.json.output || '{}').pdf }}
+is empty
+```
+
+```txt
+Output 1 - turneria
+={{ JSON.parse($('AI Agent').item.json.output || '{}').presupuesto }}
+is equal to
+turneria
+```
+
+```txt
+Output 2 - rrss_pauta
+={{ JSON.parse($('AI Agent').item.json.output || '{}').presupuesto }}
+is equal to
+rrss_pauta
+```
+
+```txt
+Output 3 - concilia
+={{ JSON.parse($('AI Agent').item.json.output || '{}').presupuesto }}
+is equal to
+concilia
+```
+
+```txt
+Output 4 - crm_redes
+={{ JSON.parse($('AI Agent').item.json.output || '{}').presupuesto }}
+is equal to
+crm_redes
+```
+
+### 4. Nodos finales HTTP Request1, HTTP Request2, HTTP Request3 y HTTP Request4
+
+Objetivo: marcar la tarjeta como presupuestada despues de enviar el documento.
+
+Abrir cada uno de estos nodos finales:
+
+```txt
+HTTP Request1
+HTTP Request2
+HTTP Request3
+HTTP Request4
+```
+
+Verificar que llamen a:
+
+```txt
+https://app.consultoriadigital.io/api/external/leads/presupuestar
+```
+
+Si alguno llama a `/api/external/leads/enrich`, cambiarlo a `/api/external/leads/presupuestar`.
+
+En el body de cada uno, agregar o reemplazar estos campos:
+
+```txt
+phone
+={{ $('Edit Fields1').item.json.num || $('Webhook').item.json.body.data.messages.key.cleanedSenderPn || '' }}
+```
+
+```txt
+jid
+={{ $('Webhook').item.json.body.data.messages.key.remoteJid || $('Webhook').item.json.body.data.messages.remoteJid || '' }}
+```
+
+```txt
+output
+={{ $('AI Agent').item.json.output || '{}' }}
+```
+
+```txt
+motivo
+=Presupuesto enviado por WhatsApp
+```
+
+Con esto no necesitas tocar los nodos de envio de WhatsApp ni los nodos de archivos.
+
+### 5. Prueba rapida
+
+Ejecuta el workflow con un mensaje como:
+
+```txt
+me mandas de nuevo el presupuesto?
+```
+
+Resultado esperado:
+
+- **HTTP Request5** responde `ok: true`, `action: update` o `noop`; no debe devolver error 400.
+- **Switch** entra en la rama correcta segun `presupuesto`.
+- Se envia el PDF por WhatsApp.
+- El HTTP final responde `ok: true`.
+- En la app, la tarjeta queda enriquecida y/o movida a `presupuestado`.
 
 ## Respuestas esperadas
 

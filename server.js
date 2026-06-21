@@ -322,39 +322,90 @@ function getByPath(obj, pathParts) {
   }, obj);
 }
 
+function parseExternalObject(value) {
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value;
+  if (typeof value !== 'string') return null;
+
+  const trimmed = value.trim();
+  if (!trimmed || !trimmed.startsWith('{')) return null;
+
+  try {
+    const parsed = JSON.parse(trimmed);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function externalPayloads(body) {
+  const payloads = [];
+  const seen = new Set();
+
+  const add = (payload) => {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return;
+    if (seen.has(payload)) return;
+    seen.add(payload);
+    payloads.push(payload);
+  };
+
+  add(body);
+  for (let i = 0; i < payloads.length; i += 1) {
+    add(parseExternalObject(payloads[i].output));
+    add(parseExternalObject(payloads[i].body));
+    add(parseExternalObject(payloads[i].data));
+  }
+
+  return payloads;
+}
+
 function extractExternalPhone(body) {
-  const candidates = [
-    body?.phone,
-    body?.cleanedSenderPN,
-    body?.senderPn,
-    body?.senderPN,
-    body?.senderPhone,
-    getByPath(body, ['data', 'messages', 'key', 'cleanedSenderPN']),
-    getByPath(body, ['data', 'messages', 'key', 'senderPn']),
-    getByPath(body, ['body', 'data', 'messages', 'key', 'cleanedSenderPN']),
-    getByPath(body, ['body', 'data', 'messages', 'key', 'senderPn']),
-  ];
+  const candidates = externalPayloads(body).flatMap((payload) => [
+    payload?.phone,
+    payload?.num,
+    payload?.ntel,
+    payload?.telefono,
+    payload?.cleanedSenderPn,
+    payload?.cleanedSenderPN,
+    payload?.senderPn,
+    payload?.senderPN,
+    payload?.senderPhone,
+    getByPath(payload, ['key', 'cleanedSenderPn']),
+    getByPath(payload, ['key', 'cleanedSenderPN']),
+    getByPath(payload, ['key', 'senderPn']),
+    getByPath(payload, ['messages', 'key', 'cleanedSenderPn']),
+    getByPath(payload, ['messages', 'key', 'cleanedSenderPN']),
+    getByPath(payload, ['messages', 'key', 'senderPn']),
+    getByPath(payload, ['data', 'messages', 'key', 'cleanedSenderPn']),
+    getByPath(payload, ['data', 'messages', 'key', 'cleanedSenderPN']),
+    getByPath(payload, ['data', 'messages', 'key', 'senderPn']),
+    getByPath(payload, ['body', 'data', 'messages', 'key', 'cleanedSenderPn']),
+    getByPath(payload, ['body', 'data', 'messages', 'key', 'cleanedSenderPN']),
+    getByPath(payload, ['body', 'data', 'messages', 'key', 'senderPn']),
+  ]);
 
   const phone = candidates.find((value) => cleanPhoneDigits(value));
   return phone ? cleanPhoneDigits(phone) : '';
 }
 
 function extractExternalJid(body) {
-  const candidates = [
-    body?.jid,
-    body?.chatJid,
-    body?.remoteJid,
-    body?.lidAlias,
-    getByPath(body, ['key', 'remoteJid']),
-    getByPath(body, ['data', 'jid']),
-    getByPath(body, ['data', 'chatJid']),
-    getByPath(body, ['data', 'remoteJid']),
-    getByPath(body, ['data', 'messages', 'key', 'remoteJid']),
-    getByPath(body, ['body', 'jid']),
-    getByPath(body, ['body', 'chatJid']),
-    getByPath(body, ['body', 'remoteJid']),
-    getByPath(body, ['body', 'data', 'messages', 'key', 'remoteJid']),
-  ];
+  const candidates = externalPayloads(body).flatMap((payload) => [
+    payload?.jid,
+    payload?.chatJid,
+    payload?.remoteJid,
+    payload?.lidAlias,
+    getByPath(payload, ['key', 'remoteJid']),
+    getByPath(payload, ['messages', 'key', 'remoteJid']),
+    getByPath(payload, ['messages', 'remoteJid']),
+    getByPath(payload, ['data', 'jid']),
+    getByPath(payload, ['data', 'chatJid']),
+    getByPath(payload, ['data', 'remoteJid']),
+    getByPath(payload, ['data', 'messages', 'key', 'remoteJid']),
+    getByPath(payload, ['data', 'messages', 'remoteJid']),
+    getByPath(payload, ['body', 'jid']),
+    getByPath(payload, ['body', 'chatJid']),
+    getByPath(payload, ['body', 'remoteJid']),
+    getByPath(payload, ['body', 'data', 'messages', 'key', 'remoteJid']),
+  ]);
 
   const jid = candidates.find((value) => String(value || '').includes('@'));
   return jid ? String(jid).trim() : '';
@@ -365,10 +416,12 @@ function externalBool(value) {
 }
 
 function firstExternalText(body, candidates) {
-  for (const candidate of candidates) {
-    const value = Array.isArray(candidate) ? getByPath(body, candidate) : body?.[candidate];
-    const text = String(value || '').trim();
-    if (text) return text;
+  for (const payload of externalPayloads(body)) {
+    for (const candidate of candidates) {
+      const value = Array.isArray(candidate) ? getByPath(payload, candidate) : payload?.[candidate];
+      const text = String(value || '').trim();
+      if (text) return text;
+    }
   }
   return '';
 }
