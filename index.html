@@ -6954,6 +6954,11 @@
             <input id="vs-cuit" class="vsp-input" type="text" placeholder="30-12345678-9" maxlength="13"
               oninput="syncVSPanel('cuit',this.value)" onblur="autosaveCardIfEnabled()" />
           </div>
+          <div class="vsp-field">
+            <span class="vsp-label">Actividad / rubro</span>
+            <input id="vs-ca" class="vsp-input" type="text" placeholder="Ej: comercio, gastronomia, servicios..."
+              oninput="syncVSPanel('ca',this.value)" onblur="autosaveCardIfEnabled()" />
+          </div>
           <div class="vsp-spacer"></div>
           <button id="vsp-btn-reunion" class="vsp-btn-reunion" onclick="quickMoveToReunionFromModal()">Pasar a
             Reunión</button>
@@ -7081,8 +7086,9 @@
                   oninput="fmtCuit(this)" onblur="autosaveCardIfEnabled()" />
               </div>
               <div class="form-group">
-                <label class="form-label">C.A. - Cuenta / Actividad</label>
-                <input id="f-ca" class="form-input" type="text" placeholder="Nro. de cuenta..."
+                <label class="form-label">Actividad / rubro</label>
+                <input id="f-ca" class="form-input" type="text" placeholder="Ej: comercio, gastronomia, servicios..."
+                  oninput="syncModalPreview()"
                   onblur="autosaveCardIfEnabled()" />
               </div>
               <div class="form-group">
@@ -10934,7 +10940,8 @@
       const title = clientName(c);
       if (c.equipo === 'ventas') {
         const cuitBadge = c.cuit ? `<span class="kcard-sales-cuit" title="CUIT">${esc(c.cuit)}</span>` : '';
-        const serviceBadge = c.ta ? `<div class="kcard-sales-service" title="Servicio que necesita">${esc(c.ta)}</div>` : '';
+        const activityBadge = c.ca ? `<div class="kcard-sales-service" title="Actividad o rubro">Actividad: ${esc(c.ca)}</div>` : '';
+        const serviceBadge = c.ta ? `<div class="kcard-sales-service" title="Servicio que necesita">Interes: ${esc(c.ta)}</div>` : '';
 
         const hasPhone = !!(c.ntel || '').trim();
         const hasChatAlias = hasPhone || !!(c.whatsappLidAlias || '').trim();
@@ -10953,6 +10960,7 @@
             <div class="kcard-sales-title">${esc(title)}</div>
             ${cuitBadge}
           </div>
+          ${activityBadge}
           ${serviceBadge}
           <div class="kcard-sales-meta">
             <div class="kcard-sales-info">
@@ -12814,6 +12822,7 @@
       if (vs('vs-nf')) vs('vs-nf').value = c.nf || '';
       if (vs('vs-rs')) vs('vs-rs').value = c.rs || '';
       if (vs('vs-cuit')) vs('vs-cuit').value = c.cuit || '';
+      if (vs('vs-ca')) vs('vs-ca').value = c.ca || '';
       if (vs('vs-ntel')) vs('vs-ntel').value = c.ntel || '';
       const reunionBtn = vs('vsp-btn-reunion');
       if (reunionBtn) {
@@ -12824,7 +12833,7 @@
     }
 
     function syncVSPanel(field, value) {
-      const map = { nf: 'f-nf', rs: 'f-rs', cuit: 'f-cuit', ntel: 'f-ntel' };
+      const map = { nf: 'f-nf', rs: 'f-rs', cuit: 'f-cuit', ca: 'f-ca', ntel: 'f-ntel' };
       const target = document.getElementById(map[field]);
       if (target) { target.value = value; syncModalPreview(); }
     }
@@ -14153,6 +14162,7 @@
       modalAttachments = Array.isArray(c.attachments) ? c.attachments : [];
       renderAttachments();
 
+      if (c.equipo === 'ventas') populateVentasPanel(c);
       syncDueButton();
       syncPautaButton();
       syncAllActionButtons();

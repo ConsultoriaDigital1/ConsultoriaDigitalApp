@@ -364,6 +364,84 @@ function externalBool(value) {
   return value === true || value === 1 || String(value || '').toLowerCase() === 'true';
 }
 
+function firstExternalText(body, candidates) {
+  for (const candidate of candidates) {
+    const value = Array.isArray(candidate) ? getByPath(body, candidate) : body?.[candidate];
+    const text = String(value || '').trim();
+    if (text) return text;
+  }
+  return '';
+}
+
+function extractExternalLeadData(body) {
+  return {
+    nombreFiscal: firstExternalText(body, [
+      'nombreFiscal', 'nombre', 'nombreLead', 'contactName', 'pushName',
+      ['lead', 'nombre'], ['contact', 'name'], ['data', 'pushName'],
+    ]),
+    razonSocial: firstExternalText(body, [
+      'razonSocial', 'empresa', 'nombreEmpresa', 'companyName', 'company', 'businessName',
+      ['lead', 'empresa'], ['lead', 'razonSocial'], ['company', 'name'], ['data', 'empresa'],
+    ]),
+    cuit: firstExternalText(body, [
+      'cuit', 'cuil', 'taxId', 'docNro', 'documento',
+      ['lead', 'cuit'], ['company', 'cuit'], ['data', 'cuit'],
+    ]),
+    actividad: firstExternalText(body, [
+      'actividad', 'rubro', 'industria', 'aQueSeDedican', 'queSeDedican', 'dedicacion',
+      ['lead', 'actividad'], ['lead', 'rubro'], ['company', 'actividad'], ['data', 'actividad'],
+    ]),
+    interes: firstExternalText(body, [
+      'servicio', 'necesidad', 'interes', 'tipoActividad', 'tipo_actividad',
+      ['lead', 'servicio'], ['lead', 'necesidad'], ['data', 'servicio'],
+    ]),
+  };
+}
+
+async function applyExternalLeadData(db, cardId, leadData, { phone = '', lidAlias = '' } = {}) {
+  const cleanPhone = cleanPhoneDigits(phone);
+  const values = {
+    nf: String(leadData.nombreFiscal || '').slice(0, 500),
+    rs: String(leadData.razonSocial || '').slice(0, 500),
+    cuit: String(leadData.cuit || '').slice(0, 40),
+    ca: String(leadData.actividad || '').slice(0, 500),
+    ta: String(leadData.interes || '').slice(0, 500),
+    ntel: cleanPhone,
+    whatsappLidAlias: String(lidAlias || '').slice(0, 120),
+  };
+
+  if (!Object.values(values).some(Boolean)) return null;
+
+  const { rows } = await db.query(
+    `UPDATE cards
+     SET nf = CASE WHEN $2 <> '' AND (COALESCE(nf, '') = '' OR nf ~ $9) THEN $2 ELSE nf END,
+         rs = CASE WHEN $3 <> '' THEN $3 ELSE rs END,
+         cuit = CASE WHEN $4 <> '' THEN $4 ELSE cuit END,
+         ca = CASE WHEN $5 <> '' THEN $5 ELSE ca END,
+         ta = CASE WHEN $6 <> '' THEN $6 ELSE ta END,
+         ntel = CASE WHEN $7 <> '' THEN $7 ELSE ntel END,
+         whatsapp_lid_alias = CASE WHEN $8 <> '' AND COALESCE(whatsapp_lid_alias, '') = '' THEN $8 ELSE whatsapp_lid_alias END,
+         updated_at = NOW()
+     WHERE id = $1
+       AND equipo = 'ventas'
+       AND deleted_at IS NULL
+     RETURNING *`,
+    [
+      cardId,
+      values.nf,
+      values.rs,
+      values.cuit,
+      values.ca,
+      values.ta,
+      values.ntel,
+      values.whatsappLidAlias,
+      '^(WhatsApp Lead( \\([0-9]+\\))?|Lead de WhatsApp|Contacto de WhatsApp|Contacto [0-9]{6,})$',
+    ]
+  );
+
+  return rows[0] || null;
+}
+
 async function requireAuth(req, res, next) {
   try {
     const cookies = parseCookies(req.headers.cookie);
@@ -2089,7 +2167,8 @@ app.put('/api/cards/:id', requireAuth, async (req, res, next) => {
 });
 
 async function handleExternalCardStatusUpdate(req, res, next, options = {}) {
-  const { cardId, motivo, nombreFiscal, razonSocial, cuit } = req.body;
+  const { cardId, motivo } = req.body;
+  const leadData = extractExternalLeadData(req.body);
   const estado = String(options.estado || req.body.estado || '').trim();
   const fromEstado = String(options.fromEstado || req.body.fromEstado || req.body.estadoDesde || '').trim();
   const createIfMissing = options.createIfMissing ?? externalBool(req.body.createIfMissing);
@@ -2150,14 +2229,19 @@ async function handleExternalCardStatusUpdate(req, res, next, options = {}) {
     let cardRow = null;
 
     if (targetCard) {
+      const enrichedCard = await applyExternalLeadData(client, targetCard.id, leadData, { phone, lidAlias });
+      if (enrichedCard) targetCard = enrichedCard;
+
       if (fromEstado && targetCard.estado !== fromEstado) {
         const historyByCard = await descriptionHistoryByCardIds([targetCard.id], client);
         await client.query('COMMIT');
+        const card = cardDTO(targetCard, historyByCard.get(targetCard.id) || []);
+        if (enrichedCard) cardEvents.emit('change', { action: 'update', card });
         return res.json({
           ok: true,
           action: 'skipped',
           reason: `La tarjeta esta en "${targetCard.estado}", no en "${fromEstado}".`,
-          card: cardDTO(targetCard, historyByCard.get(targetCard.id) || []),
+          card,
         });
       }
 
@@ -2165,13 +2249,15 @@ async function handleExternalCardStatusUpdate(req, res, next, options = {}) {
         await cleanupSalesDuplicates(client, { emitChanges: false });
         const historyByCard = await descriptionHistoryByCardIds([targetCard.id], client);
         await client.query('COMMIT');
+        const card = cardDTO(targetCard, historyByCard.get(targetCard.id) || []);
+        if (enrichedCard) cardEvents.emit('change', { action: 'update', card });
         return res.json({
           ok: true,
-          action: 'noop',
+          action: enrichedCard ? 'update' : 'noop',
           reason: targetCard.estado === estado
             ? `La tarjeta ya estaba en "${estado}".`
             : `La tarjeta ya esta mas avanzada en "${targetCard.estado}".`,
-          card: cardDTO(targetCard, historyByCard.get(targetCard.id) || []),
+          card,
         });
       }
 
@@ -2201,8 +2287,8 @@ async function handleExternalCardStatusUpdate(req, res, next, options = {}) {
         return res.status(400).json({ error: 'Se requiere "phone" para poder crear una tarjeta inexistente.' });
       }
 
-      const nf = nombreFiscal || `Lead Externo (${phone})`;
-      const rs = razonSocial || '';
+      const nf = leadData.nombreFiscal || `Lead Externo (${phone})`;
+      const rs = leadData.razonSocial || '';
       const c = motivo ? `Creado automáticamente por n8n. Motivo: ${motivo}` : 'Creado automáticamente por n8n.';
       const newCardId = Date.now().toString(36) + crypto.randomBytes(4).toString('hex');
       const creadoEn = Date.now();
@@ -2221,9 +2307,21 @@ async function handleExternalCardStatusUpdate(req, res, next, options = {}) {
       const { rows } = await client.query(
         `INSERT INTO cards (
           id, nf, rs, cuit, ca, ntel, t, ta, c, color, estado, equipo, creado_en, cover_image
-        ) VALUES ($1, $2, $3, $4, '', $5, '', '', $6, 'none', $7, 'ventas', $8, $9)
+        ) VALUES ($1, $2, $3, $4, $5, $6, '', $7, $8, 'none', $9, 'ventas', $10, $11)
         RETURNING *`,
-        [newCardId, nf, rs, cuit || '', phone, c, estado, creadoEn, coverImage]
+        [
+          newCardId,
+          nf,
+          rs,
+          leadData.cuit || '',
+          leadData.actividad || '',
+          phone,
+          leadData.interes || '',
+          c,
+          estado,
+          creadoEn,
+          coverImage,
+        ]
       );
       cardRow = rows[0];
       action = 'create';
@@ -2270,7 +2368,119 @@ async function handleExternalCardStatusUpdate(req, res, next, options = {}) {
   }
 }
 
+async function handleExternalLeadEnrich(req, res, next) {
+  const { cardId, motivo } = req.body;
+  const leadData = extractExternalLeadData(req.body);
+  const createIfMissing = externalBool(req.body.createIfMissing);
+  const phone = extractExternalPhone(req.body);
+  const jid = extractExternalJid(req.body);
+  const lidAlias = jid.endsWith('@lid') ? jid : String(req.body.lidAlias || '').trim();
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    let targetCard = null;
+    if (cardId) {
+      const { rows } = await client.query(
+        "SELECT * FROM cards WHERE id = $1 AND equipo = 'ventas' AND deleted_at IS NULL FOR UPDATE",
+        [cardId]
+      );
+      targetCard = rows[0] || null;
+    } else if (phone || jid || lidAlias) {
+      const { rows } = await client.query(
+        "SELECT * FROM cards WHERE equipo = 'ventas' AND deleted_at IS NULL ORDER BY creado_en ASC FOR UPDATE"
+      );
+      const lookup = whatsappLeadLookupTerms({ phone, jid, lidAlias });
+      const matchedRows = rows.filter((row) => whatsappLeadRowMatches(row, lookup));
+      targetCard = matchedRows.length ? chooseSalesKeeper(matchedRows) : null;
+    } else {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Se requiere "phone", "jid" o "cardId" para identificar la tarjeta.' });
+    }
+
+    let action = 'update';
+    let cardRow = null;
+    if (targetCard) {
+      cardRow = await applyExternalLeadData(client, targetCard.id, leadData, { phone, lidAlias }) || targetCard;
+      if (motivo) {
+        await insertDescriptionHistory(client, targetCard.id, 'system-bot', `Datos del lead actualizados por n8n. Motivo: ${motivo}`, Date.now(), 'comentario');
+      }
+      action = cardRow === targetCard ? 'noop' : 'update';
+    } else if (createIfMissing) {
+      if (!phone) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Se requiere "phone" para poder crear una tarjeta inexistente.' });
+      }
+
+      const newCardId = mkId();
+      const creadoEn = Date.now();
+      const nf = leadData.nombreFiscal || `Lead Externo (${phone})`;
+      const c = motivo ? `Creado automaticamente por n8n. Motivo: ${motivo}` : 'Creado automaticamente por n8n.';
+      const { rows } = await client.query(
+        `INSERT INTO cards (
+          id, nf, rs, cuit, ca, ntel, t, ta, c, color, estado, equipo, creado_en, whatsapp_lid_alias
+        ) VALUES ($1, $2, $3, $4, $5, $6, '', $7, $8, 'none', 'contactado', 'ventas', $9, $10)
+        RETURNING *`,
+        [
+          newCardId,
+          nf,
+          leadData.razonSocial || '',
+          leadData.cuit || '',
+          leadData.actividad || '',
+          phone,
+          leadData.interes || '',
+          c,
+          creadoEn,
+          lidAlias || '',
+        ]
+      );
+      cardRow = rows[0];
+      action = 'create';
+      await insertDescriptionHistory(client, newCardId, 'system-bot', c, creadoEn, 'comentario');
+    } else {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Tarjeta no encontrada y "createIfMissing" es false.' });
+    }
+
+    await cleanupSalesDuplicates(client, { emitChanges: false });
+    const { rows: activeCardRows } = await client.query(
+      "SELECT * FROM cards WHERE id = $1 AND deleted_at IS NULL",
+      [cardRow.id]
+    );
+    if (activeCardRows[0]) {
+      cardRow = activeCardRows[0];
+    } else {
+      const lookup = whatsappLeadLookupTerms({
+        phone: cardRow.ntel || phone,
+        jid,
+        lidAlias: cardRow.whatsapp_lid_alias || lidAlias,
+      });
+      const { rows: survivorRows } = await client.query(
+        "SELECT * FROM cards WHERE equipo = 'ventas' AND deleted_at IS NULL ORDER BY creado_en ASC"
+      );
+      const survivors = survivorRows.filter((row) => whatsappLeadRowMatches(row, lookup));
+      if (survivors.length) cardRow = chooseSalesKeeper(survivors);
+    }
+    const historyByCard = await descriptionHistoryByCardIds([cardRow.id], client);
+    await client.query('COMMIT');
+
+    const card = cardDTO(cardRow, historyByCard.get(cardRow.id) || []);
+    cardEvents.emit('change', { action: action === 'noop' ? 'update' : action, card });
+    res.json({ ok: true, action, card });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    next(err);
+  } finally {
+    client.release();
+  }
+}
+
 // Rutas externas para n8n
+app.post('/api/external/leads/enrich', requireExternalAuth, (req, res, next) => {
+  handleExternalLeadEnrich(req, res, next);
+});
+
 app.post('/api/external/cards/update-status', requireExternalAuth, (req, res, next) => {
   handleExternalCardStatusUpdate(req, res, next);
 });
