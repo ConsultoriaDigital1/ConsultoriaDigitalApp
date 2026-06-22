@@ -1208,6 +1208,21 @@
   border-color: rgba(251,146,60,0.5); color: #fb923c;
   background: rgba(251,146,60,0.08);
 }
+.pend-client-filter {
+  position: relative; padding: 0 0.85rem 0.55rem; flex-shrink: 0;
+}
+.pend-client-select {
+  width: 100%; box-sizing: border-box; cursor: pointer;
+  background: var(--surface2); border: 1px solid var(--border2);
+  color: var(--text-hi); font-size: 0.62rem; font-weight: 600;
+  padding: 0.4rem 1.8rem 0.4rem 0.6rem; border-radius: 999px;
+  appearance: none; -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23fb923c' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 0.7rem center;
+  transition: border-color 150ms;
+}
+.pend-client-select:focus { outline: none; border-color: rgba(251,146,60,0.5); }
+.pend-client-select option { background: var(--surface); color: var(--text-hi); }
 .pend-list {
   flex: 1; overflow-y: auto; padding: 0 0.6rem 0.6rem;
   display: flex; flex-direction: column; gap: 0.35rem;
@@ -6821,6 +6836,11 @@
                 title="Mostrar solo las tarjetas en las que sos miembro" aria-pressed="false">
                 <i class="ico-ph" data-ico="user"></i> Ver mis clientes
               </button>
+              <select id="filter-user-select" class="btn btn-trash btn-sm"
+                title="Filtrar clientes por usuario asignado"
+                onchange="onFilterUserChange(this.value)" style="display:none">
+                <option value="">Todos los usuarios</option>
+              </select>
               <button id="btn-cards-active" class="btn btn-ghost btn-sm" onclick="switchCardsView('active')"
                 style="display:none" title="Volver al tablero"><i class="ico-ph" data-ico="back"></i> Volver al
                 tablero</button>
@@ -9762,6 +9782,7 @@
     let activeTab = 'clientes';
     let searchQ = '';
     let myClientsOnly = false;
+    let filterUserId = '';           // filtro por usuario (selector en la barra de clientes)
     let editingId = null;
     let modalStatus = 'iniciada';
     let modalColor = 'none';
@@ -10280,6 +10301,9 @@
         const uid = currentUser.id;
         cards = cards.filter(c => cardUserIds(c).includes(uid));
       }
+      if (filterUserId) {
+        cards = cards.filter(c => cardUserIds(c).includes(filterUserId));
+      }
       if (searchQ) {
         const q = searchQ.toLowerCase();
         cards = cards.filter(c =>
@@ -10350,6 +10374,9 @@
       <button class="pend-filter${pendientesFilter === 'todos' ? ' active' : ''}" type="button" onclick="setPendientesFilter('todos')">Mis clientes</button>
       <button class="pend-filter${pendientesFilter === 'mias' ? ' active' : ''}" type="button" onclick="setPendientesFilter('mias')">Asignadas a mí</button>
     </div>
+    <div class="pend-client-filter">
+      <select id="pend-client-select" class="pend-client-select" onchange="setPendientesClient(this.value)"></select>
+    </div>
     <div class="pend-list" id="pend-list"></div>`;
       board.appendChild(pendPanel);
       renderPendientesList();
@@ -10361,6 +10388,7 @@
        PANEL PENDIENTES
     ───────────────────────────────────────── */
     let pendientesFilter = localStorage.getItem('pendientesFilter') === 'mias' ? 'mias' : 'todos';
+    let pendientesClientId = localStorage.getItem('pendientesClientId') || '';
     const pendDoneTimers = new Map(); // "cardId::itemId" -> { timeout, deadline }
     let pendTickTimer = null;
 
@@ -10372,11 +10400,51 @@
       renderPendientesList();
     }
 
+    function setPendientesClient(clientId) {
+      pendientesClientId = clientId || '';
+      localStorage.setItem('pendientesClientId', pendientesClientId);
+      renderPendientesList();
+    }
+
+    // Clientes (tarjetas) que tienen al menos un pendiente según el filtro actual,
+    // ignorando la selección de cliente. Devuelve [{ id, name }] ordenado por nombre.
+    function pendienteClientOptions() {
+      if (!currentUser) return [];
+      const uid = currentUser.id;
+      let cards = getCards().filter(c => c.equipo !== 'ventas' && !c.deletedAt);
+      if (activeTeam !== 'all' && activeTeam !== 'admin') cards = cards.filter(c => c.equipo === activeTeam);
+      const opts = [];
+      cards.forEach(card => {
+        const member = cardUserIds(card).includes(uid);
+        const hasPend = normalizeChecklist(card.checklist).some(item => {
+          if (item.done) return false;
+          return pendientesFilter === 'mias' ? item.usuario === uid : member;
+        });
+        if (hasPend) opts.push({ id: card.id, name: card.nf || card.rs || 'Sin nombre' });
+      });
+      return opts.sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
+    }
+
+    function renderPendienteClientSelect() {
+      const sel = $('pend-client-select');
+      if (!sel) return;
+      const opts = pendienteClientOptions();
+      // Si el cliente seleccionado ya no tiene pendientes, volver a "Todos"
+      if (pendientesClientId && !opts.some(o => o.id === pendientesClientId)) {
+        pendientesClientId = '';
+        localStorage.setItem('pendientesClientId', '');
+      }
+      sel.innerHTML = `<option value="">Todos los clientes</option>` +
+        opts.map(o => `<option value="${esc(o.id)}"${o.id === pendientesClientId ? ' selected' : ''}>${esc(o.name)}</option>`).join('');
+      sel.value = pendientesClientId;
+    }
+
     function pendienteItems() {
       if (!currentUser) return [];
       const uid = currentUser.id;
       let cards = getCards().filter(c => c.equipo !== 'ventas' && !c.deletedAt);
       if (activeTeam !== 'all' && activeTeam !== 'admin') cards = cards.filter(c => c.equipo === activeTeam);
+      if (pendientesClientId) cards = cards.filter(c => c.id === pendientesClientId);
       const out = [];
       cards.forEach(card => {
         const member = cardUserIds(card).includes(uid);
@@ -10441,11 +10509,15 @@
       const list = $('pend-list');
       if (!list) return;
       if (pendDragging) return; // no redibujar mientras se arrastra un item
+      renderPendienteClientSelect();
       const entries = pendienteItems();
       const countEl = $('pend-count');
       if (countEl) countEl.textContent = entries.filter(({ card, item }) => !pendDoneTimers.has(card.id + '::' + item.id)).length;
       if (!entries.length) {
-        list.innerHTML = `<div class="pend-empty">${pendientesFilter === 'mias' ? 'No tenés tareas asignadas pendientes 🎉' : 'Sin pendientes en tus clientes 🎉'}</div>`;
+        const emptyMsg = pendientesClientId
+          ? 'Este cliente no tiene pendientes 🎉'
+          : (pendientesFilter === 'mias' ? 'No tenés tareas asignadas pendientes 🎉' : 'Sin pendientes en tus clientes 🎉');
+        list.innerHTML = `<div class="pend-empty">${emptyMsg}</div>`;
         initPendSortable();
         return;
       }
@@ -12701,6 +12773,39 @@
       renderBoard();
     }
 
+    function onFilterUserChange(value) {
+      filterUserId = value || '';
+      renderBoard();
+    }
+
+    // Lista de usuarios disponibles para el filtro según el equipo activo
+    function filterUserCandidates() {
+      let users = getUsers().filter(u => u.equipo !== 'ventas' && u.equipo !== 'admin');
+      if (activeTeam !== 'all') {
+        users = users.filter(u => u.equipo === activeTeam);
+      }
+      return users.sort((a, b) =>
+        userFullName(a).localeCompare(userFullName(b), 'es', { sensitivity: 'base' }));
+    }
+
+    function syncFilterUserSelect(inTrash) {
+      const sel = $('filter-user-select');
+      if (!sel) return;
+      const hidden = inTrash || activeTeam === 'admin' || activeTeam === 'ventas';
+      sel.style.display = hidden ? 'none' : '';
+      if (hidden) return;
+      const candidates = filterUserCandidates();
+      // Si el usuario filtrado ya no es candidato (cambió de equipo), reset
+      if (filterUserId && !candidates.some(u => u.id === filterUserId)) {
+        filterUserId = '';
+      }
+      sel.innerHTML = '<option value="">Todos los usuarios</option>' +
+        candidates.map(u =>
+          `<option value="${esc(u.id)}"${u.id === filterUserId ? ' selected' : ''}>${esc(userFullName(u))}</option>`
+        ).join('');
+      sel.value = filterUserId;
+    }
+
     function syncAutosaveBtn() {
       const btn = $('btn-autosave');
       if (!btn) return;
@@ -12751,6 +12856,7 @@
         mineBtn.setAttribute('aria-pressed', myClientsOnly ? 'true' : 'false');
         mineBtn.innerHTML = myClientsOnly ? icon('user') + ' Mostrando mis clientes' : icon('user') + ' Ver mis clientes';
       }
+      syncFilterUserSelect(inTrash);
       const cbar = $('clientes-cbar');
       if (cbar) cbar.style.display = activeTeam === 'admin' ? 'none' : '';
       syncAutosaveBtn();
