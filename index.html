@@ -14679,6 +14679,7 @@
 
       if (messagesContainer.querySelector(`[data-msg-id="${msg.id}"]`)) return;
 
+      const messageBody = String(msg.body || '').trim() || '[mensaje multimedia]';
       const bubble = document.createElement('div');
       bubble.className = `chat-message-bubble ${msg.fromMe ? 'outgoing' : 'incoming'}`;
       bubble.dataset.msgId = msg.id;
@@ -14686,7 +14687,7 @@
       const timeStr = formatMessageTimestamp(msg.timestamp);
 
       bubble.innerHTML = `
-    <div class="chat-message-body">${esc(msg.body)}</div>
+    <div class="chat-message-body">${esc(messageBody)}</div>
     <span class="chat-message-time">${timeStr}</span>
   `;
 

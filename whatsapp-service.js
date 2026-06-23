@@ -300,7 +300,46 @@ function toUnixSeconds(ts) {
   return Number(ts);
 }
 
-function extractText(message) {
+function unwrapMessage(message) {
+  let current = message;
+  for (let i = 0; i < 5; i += 1) {
+    if (current?.ephemeralMessage?.message) current = current.ephemeralMessage.message;
+    else if (current?.viewOnceMessage?.message) current = current.viewOnceMessage.message;
+    else if (current?.viewOnceMessageV2?.message) current = current.viewOnceMessageV2.message;
+    else if (current?.documentWithCaptionMessage?.message) current = current.documentWithCaptionMessage.message;
+    else break;
+  }
+  return current;
+}
+
+function mediaPlaceholder(message, fromMe = false) {
+  const audio = message?.audioMessage;
+  if (audio) return '[mensaje de audio]';
+
+  const document = message?.documentMessage;
+  if (document) {
+    const mime = String(document.mimetype || '').toLowerCase();
+    const fileName = String(document.fileName || '').toLowerCase();
+    const isPdf = mime === 'application/pdf' || fileName.endsWith('.pdf');
+    if (isPdf) return fromMe ? '[pdf enviado]' : '[pdf recibido]';
+    return fromMe ? '[documento enviado]' : '[documento recibido]';
+  }
+
+  if (message?.imageMessage) return fromMe ? '[imagen enviada]' : '[imagen recibida]';
+  if (message?.videoMessage) return fromMe ? '[video enviado]' : '[video recibido]';
+  if (message?.stickerMessage) return fromMe ? '[sticker enviado]' : '[sticker recibido]';
+  if (message?.contactMessage || message?.contactsArrayMessage) {
+    return fromMe ? '[contacto enviado]' : '[contacto recibido]';
+  }
+  if (message?.locationMessage || message?.liveLocationMessage) {
+    return fromMe ? '[ubicacion enviada]' : '[ubicacion recibida]';
+  }
+
+  return '';
+}
+
+function extractText(message, fromMe = false) {
+  message = unwrapMessage(message);
   if (!message) return '';
   return (
     message.conversation ||
@@ -308,6 +347,8 @@ function extractText(message) {
     message.imageMessage?.caption ||
     message.videoMessage?.caption ||
     message.documentMessage?.caption ||
+    message.documentWithCaptionMessage?.message?.documentMessage?.caption ||
+    mediaPlaceholder(message, fromMe) ||
     ''
   );
 }
@@ -347,7 +388,7 @@ function formatMessage(m) {
     id: m.key.id,
     from: fromMe ? me : jid,
     to: fromMe ? jid : me,
-    body: extractText(m.message),
+    body: extractText(m.message, fromMe),
     timestamp: toUnixSeconds(m.messageTimestamp),
     fromMe,
     pushName,
