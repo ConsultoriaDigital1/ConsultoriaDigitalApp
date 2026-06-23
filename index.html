@@ -10853,9 +10853,9 @@
           })()
           : '—';
         return `
-            <tr style="opacity:0.95">
+            <tr style="opacity:0.95;cursor:pointer" onclick="openCard('${c.id}')">
               <td>
-                <div class="ct-name" style="cursor:pointer;color:#579dff;font-weight:700" onclick="openCard('${c.id}')">${esc(title)}</div>
+                <div class="ct-name" style="color:#579dff;font-weight:700">${esc(title)}</div>
                 ${c.cuit ? `<div class="ct-sub">${esc(c.cuit)}</div>` : ''}
                 <div class="ct-sub">${esc(ownerLabel)}</div>
               </td>
@@ -10863,9 +10863,9 @@
               <td>${createdTxt}</td>
               <td>
                 <div class="ct-actions">
-                  <button class="btn btn-restore btn-sm" onclick="moveLeadToPresupuestado('${c.id}')" title="Pasar a presupuestado">${icon('check')} Presupuestar</button>
-                  <button class="btn btn-ghost btn-sm" onclick="openCard('${c.id}')" title="Ver/Editar">${icon('edit')} Editar</button>
-                  <button class="btn btn-trash btn-sm" onclick="deleteCardFromContactados('${c.id}')" title="Mover a papelera">${icon('trash')} Borrar</button>
+                  <button class="btn btn-restore btn-sm" onclick="event.stopPropagation();moveLeadToPresupuestado('${c.id}')" title="Pasar a presupuestado">${icon('check')} Presupuestar</button>
+                  <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openCard('${c.id}')" title="Ver lead">${icon('eye')} Ver</button>
+                  <button class="btn btn-trash btn-sm" onclick="event.stopPropagation();deleteCardFromContactados('${c.id}')" title="Mover a papelera">${icon('trash')} Borrar</button>
                 </div>
               </td>
             </tr>`;
