@@ -2022,6 +2022,68 @@
       }
     }
 
+    /* Sales cards are intentionally narrow: keep lead data and actions on separate rows. */
+    .kcard-sales .kcard-sales-meta {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0.5rem;
+      min-width: 0;
+    }
+
+    .kcard-sales .kcard-sales-info {
+      width: 100%;
+      min-width: 0;
+    }
+
+    .kcard-sales .kcard-sales-phone {
+      width: 100%;
+      min-width: 0;
+    }
+
+    .kcard-sales .kcard-sales-phone-value {
+      width: 100%;
+      min-width: 0;
+      display: flex;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .kcard-sales .kcard-sales-btn-group {
+      width: 100%;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(42px, 0.72fr) 28px;
+      align-items: center;
+      gap: 0.32rem;
+      min-width: 0;
+    }
+
+    .kcard-sales .kcard-sales-chat-btn,
+    .kcard-sales .kcard-sales-bot-btn {
+      min-width: 0;
+      width: 100%;
+      height: 27px;
+      padding: 0 0.34rem;
+      font-size: 0.62rem;
+      line-height: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .kcard-sales .kcard-sales-chat-btn .ico,
+    .kcard-sales .kcard-sales-bot-btn .ico {
+      width: 0.9em;
+      height: 0.9em;
+      flex-shrink: 0;
+    }
+
+    .kcard-sales .kcard-menu-btn {
+      width: 28px;
+      height: 27px;
+    }
+
     .kcard-menu-btn {
       display: inline-flex;
       align-items: center;
@@ -11634,7 +11696,7 @@
               <button class="kcard-sales-bot-btn"
                       title="Apagar asistente de IA en esta conversación"
                       onclick="event.stopPropagation(); apagarBotAsistente('${c.id}', this)">
-                ${icon('robot')} Apagar IA
+                ${icon('robot')} IA
               </button>
               <button class="kcard-menu-btn"
                       title="Ver datos del cliente"
