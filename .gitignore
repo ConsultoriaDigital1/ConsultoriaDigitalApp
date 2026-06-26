@@ -2,7 +2,7 @@ node_modules/
 .env
 .local/
 npm-debug.log*
-
+.env.local.backup
 # Credenciales de Google service account (ver GOOGLE_CALENDAR_SETUP.md) — NUNCA subir
 secrets/
 *service-account*.json
