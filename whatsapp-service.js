@@ -677,7 +677,13 @@ async function getProfilePictureBase64(jid) {
     const mimeType = res.headers.get('content-type') || 'image/jpeg';
     return `data:${mimeType};base64,${base64}`;
   } catch (err) {
-    console.error('[WhatsApp Service] Error getting profile picture:', err.message);
+    // 'not-authorized' / 'item-not-found' son respuestas esperadas de WhatsApp:
+    // el contacto tiene la foto oculta por privacidad o no nos tiene agregados.
+    // No es un error real, asi que no ensuciamos el log de PM2 con eso.
+    const reason = err && err.message ? err.message : '';
+    if (reason !== 'not-authorized' && reason !== 'item-not-found') {
+      console.error('[WhatsApp Service] Error getting profile picture:', reason);
+    }
     return '';
   }
 }
