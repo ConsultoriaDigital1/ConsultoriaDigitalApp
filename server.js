@@ -213,6 +213,7 @@ function cardDTO(row, descriptionHistory = []) {
     usuarios,
     creadoPor: row.creado_por,
     creadoEn: Number(row.creado_en),
+    ultimoMensajeEn: Number(row.ultimo_mensaje_en) || 0,
     debe: row.debe,
     montoDeuda: row.monto_deuda,
     vence: row.vence,
@@ -450,6 +451,50 @@ function extractExternalLeadData(body) {
       ['lead', 'servicio'], ['lead', 'necesidad'], ['data', 'servicio'],
     ]),
   };
+}
+
+function whatsappChatJidsForCardRow(row) {
+  const jids = new Set();
+  const cleanedPhone = whatsappService.cleanPhoneForWhatsapp(row && row.ntel);
+  if (cleanedPhone) {
+    jids.add(cleanedPhone + '@s.whatsapp.net');
+    jids.add(cleanedPhone + '@lid');
+  }
+  const alias = String((row && row.whatsapp_lid_alias) || '').trim();
+  if (alias) {
+    jids.add(alias);
+    if (!alias.includes('@')) jids.add(alias + '@lid');
+  }
+  return [...jids];
+}
+
+async function attachLatestWhatsappMessageTimestamps(rows, db = pool) {
+  const candidatesByJid = new Map();
+  for (const row of rows) {
+    if (!row || row.equipo !== 'ventas') continue;
+    for (const jid of whatsappChatJidsForCardRow(row)) {
+      if (!candidatesByJid.has(jid)) candidatesByJid.set(jid, []);
+      candidatesByJid.get(jid).push(row);
+    }
+  }
+  const jids = [...candidatesByJid.keys()];
+  if (!jids.length) return rows;
+
+  const { rows: msgRows } = await db.query(
+    `SELECT chat_jid, MAX(timestamp) AS last_timestamp
+     FROM whatsapp_messages
+     WHERE chat_jid = ANY($1)
+     GROUP BY chat_jid`,
+    [jids]
+  );
+
+  for (const msgRow of msgRows) {
+    const timestampMs = Number(msgRow.last_timestamp || 0) * 1000;
+    for (const cardRow of candidatesByJid.get(msgRow.chat_jid) || []) {
+      cardRow.ultimo_mensaje_en = Math.max(Number(cardRow.ultimo_mensaje_en || 0), timestampMs);
+    }
+  }
+  return rows;
 }
 
 async function applyExternalLeadData(db, cardId, leadData, { phone = '', lidAlias = '' } = {}) {
@@ -718,6 +763,7 @@ async function visibleCards(user) {
     [teams]
   );
   await applyKnownWhatsappMappings(rows);
+  await attachLatestWhatsappMessageTimestamps(rows);
   if (teams.includes('ventas') && await cleanupSalesDuplicates(pool)) {
     const refreshed = await pool.query(
       `SELECT * FROM cards
@@ -726,6 +772,7 @@ async function visibleCards(user) {
       [teams]
     );
     rows = refreshed.rows;
+    await attachLatestWhatsappMessageTimestamps(rows);
   }
   const historyByCard = await descriptionHistoryByCardIds(rows.map((row) => row.id));
   return rows.map((row) => cardDTO(row, historyByCard.get(row.id) || []));

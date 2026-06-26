@@ -1535,6 +1535,7 @@
       position: relative;
       min-height: 36px;
       flex-shrink: 0;
+      overflow: hidden;
     }
 
     .kcard:hover {
@@ -1726,6 +1727,8 @@
       justify-content: space-between;
       align-items: flex-start;
       gap: 0.5rem;
+      min-width: 0;
+      min-width: 0;
     }
 
     .kcard-sales-title {
@@ -1738,6 +1741,14 @@
       min-width: 0;
       word-break: break-word;
       overflow-wrap: anywhere;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
     }
 
     .kcard-sales-cuit {
@@ -1816,7 +1827,8 @@
 
     .kcard-sales-meta {
       display: flex;
-      align-items: center;
+      align-items: flex-end;
+      align-items: flex-end;
       justify-content: space-between;
       gap: 0.5rem;
       flex-wrap: wrap;
@@ -1871,6 +1883,8 @@
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+      max-width: 100%;
+      max-width: 100%;
     }
 
     .kcard-sales-info-item svg,
@@ -1972,6 +1986,40 @@
       align-items: center;
       gap: 0.3rem;
       flex-shrink: 0;
+    }
+
+    @media (max-width: 520px) {
+      .kcard-sales-header,
+      .kcard-sales-meta {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .kcard-sales-cuit {
+        max-width: 100%;
+        align-self: flex-start;
+      }
+
+      .kcard-sales-btn-group {
+        justify-content: flex-end;
+      }
+    }
+
+    @media (max-width: 520px) {
+      .kcard-sales-header,
+      .kcard-sales-meta {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .kcard-sales-cuit {
+        max-width: 100%;
+        align-self: flex-start;
+      }
+
+      .kcard-sales-btn-group {
+        justify-content: flex-end;
+      }
     }
 
     .kcard-menu-btn {
@@ -3066,6 +3114,128 @@
       font-size: 0.7rem;
       font-weight: 800;
       margin-left: 0.2rem;
+    }
+
+    .contactados-groups {
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+    }
+
+    .contactados-group {
+      border: 1px solid var(--border);
+      border-radius: var(--r-sm);
+      overflow: hidden;
+      background: rgba(22, 27, 34, 0.36);
+    }
+
+    .contactados-date-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 0.55rem 0.85rem;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      color: var(--text-hi);
+      font-weight: 800;
+      font-size: 0.76rem;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+
+    .contactados-date-count {
+      min-width: 1.45rem;
+      height: 1.45rem;
+      padding: 0 0.45rem;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--surface3);
+      color: var(--muted);
+      font-size: 0.68rem;
+      font-weight: 800;
+    }
+
+    .contactados-table {
+      margin: 0;
+      border: 0;
+    }
+
+    .contactados-table thead th {
+      background: rgba(13, 17, 23, 0.52);
+    }
+
+    .contactados-table tbody tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .contactados-last-message {
+      color: var(--text);
+      font-weight: 650;
+      white-space: nowrap;
+    }
+
+    .contactados-groups {
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+    }
+
+    .contactados-group {
+      border: 1px solid var(--border);
+      border-radius: var(--r-sm);
+      overflow: hidden;
+      background: rgba(22, 27, 34, 0.36);
+    }
+
+    .contactados-date-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 0.55rem 0.85rem;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      color: var(--text-hi);
+      font-weight: 800;
+      font-size: 0.76rem;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+
+    .contactados-date-count {
+      min-width: 1.45rem;
+      height: 1.45rem;
+      padding: 0 0.45rem;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--surface3);
+      color: var(--muted);
+      font-size: 0.68rem;
+      font-weight: 800;
+    }
+
+    .contactados-table {
+      margin: 0;
+      border: 0;
+    }
+
+    .contactados-table thead th {
+      background: rgba(13, 17, 23, 0.52);
+    }
+
+    .contactados-table tbody tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .contactados-last-message {
+      color: var(--text);
+      font-weight: 650;
+      white-space: nowrap;
     }
 
     .btn-vencidos {
@@ -10869,6 +11039,142 @@
       return uniqueSalesLeads(cards).filter(c => c.estado === 'contactado');
     }
 
+    function contactadoLastMessageTime(c) {
+      return Number(c?.ultimoMensajeEn || c?.lastMessageAt || c?.ultimoMensajeAt || c?.creadoEn || 0);
+    }
+
+    function argentinaDateParts(ts) {
+      const date = new Date(Number(ts) || Date.now());
+      const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Argentina/Buenos_Aires',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).formatToParts(date);
+      const byType = Object.fromEntries(parts.map(part => [part.type, part.value]));
+      return {
+        year: Number(byType.year),
+        month: Number(byType.month),
+        day: Number(byType.day),
+        key: `${byType.year}-${byType.month}-${byType.day}`,
+      };
+    }
+
+    function argentinaStartOfDayMs(ts) {
+      const p = argentinaDateParts(ts);
+      return Date.UTC(p.year, p.month - 1, p.day);
+    }
+
+    function contactadoDateGroupLabel(ts) {
+      const dayMs = argentinaStartOfDayMs(ts);
+      const todayMs = argentinaStartOfDayMs(Date.now());
+      const diffDays = Math.round((todayMs - dayMs) / 86400000);
+      if (diffDays === 0) return 'Hoy';
+      if (diffDays === 1) return 'Ayer';
+      return new Intl.DateTimeFormat('es-AR', {
+        timeZone: 'America/Argentina/Buenos_Aires',
+        weekday: 'long',
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric',
+      }).format(new Date(Number(ts) || Date.now()));
+    }
+
+    function formatContactadoLastMessage(ts) {
+      if (!ts) return '-';
+      return new Intl.DateTimeFormat('es-AR', {
+        timeZone: 'America/Argentina/Buenos_Aires',
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      }).format(new Date(ts));
+    }
+
+    function groupContactadosByLastMessageDate(list) {
+      const groups = new Map();
+      [...list]
+        .sort((a, b) => contactadoLastMessageTime(b) - contactadoLastMessageTime(a))
+        .forEach(c => {
+          const ts = contactadoLastMessageTime(c);
+          const key = argentinaDateParts(ts).key;
+          if (!groups.has(key)) {
+            groups.set(key, { key, ts, label: contactadoDateGroupLabel(ts), items: [] });
+          }
+          groups.get(key).items.push(c);
+        });
+      return [...groups.values()].sort((a, b) => argentinaStartOfDayMs(b.ts) - argentinaStartOfDayMs(a.ts));
+    }
+
+    function contactadoLastMessageTime(c) {
+      return Number(c?.ultimoMensajeEn || c?.lastMessageAt || c?.ultimoMensajeAt || c?.creadoEn || 0);
+    }
+
+    function argentinaDateParts(ts) {
+      const date = new Date(Number(ts) || Date.now());
+      const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Argentina/Buenos_Aires',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).formatToParts(date);
+      const byType = Object.fromEntries(parts.map(part => [part.type, part.value]));
+      return {
+        year: Number(byType.year),
+        month: Number(byType.month),
+        day: Number(byType.day),
+        key: `${byType.year}-${byType.month}-${byType.day}`,
+      };
+    }
+
+    function argentinaStartOfDayMs(ts) {
+      const p = argentinaDateParts(ts);
+      return Date.UTC(p.year, p.month - 1, p.day);
+    }
+
+    function contactadoDateGroupLabel(ts) {
+      const dayMs = argentinaStartOfDayMs(ts);
+      const todayMs = argentinaStartOfDayMs(Date.now());
+      const diffDays = Math.round((todayMs - dayMs) / 86400000);
+      if (diffDays === 0) return 'Hoy';
+      if (diffDays === 1) return 'Ayer';
+      return new Intl.DateTimeFormat('es-AR', {
+        timeZone: 'America/Argentina/Buenos_Aires',
+        weekday: 'long',
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric',
+      }).format(new Date(Number(ts) || Date.now()));
+    }
+
+    function formatContactadoLastMessage(ts) {
+      if (!ts) return '-';
+      return new Intl.DateTimeFormat('es-AR', {
+        timeZone: 'America/Argentina/Buenos_Aires',
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      }).format(new Date(ts));
+    }
+
+    function groupContactadosByLastMessageDate(list) {
+      const groups = new Map();
+      [...list]
+        .sort((a, b) => contactadoLastMessageTime(b) - contactadoLastMessageTime(a))
+        .forEach(c => {
+          const ts = contactadoLastMessageTime(c);
+          const key = argentinaDateParts(ts).key;
+          if (!groups.has(key)) {
+            groups.set(key, { key, ts, label: contactadoDateGroupLabel(ts), items: [] });
+          }
+          groups.get(key).items.push(c);
+        });
+      return [...groups.values()].sort((a, b) => argentinaStartOfDayMs(b.ts) - argentinaStartOfDayMs(a.ts));
+    }
+
     function renderVentasTrash(board, users) {
       const list = (cardsTrashCache || []).filter(c => c.equipo === 'ventas');
       if (!list.length) {
@@ -10936,6 +11242,104 @@
         return;
       }
       const byId = new Map(users.map(u => [u.id, u]));
+      const rowHTML = (c) => {
+        const title = (c.nf || c.rs || 'Sin nombre');
+        const owner = byId.get(c.usuario);
+        const ownerLabel = owner ? userFullName(owner) : '-';
+        const lastMessageTime = contactadoLastMessageTime(c);
+        const lastMessageTxt = formatContactadoLastMessage(lastMessageTime);
+        return `
+            <tr style="opacity:0.95;cursor:pointer" onclick="openCard('${c.id}')">
+              <td>
+                <div class="ct-name" style="color:#579dff;font-weight:700">${esc(title)}</div>
+                ${c.cuit ? `<div class="ct-sub">${esc(c.cuit)}</div>` : ''}
+                <div class="ct-sub">${esc(ownerLabel)}</div>
+              </td>
+              <td>${c.ntel ? esc(c.ntel) : '-'}</td>
+              <td><span class="contactados-last-message">${esc(lastMessageTxt)}</span></td>
+              <td>
+                <div class="ct-actions">
+                  <button class="btn btn-restore btn-sm" onclick="event.stopPropagation();moveLeadToPresupuestado('${c.id}')" title="Pasar a presupuestado">${icon('check')} Presupuestar</button>
+                  <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openCard('${c.id}')" title="Ver lead">${icon('eye')} Ver</button>
+                  <button class="btn btn-trash btn-sm" onclick="event.stopPropagation();deleteCardFromContactados('${c.id}')" title="Mover a papelera">${icon('trash')} Borrar</button>
+                </div>
+              </td>
+            </tr>`;
+      };
+      board.innerHTML = `
+    <div class="contactados-groups">
+      ${groupContactadosByLastMessageDate(list).map(group => `
+        <section class="contactados-group">
+          <div class="contactados-date-head">
+            <span>${esc(group.label)}</span>
+            <span class="contactados-date-count">${group.items.length}</span>
+          </div>
+          <table class="admin-table contactados-table">
+            <thead>
+              <tr>
+                <th>Lead</th>
+                <th>Telefono</th>
+                <th>Ultimo mensaje</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              ${group.items.map(rowHTML).join('')}
+            </tbody>
+          </table>
+        </section>
+      `).join('')}
+    </div>`;
+      return;
+      const rowHTML = (c) => {
+        const title = (c.nf || c.rs || 'Sin nombre');
+        const owner = byId.get(c.usuario);
+        const ownerLabel = owner ? userFullName(owner) : '-';
+        const lastMessageTime = contactadoLastMessageTime(c);
+        const lastMessageTxt = formatContactadoLastMessage(lastMessageTime);
+        return `
+            <tr style="opacity:0.95;cursor:pointer" onclick="openCard('${c.id}')">
+              <td>
+                <div class="ct-name" style="color:#579dff;font-weight:700">${esc(title)}</div>
+                ${c.cuit ? `<div class="ct-sub">${esc(c.cuit)}</div>` : ''}
+                <div class="ct-sub">${esc(ownerLabel)}</div>
+              </td>
+              <td>${c.ntel ? esc(c.ntel) : '-'}</td>
+              <td><span class="contactados-last-message">${esc(lastMessageTxt)}</span></td>
+              <td>
+                <div class="ct-actions">
+                  <button class="btn btn-restore btn-sm" onclick="event.stopPropagation();moveLeadToPresupuestado('${c.id}')" title="Pasar a presupuestado">${icon('check')} Presupuestar</button>
+                  <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openCard('${c.id}')" title="Ver lead">${icon('eye')} Ver</button>
+                  <button class="btn btn-trash btn-sm" onclick="event.stopPropagation();deleteCardFromContactados('${c.id}')" title="Mover a papelera">${icon('trash')} Borrar</button>
+                </div>
+              </td>
+            </tr>`;
+      };
+      board.innerHTML = `
+    <div class="contactados-groups">
+      ${groupContactadosByLastMessageDate(list).map(group => `
+        <section class="contactados-group">
+          <div class="contactados-date-head">
+            <span>${esc(group.label)}</span>
+            <span class="contactados-date-count">${group.items.length}</span>
+          </div>
+          <table class="admin-table contactados-table">
+            <thead>
+              <tr>
+                <th>Lead</th>
+                <th>Telefono</th>
+                <th>Ultimo mensaje</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              ${group.items.map(rowHTML).join('')}
+            </tbody>
+          </table>
+        </section>
+      `).join('')}
+    </div>`;
+      return;
       board.innerHTML = `
     <table class="admin-table">
       <thead>
