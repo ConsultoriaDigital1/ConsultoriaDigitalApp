@@ -2873,6 +2873,68 @@ app.post('/api/admin/cobranzas/:clientId/notify', requireAdmin, async (req, res,
   }
 });
 
+// Apagar el bot/asistente de IA para un lead de ventas (dispara webhook de n8n)
+const N8N_VENTAS_APAGAR_BOT_URL =
+  process.env.N8N_VENTAS_APAGAR_BOT_URL ||
+  'https://n8n.srv1224751.hstgr.cloud/webhook/consultoria-ventas-apagar-bot';
+
+app.post('/api/ventas/leads/:cardId/apagar-bot', requireAuth, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      "SELECT * FROM cards WHERE id = $1 AND equipo = 'ventas' AND deleted_at IS NULL",
+      [req.params.cardId]
+    );
+    const row = rows[0];
+    if (!row) return res.status(404).json({ error: 'Lead de ventas no encontrado.' });
+
+    const phone = String(row.ntel || '').trim();
+    const lidAlias = String(row.whatsapp_lid_alias || '').trim();
+    if (!phone && !lidAlias) {
+      return res.status(400).json({ error: 'El lead no tiene teléfono ni alias de WhatsApp para identificar la conversación.' });
+    }
+
+    // Formato internacional de WhatsApp esperado por el flujo de n8n (ej: 5493795040807)
+    const telefonoWa = phoneWhatsappForm(phone);
+    const payload = {
+      evento: 'apagar_bot_ventas',
+      enviadoEn: new Date().toISOString(),
+      telefono: telefonoWa || lidAlias,
+      lead: {
+        id: row.id,
+        nombre: row.nf || row.rs || '',
+        telefono: telefonoWa,
+        telefonoRaw: phone,
+        whatsappLidAlias: lidAlias,
+        jid: telefonoWa || lidAlias,
+        estado: row.estado,
+        cuit: row.cuit || '',
+      },
+      solicitadoPor: { id: req.user.id, nombre: req.user.nombre || '' },
+    };
+
+    const headers = { 'Content-Type': 'application/json' };
+    if (process.env.N8N_WEBHOOK_TOKEN) headers['Authorization'] = `Bearer ${process.env.N8N_WEBHOOK_TOKEN}`;
+
+    const r = await fetch(N8N_VENTAS_APAGAR_BOT_URL, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!r.ok) {
+      const txt = await r.text().catch(() => '');
+      return res.status(502).json({ error: `n8n respondió ${r.status}. ${txt.slice(0, 200)}` });
+    }
+
+    res.json({ ok: true });
+  } catch (err) {
+    if (err.name === 'TimeoutError' || err.name === 'AbortError') {
+      return res.status(504).json({ error: 'n8n no respondió a tiempo (15s). Verificá que el workflow esté activo.' });
+    }
+    next(err);
+  }
+});
+
 app.use('/api', (_req, res) => {
   res.status(404).json({ error: 'Ruta API no encontrada.' });
 });
@@ -2908,6 +2970,24 @@ function phoneLocalForm(phone) {
   if (s.startsWith('0')) s = s.slice(1);
   if (s.length === 10 && s.startsWith('15')) s = s.slice(2);
   return s;
+}
+
+// Normaliza un teléfono al formato internacional de WhatsApp (ej: 5493795040807).
+function phoneWhatsappForm(phone) {
+  let cleaned = cleanPhoneDigits(phone);
+  if (!cleaned) return '';
+  if (cleaned.startsWith('54')) {
+    if (cleaned.length === 12 && !cleaned.startsWith('549')) cleaned = '549' + cleaned.slice(2);
+    return cleaned;
+  }
+  if (cleaned.startsWith('9') && cleaned.length === 11) return '54' + cleaned;
+  if (cleaned.startsWith('0')) cleaned = cleaned.slice(1);
+  if (cleaned.length === 10) return '549' + cleaned;
+  if (cleaned.length === 12 && cleaned.includes('15')) {
+    cleaned = cleaned.replace('15', '');
+    if (cleaned.length === 10) return '549' + cleaned;
+  }
+  return cleaned;
 }
 
 function salesStatusRank(status) {
