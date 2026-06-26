@@ -11260,6 +11260,7 @@
               <td>
                 <div class="ct-actions">
                   <button class="btn btn-restore btn-sm" onclick="event.stopPropagation();moveLeadToPresupuestado('${c.id}')" title="Pasar a presupuestado">${icon('check')} Presupuestar</button>
+                  <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();apagarBotAsistente('${c.id}', this)" title="Apagar asistente de IA">${icon('robot')} Apagar IA</button>
                   <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openCard('${c.id}')" title="Ver lead">${icon('eye')} Ver</button>
                   <button class="btn btn-trash btn-sm" onclick="event.stopPropagation();deleteCardFromContactados('${c.id}')" title="Mover a papelera">${icon('trash')} Borrar</button>
                 </div>
@@ -11291,7 +11292,7 @@
       `).join('')}
     </div>`;
       return;
-      const rowHTML = (c) => {
+      const oldContactadosRowHTML = (c) => {
         const title = (c.nf || c.rs || 'Sin nombre');
         const owner = byId.get(c.usuario);
         const ownerLabel = owner ? userFullName(owner) : '-';

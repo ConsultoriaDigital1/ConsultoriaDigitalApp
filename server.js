@@ -17,6 +17,8 @@ const pool = new Pool({
 });
 const cardEvents = new EventEmitter();
 const noteEvents = new EventEmitter();
+cardEvents.setMaxListeners(100);
+noteEvents.setMaxListeners(100);
 
 const PORT = Number(process.env.PORT || 3000);
 const COOKIE_NAME = 'cd_session';
@@ -1160,6 +1162,7 @@ app.get('/api/bootstrap', requireAuth, async (req, res, next) => {
 // INTEGRACION WHATSAPP
 // ════════════════════════════════════════════
 const whatsappService = require('./whatsapp-service');
+whatsappService.events.setMaxListeners(100);
 
 const AUTO_WHATSAPP_LEAD_NAME_RE = /^(?:WhatsApp Lead(?: \(\d+\))?|Lead de WhatsApp|Contacto de WhatsApp|Contacto \d{6,})$/i;
 
