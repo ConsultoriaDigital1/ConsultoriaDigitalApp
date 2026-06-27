@@ -499,6 +499,13 @@ async function attachLatestWhatsappMessageTimestamps(rows, db = pool) {
   return rows;
 }
 
+async function cardDTOWithLatestWhatsappTimestamp(row, descriptionHistory = [], db = pool) {
+  if (!row) return null;
+  const rows = [{ ...row }];
+  await attachLatestWhatsappMessageTimestamps(rows, db);
+  return cardDTO(rows[0], descriptionHistory);
+}
+
 async function applyExternalLeadData(db, cardId, leadData, { phone = '', lidAlias = '' } = {}) {
   const cleanPhone = cleanPhoneDigits(phone);
   const values = {
@@ -1220,7 +1227,8 @@ async function updateAutoWhatsappLeadName({ phone = '', lidAlias = '', jid = '',
   );
 
   for (const row of rows) {
-    cardEvents.emit('change', { action: 'update', card: cardDTO(row) });
+    const card = await cardDTOWithLatestWhatsappTimestamp(row);
+    cardEvents.emit('change', { action: 'update', card });
   }
 }
 
@@ -1254,7 +1262,8 @@ async function refreshAutoWhatsappLeadNames({ emitChanges = false } = {}) {
     );
 
     if (emitChanges && updated[0]) {
-      cardEvents.emit('change', { action: 'update', card: cardDTO(updated[0]) });
+      const card = await cardDTOWithLatestWhatsappTimestamp(updated[0]);
+      cardEvents.emit('change', { action: 'update', card });
     }
   }
 }
@@ -1295,7 +1304,8 @@ async function applyKnownWhatsappMappings(rows, { emitChanges = false } = {}) {
 
     Object.assign(row, updated[0]);
     if (emitChanges) {
-      cardEvents.emit('change', { action: 'update', card: cardDTO(updated[0]) });
+      const card = await cardDTOWithLatestWhatsappTimestamp(updated[0]);
+      cardEvents.emit('change', { action: 'update', card });
     }
   }
 }
@@ -2155,7 +2165,7 @@ app.post('/api/cards', requireAuth, async (req, res, next) => {
         ));
       }
       await client.query('COMMIT');
-      const card = cardDTO(rows[0], history);
+      const card = await cardDTOWithLatestWhatsappTimestamp(rows[0], history, client);
       const changedFields = card.checklist.length ? ['checklist'] : [];
       cardEvents.emit('change', { action: 'create', card, changedFields });
       res.status(201).json({ card });
@@ -2259,7 +2269,7 @@ app.put('/api/cards/:id', requireAuth, async (req, res, next) => {
     }
     const historyByCard = await descriptionHistoryByCardIds([req.params.id], client);
     await client.query('COMMIT');
-    const card = cardDTO(rows[0], historyByCard.get(req.params.id) || []);
+    const card = await cardDTOWithLatestWhatsappTimestamp(rows[0], historyByCard.get(req.params.id) || [], client);
     cardEvents.emit('change', { action: 'update', card, changedFields: checklistChanged ? ['checklist'] : [] });
     res.json({ card });
   } catch (err) {
@@ -2339,7 +2349,7 @@ async function handleExternalCardStatusUpdate(req, res, next, options = {}) {
       if (fromEstado && targetCard.estado !== fromEstado) {
         const historyByCard = await descriptionHistoryByCardIds([targetCard.id], client);
         await client.query('COMMIT');
-        const card = cardDTO(targetCard, historyByCard.get(targetCard.id) || []);
+        const card = await cardDTOWithLatestWhatsappTimestamp(targetCard, historyByCard.get(targetCard.id) || [], client);
         if (enrichedCard) cardEvents.emit('change', { action: 'update', card });
         return res.json({
           ok: true,
@@ -2353,7 +2363,7 @@ async function handleExternalCardStatusUpdate(req, res, next, options = {}) {
         await cleanupSalesDuplicates(client, { emitChanges: false });
         const historyByCard = await descriptionHistoryByCardIds([targetCard.id], client);
         await client.query('COMMIT');
-        const card = cardDTO(targetCard, historyByCard.get(targetCard.id) || []);
+        const card = await cardDTOWithLatestWhatsappTimestamp(targetCard, historyByCard.get(targetCard.id) || [], client);
         if (enrichedCard) cardEvents.emit('change', { action: 'update', card });
         return res.json({
           ok: true,
@@ -2459,7 +2469,7 @@ async function handleExternalCardStatusUpdate(req, res, next, options = {}) {
     const historyByCard = await descriptionHistoryByCardIds([cardRow.id], client);
     await client.query('COMMIT');
 
-    const card = cardDTO(cardRow, historyByCard.get(cardRow.id) || []);
+    const card = await cardDTOWithLatestWhatsappTimestamp(cardRow, historyByCard.get(cardRow.id) || [], client);
     // Emitir el evento de cambio por SSE en tiempo real
     cardEvents.emit('change', { action, card });
 
@@ -2569,7 +2579,7 @@ async function handleExternalLeadEnrich(req, res, next) {
     const historyByCard = await descriptionHistoryByCardIds([cardRow.id], client);
     await client.query('COMMIT');
 
-    const card = cardDTO(cardRow, historyByCard.get(cardRow.id) || []);
+    const card = await cardDTOWithLatestWhatsappTimestamp(cardRow, historyByCard.get(cardRow.id) || [], client);
     cardEvents.emit('change', { action: action === 'noop' ? 'update' : action, card });
     res.json({ ok: true, action, card });
   } catch (err) {
@@ -2671,7 +2681,7 @@ app.delete('/api/cards/:id', requireAuth, async (req, res, next) => {
       [req.params.id]
     );
     if (!rows[0]) return res.status(404).json({ error: 'Tarjeta no encontrada.' });
-    const card = cardDTO(rows[0]);
+    const card = await cardDTOWithLatestWhatsappTimestamp(rows[0]);
     cardEvents.emit('change', { action: 'delete', id: req.params.id, card });
     res.json({ ok: true });
   } catch (err) {
@@ -2713,7 +2723,7 @@ app.post('/api/cards/:id/restore', requireAuth, async (req, res, next) => {
     );
     const historyByCard = await descriptionHistoryByCardIds([req.params.id], client);
     await client.query('COMMIT');
-    const card = cardDTO(rows[0], historyByCard.get(req.params.id) || []);
+    const card = await cardDTOWithLatestWhatsappTimestamp(rows[0], historyByCard.get(req.params.id) || [], client);
     cardEvents.emit('change', { action: 'restore', card });
     res.json({ card });
   } catch (err) {
@@ -3132,7 +3142,8 @@ async function cleanupSalesDuplicates(db = pool, { emitChanges = false } = {}) {
 
   if (emitChanges) {
     for (const row of deletedRows) {
-      cardEvents.emit('change', { action: 'delete', id: row.id, card: cardDTO(row) });
+      const card = await cardDTOWithLatestWhatsappTimestamp(row, [], db);
+      cardEvents.emit('change', { action: 'delete', id: row.id, card });
     }
   }
 
@@ -3261,7 +3272,7 @@ async function attachWhatsappAliasToLead(card, { phone = '', lidAlias = '', jid 
   );
 
   if (rows[0]) {
-    const updated = cardDTO(rows[0]);
+    const updated = await cardDTOWithLatestWhatsappTimestamp(rows[0]);
     cardEvents.emit('change', { action: 'update', card: updated });
     return updated;
   }
@@ -3306,7 +3317,7 @@ async function ensureWhatsappLead({ jid, phone = '', lidAlias = '', body = '', p
       [inserted[0].id]
     );
     if (!activeInserted[0]) return null;
-    const card = cardDTO(activeInserted[0]);
+    const card = await cardDTOWithLatestWhatsappTimestamp(activeInserted[0]);
     cardEvents.emit('change', { action: 'create', card });
     return card;
   }
@@ -3403,13 +3414,14 @@ async function mergeChatAlias(lidJid, phoneJid) {
         );
 
         for (const row of deletedDuplicates) {
-          const card = cardDTO(row);
+          const card = await cardDTOWithLatestWhatsappTimestamp(row, [], client);
           cardEvents.emit('change', { action: 'delete', id: row.id, card });
         }
       }
 
       if (updatedKeeper[0]) {
-        cardEvents.emit('change', { action: 'update', card: cardDTO(updatedKeeper[0]) });
+        const card = await cardDTOWithLatestWhatsappTimestamp(updatedKeeper[0], [], client);
+        cardEvents.emit('change', { action: 'update', card });
       }
     }
 
@@ -3545,7 +3557,7 @@ async function start() {
           );
 
           if (inserted[0]) {
-            const card = cardDTO(inserted[0]);
+            const card = await cardDTOWithLatestWhatsappTimestamp(inserted[0]);
             cardEvents.emit('change', { action: 'create', card });
           }
         }
