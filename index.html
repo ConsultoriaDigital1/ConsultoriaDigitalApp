@@ -5601,6 +5601,34 @@
       border-color: var(--border2);
     }
 
+    .cal-day-add {
+      position: relative;
+      cursor: pointer;
+    }
+
+    .cal-day-add:hover {
+      border-color: #579dff;
+      background: rgba(87, 157, 255, 0.05);
+    }
+
+    .cal-day-add::after {
+      content: "+";
+      position: absolute;
+      top: 0.3rem;
+      right: 0.4rem;
+      font-size: 0.85rem;
+      font-weight: 700;
+      line-height: 1;
+      color: #579dff;
+      opacity: 0;
+      transition: opacity 150ms ease;
+      pointer-events: none;
+    }
+
+    .cal-day-add:hover::after {
+      opacity: 1;
+    }
+
     .cal-day.empty {
       background: transparent;
       border-color: transparent;
@@ -8954,24 +8982,10 @@
             return movs.some(m => Number(m.haber || 0) > 0 && (m.fecha || '').startsWith(monthPrefix));
           }
           if (clientsDashFilter === 'pendientes') {
-            // Pendiente de cobro de ESTE mes: facturas emitidas en el mes (no las
-            // de meses siguientes) menos los pagos de este mes y los siguientes,
-            // porque hay clientes que pagan atrasados y, aunque el pago caiga en un
-            // mes posterior, la factura igual queda saldada. Excluye canje.
-            // Solo aparece quien efectivamente debe (saldo > 0).
+            // Clientes con saldo > 0 que emitieron al menos una factura en el mes.
             if (saldo <= 0) return false;
             const movs = movementsCache[c.id] || [];
-            let neto = 0;
-            for (const m of movs) {
-              if ((m.medioPago || '') === 'canje') continue;
-              const ym = (m.fecha || '').slice(0, 7);
-              if (!ym) continue;
-              // Factura: solo la emitida en el mes seleccionado.
-              if (ym === monthPrefix) neto += Number(m.montoFactura || 0);
-              // Pago: este mes y los siguientes (cubre pagos atrasados).
-              if (ym >= monthPrefix) neto -= Number(m.haber || 0);
-            }
-            return neto > 0;
+            return movs.some(m => Number(m.montoFactura || 0) > 0 && (m.fecha || '').startsWith(monthPrefix));
           }
           if (clientsDashFilter === 'pendientes-total') return saldo > 0;
           if (clientsDashFilter === 'vencidos') return saldo > 0 && c.vence && c.vence < todayStr;
@@ -13981,11 +13995,11 @@
         const items = itemsByDay[d] || [];
         const shown = items.slice(0, 3);
         const extra = items.length > 3 ? items.length - 3 : 0;
-        html += `<div class="cal-day${isToday ? ' today' : ''}">
-      <div class="cal-daynum" onclick="openEventModal('${isoDate}')" title="Agregar evento">${d}</div>
+        html += `<div class="cal-day cal-day-add${isToday ? ' today' : ''}" onclick="openEventModal('${isoDate}')" title="Agregar evento">
+      <div class="cal-daynum">${d}</div>
       ${shown.map(item => item.type === 'event'
-          ? `<div class="cal-event evt" style="border-left-color:${EVT_COLORS[item.data.color] || '#579dff'};color:${EVT_COLORS[item.data.color] || '#579dff'}" onclick="openEditEvent('${item.data.id}')">${esc(item.data.titulo)}</div>`
-          : `<div class="cal-event" onclick="openCard('${item.data.id}')">${esc(item.data.nf || item.data.rs || '—')}</div>`
+          ? `<div class="cal-event evt" style="border-left-color:${EVT_COLORS[item.data.color] || '#579dff'};color:${EVT_COLORS[item.data.color] || '#579dff'}" onclick="event.stopPropagation();openEditEvent('${item.data.id}')">${esc(item.data.titulo)}</div>`
+          : `<div class="cal-event" onclick="event.stopPropagation();openCard('${item.data.id}')">${esc(item.data.nf || item.data.rs || '—')}</div>`
         ).join('')}
       ${extra ? `<div class="cal-event" style="background:var(--surface3)">+${extra} más</div>` : ''}
     </div>`;
