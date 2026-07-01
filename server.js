@@ -2889,9 +2889,11 @@ app.post('/api/admin/cobranzas/:clientId/invoice', requireAdmin, async (req, res
           }))
           .filter((it) => it.importe > 0)
       : [];
-    const impTotal = items.length
-      ? Math.round(items.reduce((s, it) => s + it.importe, 0) * 100) / 100
-      : Number(b.impTotal);
+    // El total puede venir editado a mano (autoritativo); si no, se usa la suma de ítems.
+    const impTotalBody = Number(b.impTotal);
+    const impTotal = Number.isFinite(impTotalBody) && impTotalBody > 0
+      ? Math.round(impTotalBody * 100) / 100
+      : (items.length ? Math.round(items.reduce((s, it) => s + it.importe, 0) * 100) / 100 : impTotalBody);
 
     // "Sin ARCA": comprobante interno no fiscal. No pasa por AFIP/ARCA, sólo se
     // genera el PDF. Le asignamos una numeración local propia (letra X).

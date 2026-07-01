@@ -8986,20 +8986,20 @@
             <span style="font-size:0.8rem;font-weight:600">Ítems de la factura</span>
             <button type="button" class="btn btn-subtle btn-sm" onclick="addCobItem()">${icon('plus')} Agregar ítem</button>
           </div>
-          <div style="display:grid;grid-template-columns:1fr 150px 32px;gap:0.5rem;font-size:0.72rem;color:var(--muted,#8a8a8a)">
+          <div style="display:grid;grid-template-columns:1fr 240px 36px;gap:0.5rem;font-size:0.72rem;color:var(--muted,#8a8a8a)">
             <span>Descripción (aparece en el PDF)</span><span>Importe c/IVA (ARS)</span><span></span>
           </div>
           <div id="cob-items" style="display:grid;gap:0.5rem"></div>
         </div>
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.7rem;padding-top:0.2rem;border-top:1px solid var(--border2,#333)">
           <label style="display:grid;gap:0.25rem;font-size:0.8rem">Importe sin IVA (ARS)
-            <input id="cob-neto" type="number" step="0.01" class="clients-search-inp" style="width:100%" readonly tabindex="-1">
+            <input id="cob-neto" type="text" inputmode="decimal" class="clients-search-inp" style="width:100%" oninput="recalcCobFromSummary('neto')" onblur="fmtCobMoneyField(this)">
           </label>
           <label style="display:grid;gap:0.25rem;font-size:0.8rem">IVA 21% (ARS)
-            <input id="cob-iva" type="number" step="0.01" class="clients-search-inp" style="width:100%" readonly tabindex="-1">
+            <input id="cob-iva" type="text" inputmode="decimal" class="clients-search-inp" style="width:100%" oninput="recalcCobFromSummary('iva')" onblur="fmtCobMoneyField(this)">
           </label>
           <label style="display:grid;gap:0.25rem;font-size:0.8rem">Importe total (ARS)
-            <input id="cob-importe" type="number" step="0.01" class="clients-search-inp" style="width:100%" readonly tabindex="-1">
+            <input id="cob-importe" type="text" inputmode="decimal" class="clients-search-inp" style="width:100%" oninput="recalcCobFromSummary('total')" onblur="fmtCobMoneyField(this)">
           </label>
         </div>
         <label style="display:grid;gap:0.25rem;font-size:0.8rem">Tipo de comprobante
@@ -9029,9 +9029,9 @@
         </label>
         <button class="btn btn-lime" id="cob-submit" onclick="submitCobranzaInvoice('${c.id}')">${icon('receipt')} Emitir factura</button>
         <div id="cob-result"></div>
-      </div>`, 880);
+      </div>`, 960);
       // Primer ítem con el detalle/saldo por defecto del cliente.
-      addCobItem(c.descripcionComprobante || 'Servicios de consultoría digital', Number(c.saldo || 0).toFixed(2));
+      addCobItem(c.descripcionComprobante || 'Servicios de consultoría digital', Number(c.saldo || 0));
       // CUIT presente → preseleccionar RI. Como emisor RI: A si el receptor es RI, B si no.
       const doc = (c.cuit || '').replace(/\D/g, '');
       if (doc.length === 11 && arcaOk) $('cob-condiva').value = '1';
@@ -9055,6 +9055,30 @@
         : `${icon('receipt')} Emitir factura`;
     }
 
+    // ── Helpers de importes (formato es-AR: punto para miles, coma para decimales) ──
+    const cobRound2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+    // Parsea un texto como "121.000,50" o "121000.5" a número.
+    function parseCobMoney(str) {
+      let s = String(str == null ? '' : str).trim().replace(/[^\d.,-]/g, '');
+      if (s.indexOf(',') !== -1) {
+        // Formato es-AR: los puntos son separadores de miles y la coma es decimal.
+        s = s.replace(/\./g, '').replace(',', '.');
+      } else {
+        // Sin coma: los puntos son separadores de miles.
+        s = s.replace(/\./g, '');
+      }
+      const n = Number(s);
+      return Number.isFinite(n) ? n : 0;
+    }
+    // Formatea un número como "121.000,00".
+    function fmtCobMoney(n) {
+      return new Intl.NumberFormat('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(n) || 0);
+    }
+    // Reformatea el contenido de un input de importe (al perder el foco).
+    function fmtCobMoneyField(inp) {
+      if (inp && inp.value.trim() !== '') inp.value = fmtCobMoney(parseCobMoney(inp.value));
+    }
+
     // Agrega una fila de ítem (concepto) a la factura. Cada ítem tiene descripción
     // e importe con IVA incluido; el total de la factura es la suma de los ítems.
     function addCobItem(detalle = '', importe = '') {
@@ -9062,13 +9086,14 @@
       if (!cont) return;
       const row = document.createElement('div');
       row.className = 'cob-item';
-      row.style.cssText = 'display:grid;grid-template-columns:1fr 150px 32px;gap:0.5rem;align-items:center';
+      row.style.cssText = 'display:grid;grid-template-columns:1fr 240px 36px;gap:0.5rem;align-items:center';
+      const impVal = importe === '' ? '' : fmtCobMoney(importe);
       row.innerHTML = `
         <input type="text" maxlength="500" class="cob-item-detalle clients-search-inp" style="width:100%" value="${esc(detalle)}" placeholder="Descripción del ítem">
-        <input type="number" min="0" step="0.01" class="cob-item-importe clients-search-inp" style="width:100%" value="${esc(String(importe))}" placeholder="0.00" oninput="recalcCobImportes()">
+        <input type="text" inputmode="decimal" class="cob-item-importe clients-search-inp" style="width:100%" value="${esc(impVal)}" placeholder="0,00" oninput="recalcCobFromItems()" onblur="fmtCobMoneyField(this)">
         <button type="button" class="btn btn-ghost btn-sm" title="Quitar ítem" onclick="removeCobItem(this)">${icon('trash')}</button>`;
       cont.appendChild(row);
-      recalcCobImportes();
+      recalcCobFromItems();
     }
 
     function removeCobItem(btn) {
@@ -9082,24 +9107,51 @@
       } else {
         row.remove();
       }
-      recalcCobImportes();
+      recalcCobFromItems();
     }
 
-    // Recalcula los totales (sin IVA / IVA 21% / total) a partir de la suma de los
-    // ítems. Cada ítem es un importe con IVA incluido; el backend desglosa el total.
-    function recalcCobImportes() {
+    // Al editar los ítems: el total (c/IVA) es la suma de los ítems, y de ahí se
+    // derivan el neto y el IVA. El backend vuelve a desglosar el total.
+    function recalcCobFromItems() {
       const netoInp = $('cob-neto'), ivaInp = $('cob-iva'), totalInp = $('cob-importe');
       if (!netoInp || !ivaInp || !totalInp) return;
-      const round2 = (n) => Math.round(n * 100) / 100;
       let total = 0;
       document.querySelectorAll('#cob-items .cob-item-importe').forEach((inp) => {
-        total += Number(inp.value) || 0;
+        total += parseCobMoney(inp.value);
       });
-      total = round2(total);
-      const neto = round2(total / 1.21);
-      totalInp.value = total.toFixed(2);
-      netoInp.value = neto.toFixed(2);
-      ivaInp.value = round2(total - neto).toFixed(2);
+      total = cobRound2(total);
+      const neto = cobRound2(total / 1.21);
+      totalInp.value = fmtCobMoney(total);
+      netoInp.value = fmtCobMoney(neto);
+      ivaInp.value = fmtCobMoney(cobRound2(total - neto));
+    }
+
+    // Al editar cualquiera de los tres campos (sin IVA / IVA / total), recalcula los
+    // otros dos (IVA 21%). Si hay un único ítem, se sincroniza su importe con el total
+    // para que el detalle del PDF coincida. Con varios ítems, prevalece el total tipeado.
+    function recalcCobFromSummary(source) {
+      const netoInp = $('cob-neto'), ivaInp = $('cob-iva'), totalInp = $('cob-importe');
+      if (!netoInp || !ivaInp || !totalInp) return;
+      let neto, iva, total;
+      if (source === 'neto') {
+        neto = cobRound2(parseCobMoney(netoInp.value));
+        iva = cobRound2(neto * 0.21);
+        total = cobRound2(neto + iva);
+      } else if (source === 'iva') {
+        iva = cobRound2(parseCobMoney(ivaInp.value));
+        neto = cobRound2(iva / 0.21);
+        total = cobRound2(neto + iva);
+      } else {
+        total = cobRound2(parseCobMoney(totalInp.value));
+        neto = cobRound2(total / 1.21);
+        iva = cobRound2(total - neto);
+      }
+      // No reformateamos el campo que se está tipeando (para no mover el cursor).
+      if (source !== 'neto') netoInp.value = fmtCobMoney(neto);
+      if (source !== 'iva') ivaInp.value = fmtCobMoney(iva);
+      if (source !== 'total') totalInp.value = fmtCobMoney(total);
+      const items = document.querySelectorAll('#cob-items .cob-item-importe');
+      if (items.length === 1) items[0].value = fmtCobMoney(total);
     }
 
     async function submitCobranzaInvoice(clientId) {
@@ -9109,14 +9161,18 @@
       const items = [];
       document.querySelectorAll('#cob-items .cob-item').forEach((row) => {
         const detalle = String(row.querySelector('.cob-item-detalle').value || '').trim();
-        const importe = Number(row.querySelector('.cob-item-importe').value) || 0;
+        const importe = cobRound2(parseCobMoney(row.querySelector('.cob-item-importe').value));
         if (importe > 0) items.push({ detalle: detalle || 'Ítem', importe });
       });
       if (!items.length) {
         toast('Agregá al menos un ítem con importe.', 'error');
         return;
       }
-      const impTotal = Math.round(items.reduce((s, it) => s + it.importe, 0) * 100) / 100;
+      // El "Importe total" tipeado es autoritativo; si está vacío, se usa la suma de ítems.
+      const totalField = cobRound2(parseCobMoney($('cob-importe').value));
+      const impTotal = totalField > 0
+        ? totalField
+        : cobRound2(items.reduce((s, it) => s + it.importe, 0));
       const cbteTipo = Number($('cob-tipo').value);
       const sinArca = cbteTipo === 0; // comprobante no fiscal: sólo genera el PDF
       const body = {
