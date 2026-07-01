@@ -8151,11 +8151,11 @@
 
       <!-- Sección 1: Datos generales -->
       <div class="client-modal-section">
-        <div class="client-section-head open" onclick="toggleClientSection('cv-datos')">
+        <div class="client-section-head" onclick="toggleClientSection('cv-datos')">
           <span class="chev"><i class="ico-ph" data-ico="chevron"></i></span>
           <h3>Datos generales</h3>
         </div>
-        <div id="cv-datos" class="client-section-body">
+        <div id="cv-datos" class="client-section-body collapsed">
           <div class="client-fields">
             <div class="cf-row">
               <label>Nombre fantasía</label>
@@ -9033,7 +9033,8 @@
         docNro: docNro || '0',
         condIvaReceptor: Number($('cob-condiva').value),
         detalle: $('cob-detalle').value,
-        registrarMovimiento: false,
+        // Registrar la factura como movimiento en la cuenta del cliente (aparece en Resumen de cuenta)
+        registrarMovimiento: true,
       };
       if (!Number.isFinite(body.impTotal) || body.impTotal <= 0) {
         toast('Ingresá un importe válido.', 'error');
@@ -9058,6 +9059,8 @@
         toast(`Factura ${inv.numero} emitida (CAE ${inv.cae})`, 'success');
         loadCobranzas();
         loadAppData?.();
+        // Refrescar el resumen de cuenta del cliente para que aparezca la factura recién emitida
+        loadMovementsForClient?.(clientId);
       } catch (err) {
         btn.disabled = false;
         btn.innerHTML = `${icon('receipt')} Emitir factura`;
@@ -9566,10 +9569,10 @@
       // resetear estado colapsable
       const datos = $('cv-datos');
       const resumen = $('cv-resumen');
-      if (datos) { datos.classList.remove('collapsed'); }
+      if (datos) { datos.classList.add('collapsed'); }
       if (resumen) { resumen.classList.add('collapsed'); }
-      document.querySelectorAll('#client-overlay .client-section-head').forEach((h, i) => {
-        h.classList.toggle('open', i === 0);
+      document.querySelectorAll('#client-overlay .client-section-head').forEach((h) => {
+        h.classList.remove('open');
       });
       openOverlay('client-overlay');
       // pre-cargamos movimientos en background
