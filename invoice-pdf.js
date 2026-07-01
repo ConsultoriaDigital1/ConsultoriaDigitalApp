@@ -1,11 +1,20 @@
 // Generación del PDF de factura electrónica (layout estándar ARCA: letra,
 // datos del emisor/receptor, importes, CAE y QR oficial).
+const fs = require('fs');
+const path = require('path');
 const PDFDocument = require('pdfkit');
 const QRCode = require('qrcode');
 
 const CBTE_NOMBRE = { 1: 'FACTURA A', 6: 'FACTURA B', 11: 'FACTURA C' };
 const DOC_NOMBRE = { 80: 'CUIT', 96: 'DNI', 99: 'Consumidor Final' };
 const COND_IVA_EMISOR = process.env.ARCA_COND_IVA || 'Responsable Monotributo';
+
+// Logo del emisor (opcional). Ruta configurable; por defecto .local/arca/logo.png
+const LOGO_PATH = process.env.ARCA_LOGO_PATH || path.join(__dirname, '.local', 'arca', 'logo.png');
+const LOGO_BUFFER = (() => {
+  try { return fs.existsSync(LOGO_PATH) ? fs.readFileSync(LOGO_PATH) : null; }
+  catch (_e) { return null; }
+})();
 
 const EMISOR = {
   razonSocial: process.env.ARCA_RAZON_SOCIAL || 'CONSULTORIA DIGITAL',
@@ -66,10 +75,19 @@ async function buildInvoicePdf(inv, client, cuitEmisor) {
     doc.fontSize(7).font('Helvetica')
       .text(`COD. ${String(inv.cbteTipo).padStart(2, '0')}`, midX - letterBox / 2, y + 34, { width: letterBox, align: 'center' });
 
-    // Emisor (izquierda)
-    doc.fontSize(14).font('Helvetica-Bold').text(EMISOR.razonSocial, X + 10, y + 12, { width: W / 2 - letterBox / 2 - 20 });
+    // Emisor (izquierda). Si hay logo, va arriba y la razón social debajo.
+    const emisorW = W / 2 - letterBox / 2 - 20;
+    let nameY = y + 12;
+    if (LOGO_BUFFER) {
+      try {
+        doc.image(LOGO_BUFFER, X + 10, y + 10, { fit: [140, 30], align: 'left', valign: 'top' });
+        nameY = y + 46;
+      } catch (_e) { /* logo inválido: se ignora y se muestra solo el texto */ }
+    }
+    doc.fillColor('#000').fontSize(14).font('Helvetica-Bold')
+      .text(EMISOR.razonSocial, X + 10, nameY, { width: emisorW });
     doc.fontSize(8.5).font('Helvetica');
-    let ey = y + 34;
+    let ey = nameY + 22;
     const emisorLines = [
       EMISOR.domicilio && `Domicilio: ${EMISOR.domicilio}`,
       `Condición frente al IVA: ${COND_IVA_EMISOR}`,
