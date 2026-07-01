@@ -9678,6 +9678,9 @@
         <td class="num rc-saldo">${formatMoney(saldo)}</td>
         <td><span class="ct-chip ${impago ? 'impago' : 'pagado'}">${impago ? 'Factura emitida' : 'Pago efectuado'}</span></td>
         <td class="rc-actions">
+          ${m.invoiceId ? `<a class="btn btn-ghost btn-sm rc-pdf-btn" title="Abrir factura ${esc((m.invoiceLetra || '') + ' ' + (m.invoiceNumero || ''))} en PDF"
+            href="/api/admin/cobranzas/invoices/${esc(m.invoiceId)}/pdf" target="_blank" rel="noopener"
+            onclick="event.stopPropagation()">${icon('file')}</a>` : ''}
           <button class="btn btn-ghost btn-sm rc-edit-btn" title="Editar movimiento"
             onclick="openMovementModalForEdit('${m.id}')">${icon('edit')}</button>
           <button class="btn btn-danger btn-sm rc-del-btn" title="Eliminar movimiento"

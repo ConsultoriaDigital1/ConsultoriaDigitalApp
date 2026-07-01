@@ -1730,12 +1730,25 @@ app.get('/api/admin/clients/:id/movements', requireAdmin, async (req, res, next)
        ORDER BY fecha ASC, creado_en ASC`,
       [req.params.id]
     );
+    // Facturas electrónicas vinculadas a movimientos, para abrir el PDF desde el resumen de cuenta
+    const { rows: invRows } = await pool.query(
+      `SELECT id, movement_id, cbte_letra, numero FROM invoices
+       WHERE client_id = $1 AND movement_id IS NOT NULL`,
+      [req.params.id]
+    );
+    const invByMov = new Map(invRows.map((i) => [i.movement_id, i]));
     let saldo = 0;
     const movements = rows.map((r) => {
       saldo += Number(r.monto_factura || 0) - Number(r.haber || 0);
       const dto = movementDTO(r, saldo);
       // incluir data de archivos para mostrar en el cliente
       dto.archivos = Array.isArray(r.archivos) ? r.archivos : [];
+      const inv = invByMov.get(r.id);
+      if (inv) {
+        dto.invoiceId = inv.id;
+        dto.invoiceLetra = inv.cbte_letra || '';
+        dto.invoiceNumero = inv.numero || '';
+      }
       return dto;
     });
     res.json({
