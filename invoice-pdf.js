@@ -75,25 +75,19 @@ async function buildInvoicePdf(inv, client, cuitEmisor) {
     doc.fontSize(7).font('Helvetica')
       .text(`COD. ${String(inv.cbteTipo).padStart(2, '0')}`, midX - letterBox / 2, y + 34, { width: letterBox, align: 'center' });
 
-    // Emisor (izquierda). Si el logo se dibuja, ya identifica al emisor y no
-    // repetimos la razón social como texto debajo.
+    // Emisor (izquierda). Si hay logo, va arriba y la razón social debajo.
     const emisorW = W / 2 - letterBox / 2 - 20;
-    let logoDrawn = false;
+    let nameY = y + 12;
     if (LOGO_BUFFER) {
       try {
         doc.image(LOGO_BUFFER, X + 10, y + 10, { fit: [140, 30], align: 'left', valign: 'top' });
-        logoDrawn = true;
-      } catch (_e) { /* logo inválido: se ignora y se muestra la razón social */ }
+        nameY = y + 46;
+      } catch (_e) { /* logo inválido: se ignora y se muestra solo el texto */ }
     }
-    let ey;
-    if (logoDrawn) {
-      ey = y + 48;
-    } else {
-      doc.fillColor('#000').fontSize(14).font('Helvetica-Bold')
-        .text(EMISOR.razonSocial, X + 10, y + 12, { width: emisorW });
-      ey = y + 34;
-    }
+    doc.fillColor('#000').fontSize(14).font('Helvetica-Bold')
+      .text(EMISOR.razonSocial, X + 10, nameY, { width: emisorW });
     doc.fontSize(8.5).font('Helvetica');
+    let ey = nameY + 22;
     const emisorLines = [
       EMISOR.domicilio && `Domicilio: ${EMISOR.domicilio}`,
       `Condición frente al IVA: ${COND_IVA_EMISOR}`,
