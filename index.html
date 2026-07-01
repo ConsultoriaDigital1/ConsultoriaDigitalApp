@@ -8976,9 +8976,8 @@
         </label>
         <label style="display:grid;gap:0.25rem;font-size:0.8rem">Tipo de comprobante
           <select id="cob-tipo" class="clients-search-inp" style="width:100%">
-            <option value="11" selected>Factura C (monotributo)</option>
-            <option value="6">Factura B</option>
-            <option value="1">Factura A</option>
+            <option value="6" selected>Factura B (consumidor final / monotributo / exento)</option>
+            <option value="1">Factura A (responsable inscripto)</option>
           </select>
         </label>
         <label style="display:grid;gap:0.25rem;font-size:0.8rem">Concepto
@@ -9005,9 +9004,14 @@
         <button class="btn btn-lime" id="cob-submit" onclick="submitCobranzaInvoice('${c.id}')">${icon('receipt')} Emitir factura</button>
         <div id="cob-result"></div>
       </div>`);
-      // CUIT presente → preseleccionar RI
+      // CUIT presente → preseleccionar RI. Como emisor RI: A si el receptor es RI, B si no.
       const doc = (c.cuit || '').replace(/\D/g, '');
       if (doc.length === 11) $('cob-condiva').value = '1';
+      const syncTipoComprobante = () => {
+        $('cob-tipo').value = $('cob-condiva').value === '1' ? '1' : '6';
+      };
+      $('cob-condiva').addEventListener('change', syncTipoComprobante);
+      syncTipoComprobante();
     }
 
     async function submitCobranzaInvoice(clientId) {
