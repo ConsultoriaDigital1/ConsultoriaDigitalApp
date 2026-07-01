@@ -105,6 +105,13 @@ async function ensureDatabaseMigrations() {
   await pool.query("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS imp_neto NUMERIC(14,2) NOT NULL DEFAULT 0");
   await pool.query("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS imp_iva NUMERIC(14,2) NOT NULL DEFAULT 0");
   await pool.query("ALTER TABLE clients ADD COLUMN IF NOT EXISTS ultimo_aviso BIGINT NOT NULL DEFAULT 0");
+  // Datos generales: mensualidad (facturacion mensual automatica), dia de vencimiento y metodo de envio del aviso
+  await pool.query("ALTER TABLE clients ADD COLUMN IF NOT EXISTS mensualidad TEXT NOT NULL DEFAULT 'pasivo'");
+  await pool.query("ALTER TABLE clients ADD COLUMN IF NOT EXISTS dia_vencimiento INTEGER NOT NULL DEFAULT 0");
+  await pool.query("ALTER TABLE clients ADD COLUMN IF NOT EXISTS metodo_envio TEXT NOT NULL DEFAULT ''");
+  await pool.query("ALTER TABLE clients ADD COLUMN IF NOT EXISTS destinatario TEXT NOT NULL DEFAULT ''");
+  // Descripcion por defecto que se envia como detalle del comprobante (factura ARCA)
+  await pool.query("ALTER TABLE clients ADD COLUMN IF NOT EXISTS descripcion_comprobante TEXT NOT NULL DEFAULT ''");
 
   // Crear usuario system-bot si no existe
   await pool.query(`
@@ -588,6 +595,11 @@ function clientDTO(row, balance = null) {
     mail2: row.mail2 || '',
     vence: row.vence || '',
     estadoCliente: row.estado_cliente || 'activo',
+    mensualidad: row.mensualidad || 'pasivo',
+    diaVencimiento: Number(row.dia_vencimiento) || 0,
+    metodoEnvio: row.metodo_envio || '',
+    destinatario: row.destinatario || '',
+    descripcionComprobante: row.descripcion_comprobante || '',
     descripcion: row.descripcion || '',
     cardId: row.card_id || null,
     creadoPor: row.creado_por || null,
@@ -749,6 +761,13 @@ function cleanDate(value) {
   if (!s) return '';
   if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return '';
   return s;
+}
+
+// Dia del mes (1-31) del vencimiento de la mensualidad. 0 = sin definir.
+function cleanDiaVencimiento(value) {
+  const n = parseInt(value, 10);
+  if (!Number.isFinite(n) || n < 1 || n > 31) return 0;
+  return n;
 }
 
 async function visibleUsers(user) {
@@ -1524,15 +1543,19 @@ app.post('/api/admin/clients', requireAdmin, async (req, res, next) => {
     if (!nombre) return res.status(400).json({ error: 'El nombre de fantasia es obligatorio.' });
 
     const estadoCliente = ['activo', 'inactivo'].includes(b.estadoCliente) ? b.estadoCliente : 'activo';
+    const mensualidad = ['activo', 'pasivo'].includes(b.mensualidad) ? b.mensualidad : 'pasivo';
+    const diaVencimiento = cleanDiaVencimiento(b.diaVencimiento);
+    const metodoEnvio = ['whatsapp', 'mail'].includes(b.metodoEnvio) ? b.metodoEnvio : '';
     const id = mkId();
     const creadoEn = Date.now();
     const { rows } = await pool.query(
       `INSERT INTO clients (
          id, nombre_fantasia, razon_social, cuit, direccion,
          tel_admin, tel_dueno, mail1, mail2, vence,
-         estado_cliente, descripcion,
+         estado_cliente, mensualidad, dia_vencimiento, metodo_envio, destinatario,
+         descripcion_comprobante, descripcion,
          creado_por, creado_en
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
        RETURNING *`,
       [
         id,
@@ -1546,6 +1569,11 @@ app.post('/api/admin/clients', requireAdmin, async (req, res, next) => {
         String(b.mail2 || '').trim(),
         cleanDate(b.vence),
         estadoCliente,
+        mensualidad,
+        diaVencimiento,
+        metodoEnvio,
+        String(b.destinatario || '').trim(),
+        String(b.descripcionComprobante || '').trim().slice(0, 500),
         String(b.descripcion || '').trim(),
         req.user.id,
         creadoEn,
@@ -1561,6 +1589,9 @@ app.patch('/api/admin/clients/:id', requireAdmin, async (req, res, next) => {
     if (!existing) return res.status(404).json({ error: 'Cliente no encontrado.' });
     const b = req.body || {};
     const estadoCliente = ['activo', 'inactivo'].includes(b.estadoCliente) ? b.estadoCliente : (existing.estado_cliente || 'activo');
+    const mensualidad = ['activo', 'pasivo'].includes(b.mensualidad) ? b.mensualidad : (existing.mensualidad || 'pasivo');
+    const diaVencimiento = cleanDiaVencimiento(b.diaVencimiento);
+    const metodoEnvio = ['whatsapp', 'mail'].includes(b.metodoEnvio) ? b.metodoEnvio : '';
     const { rows } = await pool.query(
       `UPDATE clients SET
          nombre_fantasia = $2,
@@ -1573,7 +1604,12 @@ app.patch('/api/admin/clients/:id', requireAdmin, async (req, res, next) => {
          mail2           = $9,
          vence           = $10,
          estado_cliente  = $11,
-         descripcion     = $12,
+         mensualidad     = $12,
+         dia_vencimiento = $13,
+         metodo_envio    = $14,
+         destinatario    = $15,
+         descripcion_comprobante = $16,
+         descripcion     = $17,
          updated_at      = NOW()
        WHERE id = $1
        RETURNING *`,
@@ -1589,6 +1625,11 @@ app.patch('/api/admin/clients/:id', requireAdmin, async (req, res, next) => {
         String(b.mail2 || '').trim(),
         cleanDate(b.vence),
         estadoCliente,
+        mensualidad,
+        diaVencimiento,
+        metodoEnvio,
+        String(b.destinatario || '').trim(),
+        String(b.descripcionComprobante || '').trim().slice(0, 500),
         String(b.descripcion || '').trim(),
       ]
     );
@@ -2750,6 +2791,27 @@ app.delete('/api/cards/:id/purge', requireAuth, async (req, res, next) => {
 });
 
 // ── COBRANZAS: facturación ARCA + avisos via n8n ──
+// Dispara el webhook de n8n con los datos del cliente (+ factura si hay).
+// Devuelve { ok, status } y no lanza: el llamador decide si el fallo es crítico.
+async function sendCobranzaWebhook(payload) {
+  const webhookUrl = process.env.N8N_WEBHOOK_URL;
+  if (!webhookUrl) return { ok: false, status: 0, error: 'N8N_WEBHOOK_URL no configurada' };
+  const headers = { 'Content-Type': 'application/json' };
+  if (process.env.N8N_WEBHOOK_TOKEN) headers['Authorization'] = `Bearer ${process.env.N8N_WEBHOOK_TOKEN}`;
+  try {
+    const r = await fetch(webhookUrl, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(15000),
+    });
+    const txt = r.ok ? '' : await r.text().catch(() => '');
+    return { ok: r.ok, status: r.status, error: r.ok ? '' : txt.slice(0, 200) };
+  } catch (err) {
+    return { ok: false, status: 0, error: err.name === 'TimeoutError' ? 'timeout' : err.message };
+  }
+}
+
 function invoiceDTO(row) {
   return {
     id: row.id,
@@ -2845,7 +2907,34 @@ app.post('/api/admin/cobranzas/:clientId/invoice', requireAdmin, async (req, res
       ]
     );
 
-    res.status(201).json({ invoice: { id, clientId: client.id, creadoEn, detalle: detalleFactura, ...inv } });
+    const invoiceOut = { id, clientId: client.id, creadoEn, detalle: detalleFactura, ...inv };
+
+    // Disparar el webhook de n8n al facturar (no bloquea ni revierte la factura si falla)
+    let webhook = null;
+    if (process.env.N8N_WEBHOOK_URL) {
+      const balances = await clientBalances();
+      const saldo = Number((balances[client.id] || {}).saldo || 0);
+      webhook = await sendCobranzaWebhook({
+        evento: 'factura_emitida',
+        enviadoEn: new Date().toISOString(),
+        cliente: {
+          id: client.id,
+          nombreFantasia: client.nombre_fantasia || '',
+          razonSocial: client.razon_social || '',
+          cuit: client.cuit || '',
+          telAdmin: client.tel_admin || '',
+          telDueno: client.tel_dueno || '',
+          mail1: client.mail1 || '',
+          mail2: client.mail2 || '',
+          vence: client.vence || '',
+          saldo,
+        },
+        factura: invoiceOut,
+      });
+      if (!webhook.ok) console.warn('[cobranzas] webhook n8n falló al facturar:', webhook.status, webhook.error);
+    }
+
+    res.status(201).json({ invoice: invoiceOut, webhook });
   } catch (err) { next(err); }
 });
 
@@ -2903,6 +2992,10 @@ app.post('/api/admin/cobranzas/:clientId/notify', requireAdmin, async (req, res,
         mail1: client.mail1 || '',
         mail2: client.mail2 || '',
         vence: client.vence || '',
+        mensualidad: client.mensualidad || 'pasivo',
+        diaVencimiento: Number(client.dia_vencimiento) || 0,
+        metodoEnvio: client.metodo_envio || '',
+        destinatario: client.destinatario || '',
         saldo,
       },
       factura: invoice,

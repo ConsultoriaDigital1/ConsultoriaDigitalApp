@@ -55,7 +55,8 @@ async function soapPost(url, action, body) {
     method: 'POST',
     headers: {
       'Content-Type': 'text/xml; charset=utf-8',
-      ...(action ? { SOAPAction: action } : {}),
+      // WSAA exige el header SOAPAction presente aunque sea vacío ("no SOAPAction header!")
+      SOAPAction: action || '',
     },
     body,
   });

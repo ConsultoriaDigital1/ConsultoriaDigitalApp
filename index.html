@@ -8084,6 +8084,39 @@
             </select>
           </div>
         </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Mensualidad</label>
+            <select id="nc-mensualidad" class="form-select" onchange="ncToggleMensualidad()">
+              <option value="pasivo">Pasivo</option>
+              <option value="activo">Activo (facturación mensual)</option>
+            </select>
+          </div>
+          <div class="form-group nc-only-activo" id="nc-dia-vto-group">
+            <label class="form-label">Día de vencimiento</label>
+            <input id="nc-dia-vencimiento" class="form-input" type="number" min="1" max="31" step="1"
+              placeholder="Ej: 10" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Método de envío</label>
+            <select id="nc-metodo-envio" class="form-select" onchange="ncMetodoEnvioChanged()">
+              <option value="">—</option>
+              <option value="whatsapp">WhatsApp</option>
+              <option value="mail">Mail</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Destinatario</label>
+            <input id="nc-destinatario" class="form-input" type="text" placeholder="Teléfono o correo" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Descripción de comprobante</label>
+          <input id="nc-descripcion-comprobante" class="form-input" type="text" maxlength="500"
+            placeholder="Detalle que aparece en la factura. Ej: Servicios de consultoría digital" />
+        </div>
         <div class="form-group">
           <label class="form-label">Descripción</label>
           <textarea id="nc-descripcion" class="form-textarea"
@@ -8155,6 +8188,26 @@
             <div class="cf-row">
               <label>Estado</label>
               <div class="cf-value" id="cv-estado-cliente">—</div>
+            </div>
+            <div class="cf-row">
+              <label>Mensualidad</label>
+              <div class="cf-value" id="cv-mensualidad">—</div>
+            </div>
+            <div class="cf-row">
+              <label>Día de vencimiento</label>
+              <div class="cf-value" id="cv-dia-vencimiento">—</div>
+            </div>
+            <div class="cf-row">
+              <label>Método de envío</label>
+              <div class="cf-value" id="cv-metodo-envio">—</div>
+            </div>
+            <div class="cf-row">
+              <label>Destinatario</label>
+              <div class="cf-value" id="cv-destinatario">—</div>
+            </div>
+            <div class="cf-row" style="grid-column:1/-1">
+              <label>Descripción de comprobante</label>
+              <div class="cf-value" id="cv-descripcion-comprobante">—</div>
             </div>
             <div class="cf-row" style="grid-column:1/-1">
               <label>Descripción</label>
@@ -8597,14 +8650,14 @@
 
     function applyAdminNumbersState() {
       const board = $('kanban-board');
-      if (!board) return;
-      board.classList.toggle('admin-numbers-hidden', adminNumbersHidden);
+      if (board) board.classList.toggle('admin-numbers-hidden', adminNumbersHidden);
+      const label = adminNumbersHidden
+        ? icon('eye') + ' Mostrar'
+        : icon('eye-off') + ' Ocultar';
       const btn = $('admin-hide-btn');
-      if (btn) {
-        btn.innerHTML = adminNumbersHidden
-          ? icon('eye') + ' Mostrar'
-          : icon('eye-off') + ' Ocultar';
-      }
+      if (btn) btn.innerHTML = label;
+      const cobBtn = $('cob-hide-btn');
+      if (cobBtn) cobBtn.innerHTML = label;
     }
 
     function toggleAdminNumbers() {
@@ -8703,6 +8756,7 @@
     // COBRANZAS: pendientes de cobro + factura ARCA + aviso n8n
     // ════════════════════════════════════════════
     let cobranzasData = null;
+    let cobranzasSearchTerm = '';   // término del buscador de cobranzas
 
     function renderCobranzasSubTab() {
       const cont = $('admin-sub-cobranzas');
@@ -8713,11 +8767,77 @@
         <div class="admin-section-title">Cobranzas</div>
         <div class="admin-section-sub" id="cobranzas-sub">Cargando…</div>
       </div>
-      <div id="cobranzas-status" style="display:flex;gap:0.5rem;margin-left:auto;flex-wrap:wrap"></div>
+      <div class="clients-search" style="flex:1;min-width:150px;max-width:260px;margin:0">
+        <span class="clients-search-ico">${icon('search')}</span>
+        <input class="clients-search-inp" id="cobranzas-search-inp" type="text"
+          placeholder="Buscar cliente…"
+          value="${esc(cobranzasSearchTerm)}"
+          oninput="onCobranzasSearch(this.value)">
+        ${cobranzasSearchTerm ? `<button class="clients-search-clear" onclick="clearCobranzasSearch()" title="Limpiar">${icon('x')}</button>` : ''}
+      </div>
+      <div style="display:flex;gap:0.5rem;margin-left:auto;align-items:center;flex-wrap:wrap">
+        <div id="cobranzas-status" style="display:flex;gap:0.5rem;flex-wrap:wrap"></div>
+        <button class="btn btn-ghost btn-sm" id="cob-hide-btn" onclick="toggleAdminNumbers()" title="Ocultar/mostrar cifras">
+          ${adminNumbersHidden ? icon('eye') + ' Mostrar' : icon('eye-off') + ' Ocultar'}
+        </button>
+      </div>
     </div>
     <div id="cobranzas-results"><div class="admin-placeholder">Cargando pendientes…</div></div>
   `;
       loadCobranzas();
+    }
+
+    function onCobranzasSearch(value) {
+      cobranzasSearchTerm = value;
+      renderCobranzasResults();
+      // Mostrar/ocultar el botón de limpiar sin perder el foco del input
+      const inp = $('cobranzas-search-inp');
+      if (!inp) return;
+      const wrap = inp.parentElement;
+      let clearBtn = wrap.querySelector('.clients-search-clear');
+      if (cobranzasSearchTerm && !clearBtn) {
+        clearBtn = document.createElement('button');
+        clearBtn.className = 'clients-search-clear';
+        clearBtn.title = 'Limpiar búsqueda';
+        clearBtn.innerHTML = icon('x');
+        clearBtn.onclick = clearCobranzasSearch;
+        wrap.appendChild(clearBtn);
+      } else if (!cobranzasSearchTerm && clearBtn) {
+        clearBtn.remove();
+      }
+    }
+
+    function clearCobranzasSearch() {
+      const inp = $('cobranzas-search-inp');
+      if (inp) inp.value = '';
+      onCobranzasSearch('');
+      if (inp) inp.focus();
+    }
+
+    // Estado de vencimiento relativo para la sección de cobranzas.
+    // Usa el día de vencimiento del mes en curso (mensualidad activa); si no hay,
+    // cae al campo "Próximo vencimiento". Devuelve null si no hay fecha calculable.
+    function cobranzaVenceStatus(c) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      let due = null;
+      const dia = Number(c.diaVencimiento) || 0;
+      if (dia >= 1 && dia <= 31) {
+        const y = today.getFullYear(), m = today.getMonth();
+        const lastDay = new Date(y, m + 1, 0).getDate();
+        due = new Date(y, m, Math.min(dia, lastDay));
+      } else if (c.vence) {
+        const mm = /^(\d{4})-(\d{2})-(\d{2})$/.exec(c.vence);
+        if (mm) due = new Date(+mm[1], +mm[2] - 1, +mm[3]);
+      }
+      if (!due) return null;
+      due.setHours(0, 0, 0, 0);
+      const diffDays = Math.round((today - due) / 86400000); // >0 = venció hace N días
+      if (diffDays < 0) return { text: `Vence ${due.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })}`, color: 'var(--muted)', bold: false };
+      if (diffDays === 0) return { text: 'Hoy vence', color: '#f5cd47', bold: true };
+      if (diffDays === 1) return { text: 'Ayer venció', color: '#f87168', bold: true };
+      if (diffDays <= 4) return { text: `Venció hace ${diffDays} días`, color: '#f87168', bold: true };
+      return { text: 'Hace más de 96 hs', color: '#e2483d', bold: true };
     }
 
     async function loadCobranzas() {
@@ -8758,19 +8878,34 @@
 
       const sub = $('cobranzas-sub');
       const totalPend = d.pendientes.reduce((a, c) => a + Number(c.saldo || 0), 0);
-      if (sub) sub.textContent = `${d.pendientes.length} cliente${d.pendientes.length === 1 ? '' : 's'} con saldo pendiente · Total ${moneyText(totalPend)}`;
+      if (sub) sub.innerHTML = `${d.pendientes.length} cliente${d.pendientes.length === 1 ? '' : 's'} con saldo pendiente · Total <span class="admin-money">${esc(moneyText(totalPend))}</span>`;
 
       if (!d.pendientes.length) {
         box.innerHTML = `<div class="admin-placeholder"><strong>Sin pendientes</strong> Todos los clientes están al día. 🎉</div>`;
         return;
       }
 
-      const rows = d.pendientes
+      const term = normTxt(cobranzasSearchTerm).trim();
+      const pendientesFiltrados = term
+        ? d.pendientes.filter((c) =>
+          normTxt(c.nombreFantasia).includes(term) ||
+          normTxt(c.razonSocial).includes(term) ||
+          normTxt(c.cuit).includes(term))
+        : d.pendientes;
+
+      if (!pendientesFiltrados.length) {
+        box.innerHTML = `<div class="admin-placeholder"><strong>Sin resultados</strong> No hay pendientes que coincidan con “${esc(cobranzasSearchTerm.trim())}”.</div>`;
+        return;
+      }
+
+      const rows = pendientesFiltrados
         .slice()
         .sort((a, b) => Number(b.saldo || 0) - Number(a.saldo || 0))
         .map((c) => {
           const vencido = c.vence && c.vence < todayStr;
           const lastInv = (d.invoices || []).find((i) => i.clientId === c.id);
+          // El estado de vencimiento solo aplica una vez que se envió factura
+          const venceSt = lastInv ? cobranzaVenceStatus(c) : null;
           return `
         <tr>
           <td>
@@ -8781,7 +8916,10 @@
           <td><span class="admin-money">${esc(moneyText(c.saldo))}</span></td>
           <td>${c.vence ? `<span class="admin-due ${vencido ? 'overdue' : ''}">${esc(c.vence)}${vencido ? ' <small>vencido</small>' : ''}</span>` : '<span class="admin-muted">-</span>'}</td>
           <td>${lastInv ? `<a class="admin-data" title="CAE ${esc(lastInv.cae)} — abrir PDF" href="/api/admin/cobranzas/invoices/${esc(lastInv.id)}/pdf" target="_blank" rel="noopener" onclick="event.stopPropagation()">${esc(lastInv.cbteLetra)} ${esc(lastInv.numero)} 📄</a>` : '<span class="admin-muted">-</span>'}</td>
-          <td>${fmtAvisoFecha(c.ultimoAviso)}</td>
+          <td>
+            ${venceSt ? `<div style="font-size:0.78rem;font-weight:${venceSt.bold ? '700' : '500'};color:${venceSt.color}">${esc(venceSt.text)}</div>` : ''}
+            <div style="font-size:0.72rem;margin-top:${venceSt ? '0.15rem' : '0'}">${fmtAvisoFecha(c.ultimoAviso)}</div>
+          </td>
           <td>
             <div class="ct-actions" style="display:flex;gap:0.4rem">
               <button class="btn btn-lime btn-sm" onclick="openCobranzaInvoice('${c.id}')" ${d.arca.configured ? '' : 'disabled title="Configurá ARCA en .env"'}>${icon('receipt')} Facturar</button>
@@ -8851,7 +8989,7 @@
           </select>
         </label>
         <label style="display:grid;gap:0.25rem;font-size:0.8rem">Detalle (aparece en el PDF)
-          <input id="cob-detalle" type="text" maxlength="500" value="Servicios de consultoría digital" class="clients-search-inp" style="width:100%">
+          <input id="cob-detalle" type="text" maxlength="500" value="${esc(c.descripcionComprobante || 'Servicios de consultoría digital')}" class="clients-search-inp" style="width:100%">
         </label>
         <label style="display:grid;gap:0.25rem;font-size:0.8rem">CUIT del receptor (vacío = consumidor final)
           <input id="cob-doc" type="text" value="${esc((c.cuit || '').replace(/\D/g, ''))}" class="clients-search-inp" style="width:100%" placeholder="Sin CUIT → consumidor final">
@@ -8863,9 +9001,6 @@
             <option value="5" selected>Consumidor final</option>
             <option value="4">Exento</option>
           </select>
-        </label>
-        <label style="display:flex;gap:0.5rem;align-items:center;font-size:0.8rem">
-          <input id="cob-mov" type="checkbox"> Sumar también como movimiento al debe del cliente
         </label>
         <button class="btn btn-lime" id="cob-submit" onclick="submitCobranzaInvoice('${c.id}')">${icon('receipt')} Emitir factura</button>
         <div id="cob-result"></div>
@@ -8886,7 +9021,7 @@
         docNro: docNro || '0',
         condIvaReceptor: Number($('cob-condiva').value),
         detalle: $('cob-detalle').value,
-        registrarMovimiento: $('cob-mov').checked,
+        registrarMovimiento: false,
       };
       if (!Number.isFinite(body.impTotal) || body.impTotal <= 0) {
         toast('Ingresá un importe válido.', 'error');
@@ -9228,7 +9363,30 @@
       $('nc-mail2').value = c ? (c.mail2 || '') : '';
       $('nc-vence').value = c ? (c.vence || '') : '';
       $('nc-estado-cliente').value = c ? (c.estadoCliente || 'activo') : 'activo';
+      $('nc-mensualidad').value = c ? (c.mensualidad || 'pasivo') : 'pasivo';
+      $('nc-dia-vencimiento').value = (c && c.diaVencimiento) ? c.diaVencimiento : '';
+      $('nc-metodo-envio').value = c ? (c.metodoEnvio || '') : '';
+      $('nc-destinatario').value = c ? (c.destinatario || '') : '';
+      $('nc-descripcion-comprobante').value = c ? (c.descripcionComprobante || '') : '';
       $('nc-descripcion').value = c ? (c.descripcion || '') : '';
+      ncToggleMensualidad();
+    }
+
+    // Muestra/oculta el día de vencimiento según la mensualidad sea activa
+    function ncToggleMensualidad() {
+      const activo = $('nc-mensualidad').value === 'activo';
+      const grp = $('nc-dia-vto-group');
+      if (grp) grp.style.display = activo ? '' : 'none';
+      if (!activo) $('nc-dia-vencimiento').value = '';
+    }
+
+    // Al elegir método de envío, autocompleta el destinatario (editable) desde Tel/Mail ya cargados
+    function ncMetodoEnvioChanged() {
+      const metodo = $('nc-metodo-envio').value;
+      const dest = $('nc-destinatario');
+      if (!dest || dest.value.trim()) return; // no piso lo que el usuario ya escribió
+      if (metodo === 'whatsapp') dest.value = ($('nc-tel-admin').value || $('nc-tel-dueno').value || '').trim();
+      else if (metodo === 'mail') dest.value = ($('nc-mail1').value || $('nc-mail2').value || '').trim();
     }
 
     function openNewClientModal() {
@@ -9301,6 +9459,11 @@
         mail2: $('nc-mail2').value.trim(),
         vence: $('nc-vence').value || '',
         estadoCliente: $('nc-estado-cliente').value || 'activo',
+        mensualidad: $('nc-mensualidad').value || 'pasivo',
+        diaVencimiento: parseInt($('nc-dia-vencimiento').value, 10) || 0,
+        metodoEnvio: $('nc-metodo-envio').value || '',
+        destinatario: $('nc-destinatario').value.trim(),
+        descripcionComprobante: $('nc-descripcion-comprobante').value.trim(),
         descripcion: $('nc-descripcion').value.trim(),
       };
       if (!body.nombreFantasia) {
@@ -9446,6 +9609,15 @@
         estadoEl.innerHTML = `<span class="ct-chip ${est}">${est === 'activo' ? 'Activo' : 'Inactivo'}</span>`;
         estadoEl.classList.remove('muted');
       }
+
+      const mens = c.mensualidad === 'activo' ? 'activo' : 'pasivo';
+      fld('cv-mensualidad', mens === 'activo' ? 'Activo (facturación mensual)' : 'Pasivo');
+      fld('cv-dia-vencimiento', (mens === 'activo' && c.diaVencimiento) ? ('Día ' + c.diaVencimiento + ' de cada mes') : '');
+      const metodoLabel = c.metodoEnvio === 'whatsapp' ? 'WhatsApp' : (c.metodoEnvio === 'mail' ? 'Mail' : '');
+      fld('cv-metodo-envio', metodoLabel);
+      fld('cv-destinatario', c.destinatario);
+      fld('cv-descripcion-comprobante', c.descripcionComprobante);
+
       fld('cv-descripcion', c.descripcion);
 
       const saldoHead = $('cv-saldo-head');
