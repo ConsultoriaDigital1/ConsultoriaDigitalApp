@@ -8228,8 +8228,8 @@
           <div class="rc-toolbar">
             <button class="btn btn-ghost btn-sm" onclick="openResumenDatePicker()" style="margin-right:auto"
               title="Descargar resumen"><i class="ico-ph" data-ico="download"></i> Descargar resumen</button>
-            <button class="btn btn-factura btn-sm" onclick="openMovementModalForCurrent('factura')"
-              style="margin-right:0.4rem"><i class="ico-ph" data-ico="file"></i> Cargar factura</button>
+            <button class="btn btn-lime btn-sm" onclick="if(currentClientId)openCobranzaInvoice(currentClientId)"
+              style="margin-right:0.4rem" title="Emitir factura electrónica en ARCA"><i class="ico-ph" data-ico="receipt"></i> Facturar</button>
             <button class="btn btn-pago btn-sm" onclick="openMovementModalForCurrent('pago')"><i class="ico-ph"
                 data-ico="dollar"></i> Cargar pago</button>
           </div>
@@ -8964,9 +8964,17 @@
       document.body.appendChild(wrap);
     }
 
-    function openCobranzaInvoice(clientId) {
-      const c = (cobranzasData?.pendientes || []).find((x) => x.id === clientId);
+    async function openCobranzaInvoice(clientId) {
+      // Puede invocarse desde Cobranzas o desde Clientes/Resumen de cuenta:
+      // aseguramos tener el estado de ARCA y buscamos el cliente en ambos caches.
+      if (!cobranzasData) { try { await loadCobranzas(); } catch (_e) { /* se valida abajo */ } }
+      const c = (cobranzasData?.pendientes || []).find((x) => x.id === clientId)
+        || (clientsCache || []).find((x) => x.id === clientId);
       if (!c) return;
+      if (!cobranzasData?.arca?.configured) {
+        toast('Configurá ARCA en .env para poder facturar (ver COBRANZAS_SETUP.md).', 'error');
+        return;
+      }
       const prod = cobranzasData?.arca?.production;
       cobranzaOverlayShell(`Facturar a ${c.nombreFantasia || c.razonSocial}`, `
       ${prod ? '' : `<div style="margin-bottom:0.8rem;padding:0.5rem 0.7rem;border-radius:var(--r-sm,6px);background:rgba(250,200,50,0.12);border:1px solid rgba(250,200,50,0.4);font-size:0.8rem">Modo <strong>homologación</strong>: la factura es de prueba, sin validez fiscal.</div>`}
@@ -9317,7 +9325,7 @@
       </td>
       <td onclick="event.stopPropagation()">
         <div class="ct-actions">
-          <button class="btn btn-factura btn-sm" onclick="openMovementModal('${c.id}','factura')" title="Cargar una nueva factura">${icon('file')} Cargar factura</button>
+          <button class="btn btn-lime btn-sm" onclick="openCobranzaInvoice('${c.id}')" title="Emitir factura electrónica en ARCA">${icon('receipt')} Facturar</button>
           <button class="btn btn-pago btn-sm" onclick="openMovementModal('${c.id}','pago')" title="Registrar un pago recibido">${icon('dollar')} Cargar pago</button>
         </div>
       </td>
