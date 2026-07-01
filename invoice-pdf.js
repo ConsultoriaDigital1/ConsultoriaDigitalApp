@@ -5,7 +5,7 @@ const path = require('path');
 const PDFDocument = require('pdfkit');
 const QRCode = require('qrcode');
 
-const CBTE_NOMBRE = { 1: 'FACTURA A', 6: 'FACTURA B', 11: 'FACTURA C' };
+const CBTE_NOMBRE = { 0: 'COMPROBANTE', 1: 'FACTURA A', 6: 'FACTURA B', 11: 'FACTURA C' };
 const DOC_NOMBRE = { 80: 'CUIT', 96: 'DNI', 99: 'Consumidor Final' };
 const COND_IVA_EMISOR = process.env.ARCA_COND_IVA || 'Responsable Monotributo';
 
@@ -40,6 +40,8 @@ function fmtFecha(iso) {
  * @param {string} cuitEmisor CUIT con el que se emitió
  */
 async function buildInvoicePdf(inv, client, cuitEmisor) {
+  // Comprobante "sin ARCA": no fiscal, sin CAE ni QR (tipo 0 / letra X).
+  const sinArca = Number(inv.cbteTipo) === 0 || !inv.cae;
   const qrPng = inv.qrUrl
     ? await QRCode.toBuffer(inv.qrUrl, { type: 'png', width: 220, margin: 1 })
     : null;
@@ -55,8 +57,9 @@ async function buildInvoicePdf(inv, client, cuitEmisor) {
     const X = 40;
     let y = 40;
 
-    // Marca de agua si es comprobante de homologación
-    if (!inv.production) {
+    // Marca de agua sólo para comprobantes de homologación (prueba). El comprobante
+    // "sin ARCA" no lleva marca de agua.
+    if (!sinArca && !inv.production) {
       doc.save().rotate(-30, { origin: [300, 420] })
         .fontSize(48).fillColor('#cccccc').opacity(0.45)
         .text('SIN VALIDEZ FISCAL — PRUEBA', 60, 380, { width: 560, align: 'center' })
@@ -127,12 +130,22 @@ async function buildInvoicePdf(inv, client, cuitEmisor) {
     doc.text('Importe', X + W - 110, y + 7, { width: 100, align: 'right' });
     y += 24;
 
-    const detalle = inv.detalle || 'Servicios profesionales';
-    doc.rect(X, y, W, 28).stroke('#333333');
+    // Una fila por ítem (concepto). Si la factura no tiene ítems (comprobantes
+    // antiguos), se muestra una sola fila con el detalle y el total.
+    const items = Array.isArray(inv.items) && inv.items.length
+      ? inv.items
+      : [{ detalle: inv.detalle || 'Servicios profesionales', importe: inv.impTotal }];
     doc.font('Helvetica').fontSize(9.5);
-    doc.text(detalle, X + 10, y + 9, { width: W - 130 });
-    doc.text(money(inv.impTotal), X + W - 110, y + 9, { width: 100, align: 'right' });
-    y += 40;
+    items.forEach((it) => {
+      const txt = it.detalle || 'Ítem';
+      const txtH = doc.heightOfString(txt, { width: W - 130 });
+      const rowH = Math.max(28, txtH + 16);
+      doc.rect(X, y, W, rowH).stroke('#333333');
+      doc.text(txt, X + 10, y + 9, { width: W - 130 });
+      doc.text(money(it.importe), X + W - 110, y + 9, { width: 100, align: 'right' });
+      y += rowH;
+    });
+    y += 12;
 
     // ── Totales ──
     const showIva = inv.cbteTipo !== 11 && Number(inv.impIVA || 0) > 0;
@@ -148,15 +161,23 @@ async function buildInvoicePdf(inv, client, cuitEmisor) {
     });
     y += 20;
 
-    // ── Pie: QR + CAE ──
+    // ── Pie: QR + CAE (sólo para comprobantes fiscales) ──
     const footY = Math.max(y, 640);
-    if (qrPng) doc.image(qrPng, X, footY, { width: 100 });
-    doc.font('Helvetica-Bold').fontSize(10)
-      .text(`CAE N°: ${inv.cae}`, X + 120, footY + 20)
-      .text(`Fecha de Vto. de CAE: ${fmtFecha(inv.caeVto)}`, X + 120, footY + 36);
-    doc.font('Helvetica').fontSize(7.5).fillColor('#555555')
-      .text('Comprobante Autorizado — Esta Administración Federal no se responsabiliza por los datos ingresados en el detalle de la operación.',
-        X + 120, footY + 56, { width: W - 130 });
+    if (sinArca) {
+      doc.font('Helvetica-Bold').fontSize(10).fillColor('#000')
+        .text('Documento no fiscal — comprobante interno', X, footY + 20, { width: W });
+      doc.font('Helvetica').fontSize(8).fillColor('#555555')
+        .text('Este comprobante no fue emitido ante AFIP/ARCA y no tiene validez fiscal. No válido como factura.',
+          X, footY + 38, { width: W });
+    } else {
+      if (qrPng) doc.image(qrPng, X, footY, { width: 100 });
+      doc.font('Helvetica-Bold').fontSize(10).fillColor('#000')
+        .text(`CAE N°: ${inv.cae}`, X + 120, footY + 20)
+        .text(`Fecha de Vto. de CAE: ${fmtFecha(inv.caeVto)}`, X + 120, footY + 36);
+      doc.font('Helvetica').fontSize(7.5).fillColor('#555555')
+        .text('Comprobante Autorizado — Esta Administración Federal no se responsabiliza por los datos ingresados en el detalle de la operación.',
+          X + 120, footY + 56, { width: W - 130 });
+    }
 
     doc.end();
   });

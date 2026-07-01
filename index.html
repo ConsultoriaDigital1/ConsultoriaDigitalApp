@@ -8949,13 +8949,13 @@
       if (el) el.remove();
     }
 
-    function cobranzaOverlayShell(title, innerHtml) {
+    function cobranzaOverlayShell(title, innerHtml, width = 440) {
       closeCobranzaOverlay();
       const wrap = document.createElement('div');
       wrap.id = 'cobranza-overlay';
       wrap.style.cssText = 'position:fixed;inset:0;z-index:9000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.55);backdrop-filter:blur(2px)';
       wrap.innerHTML = `
-      <div style="width:min(440px,92vw);background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r-md);padding:1.2rem;max-height:88vh;overflow:auto">
+      <div style="width:min(${width}px,92vw);background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r-md);padding:1.2rem;max-height:88vh;overflow:auto">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.9rem">
           <strong style="font-size:1rem">${esc(title)}</strong>
           <button class="btn btn-ghost btn-sm" onclick="closeCobranzaOverlay()">${icon('x')}</button>
@@ -8973,21 +8973,40 @@
       const c = (cobranzasData?.pendientes || []).find((x) => x.id === clientId)
         || (clientsCache || []).find((x) => x.id === clientId);
       if (!c) return;
-      if (!cobranzasData?.arca?.configured) {
-        toast('Configurá ARCA en .env para poder facturar (ver COBRANZAS_SETUP.md).', 'error');
-        return;
-      }
+      // No exigimos ARCA configurado: se puede emitir un comprobante "Sin ARCA"
+      // (no fiscal) que sólo genera el PDF. Sólo se valida ARCA al emitir uno fiscal.
+      const arcaOk = Boolean(cobranzasData?.arca?.configured);
       const prod = cobranzasData?.arca?.production;
       cobranzaOverlayShell(`Facturar a ${c.nombreFantasia || c.razonSocial}`, `
-      ${prod ? '' : `<div style="margin-bottom:0.8rem;padding:0.5rem 0.7rem;border-radius:var(--r-sm,6px);background:rgba(250,200,50,0.12);border:1px solid rgba(250,200,50,0.4);font-size:0.8rem">Modo <strong>homologación</strong>: la factura es de prueba, sin validez fiscal.</div>`}
+      ${(arcaOk && !prod) ? `<div style="margin-bottom:0.8rem;padding:0.5rem 0.7rem;border-radius:var(--r-sm,6px);background:rgba(250,200,50,0.12);border:1px solid rgba(250,200,50,0.4);font-size:0.8rem">Modo <strong>homologación</strong>: la factura es de prueba, sin validez fiscal.</div>` : ''}
+      ${arcaOk ? '' : `<div style="margin-bottom:0.8rem;padding:0.5rem 0.7rem;border-radius:var(--r-sm,6px);background:rgba(120,120,120,0.15);border:1px solid var(--border2,#444);font-size:0.8rem">ARCA no está configurado: sólo podés emitir comprobantes <strong>Sin ARCA</strong> (no fiscales).</div>`}
       <div style="display:grid;gap:0.7rem">
-        <label style="display:grid;gap:0.25rem;font-size:0.8rem">Importe (ARS)
-          <input id="cob-importe" type="number" min="1" step="0.01" value="${Number(c.saldo || 0).toFixed(2)}" class="clients-search-inp" style="width:100%">
-        </label>
+        <div style="display:grid;gap:0.35rem">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:0.8rem;font-weight:600">Ítems de la factura</span>
+            <button type="button" class="btn btn-subtle btn-sm" onclick="addCobItem()">${icon('plus')} Agregar ítem</button>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 150px 32px;gap:0.5rem;font-size:0.72rem;color:var(--muted,#8a8a8a)">
+            <span>Descripción (aparece en el PDF)</span><span>Importe c/IVA (ARS)</span><span></span>
+          </div>
+          <div id="cob-items" style="display:grid;gap:0.5rem"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.7rem;padding-top:0.2rem;border-top:1px solid var(--border2,#333)">
+          <label style="display:grid;gap:0.25rem;font-size:0.8rem">Importe sin IVA (ARS)
+            <input id="cob-neto" type="number" step="0.01" class="clients-search-inp" style="width:100%" readonly tabindex="-1">
+          </label>
+          <label style="display:grid;gap:0.25rem;font-size:0.8rem">IVA 21% (ARS)
+            <input id="cob-iva" type="number" step="0.01" class="clients-search-inp" style="width:100%" readonly tabindex="-1">
+          </label>
+          <label style="display:grid;gap:0.25rem;font-size:0.8rem">Importe total (ARS)
+            <input id="cob-importe" type="number" step="0.01" class="clients-search-inp" style="width:100%" readonly tabindex="-1">
+          </label>
+        </div>
         <label style="display:grid;gap:0.25rem;font-size:0.8rem">Tipo de comprobante
-          <select id="cob-tipo" class="clients-search-inp" style="width:100%">
-            <option value="6" selected>Factura B (consumidor final / monotributo / exento)</option>
-            <option value="1">Factura A (responsable inscripto)</option>
+          <select id="cob-tipo" class="clients-search-inp" style="width:100%" onchange="onCobTipoChange()">
+            <option value="6" ${arcaOk ? 'selected' : ''} ${arcaOk ? '' : 'disabled'}>Factura B (consumidor final / monotributo / exento)</option>
+            <option value="1" ${arcaOk ? '' : 'disabled'}>Factura A (responsable inscripto)</option>
+            <option value="0" ${arcaOk ? '' : 'selected'}>Sin ARCA (comprobante interno, no fiscal)</option>
           </select>
         </label>
         <label style="display:grid;gap:0.25rem;font-size:0.8rem">Concepto
@@ -8996,9 +9015,6 @@
             <option value="1">Productos</option>
             <option value="3">Productos y servicios</option>
           </select>
-        </label>
-        <label style="display:grid;gap:0.25rem;font-size:0.8rem">Detalle (aparece en el PDF)
-          <input id="cob-detalle" type="text" maxlength="500" value="${esc(c.descripcionComprobante || 'Servicios de consultoría digital')}" class="clients-search-inp" style="width:100%">
         </label>
         <label style="display:grid;gap:0.25rem;font-size:0.8rem">CUIT del receptor (vacío = consumidor final)
           <input id="cob-doc" type="text" value="${esc((c.cuit || '').replace(/\D/g, ''))}" class="clients-search-inp" style="width:100%" placeholder="Sin CUIT → consumidor final">
@@ -9013,28 +9029,106 @@
         </label>
         <button class="btn btn-lime" id="cob-submit" onclick="submitCobranzaInvoice('${c.id}')">${icon('receipt')} Emitir factura</button>
         <div id="cob-result"></div>
-      </div>`);
+      </div>`, 880);
+      // Primer ítem con el detalle/saldo por defecto del cliente.
+      addCobItem(c.descripcionComprobante || 'Servicios de consultoría digital', Number(c.saldo || 0).toFixed(2));
       // CUIT presente → preseleccionar RI. Como emisor RI: A si el receptor es RI, B si no.
       const doc = (c.cuit || '').replace(/\D/g, '');
-      if (doc.length === 11) $('cob-condiva').value = '1';
+      if (doc.length === 11 && arcaOk) $('cob-condiva').value = '1';
       const syncTipoComprobante = () => {
+        // "Sin ARCA" (0) es una elección manual: no la pisamos por la condición de IVA.
+        if (!arcaOk || $('cob-tipo').value === '0') return;
         $('cob-tipo').value = $('cob-condiva').value === '1' ? '1' : '6';
       };
       $('cob-condiva').addEventListener('change', syncTipoComprobante);
       syncTipoComprobante();
+      onCobTipoChange();
+    }
+
+    // Actualiza el texto del botón según el tipo de comprobante elegido.
+    function onCobTipoChange() {
+      const btn = $('cob-submit');
+      const tipo = $('cob-tipo');
+      if (!btn || !tipo) return;
+      btn.innerHTML = tipo.value === '0'
+        ? `${icon('file')} Generar comprobante (sin ARCA)`
+        : `${icon('receipt')} Emitir factura`;
+    }
+
+    // Agrega una fila de ítem (concepto) a la factura. Cada ítem tiene descripción
+    // e importe con IVA incluido; el total de la factura es la suma de los ítems.
+    function addCobItem(detalle = '', importe = '') {
+      const cont = $('cob-items');
+      if (!cont) return;
+      const row = document.createElement('div');
+      row.className = 'cob-item';
+      row.style.cssText = 'display:grid;grid-template-columns:1fr 150px 32px;gap:0.5rem;align-items:center';
+      row.innerHTML = `
+        <input type="text" maxlength="500" class="cob-item-detalle clients-search-inp" style="width:100%" value="${esc(detalle)}" placeholder="Descripción del ítem">
+        <input type="number" min="0" step="0.01" class="cob-item-importe clients-search-inp" style="width:100%" value="${esc(String(importe))}" placeholder="0.00" oninput="recalcCobImportes()">
+        <button type="button" class="btn btn-ghost btn-sm" title="Quitar ítem" onclick="removeCobItem(this)">${icon('trash')}</button>`;
+      cont.appendChild(row);
+      recalcCobImportes();
+    }
+
+    function removeCobItem(btn) {
+      const cont = $('cob-items');
+      const row = btn.closest('.cob-item');
+      if (!row || !cont) return;
+      // No dejar la factura sin ítems: si es el último, sólo se limpia.
+      if (cont.querySelectorAll('.cob-item').length <= 1) {
+        row.querySelector('.cob-item-detalle').value = '';
+        row.querySelector('.cob-item-importe').value = '';
+      } else {
+        row.remove();
+      }
+      recalcCobImportes();
+    }
+
+    // Recalcula los totales (sin IVA / IVA 21% / total) a partir de la suma de los
+    // ítems. Cada ítem es un importe con IVA incluido; el backend desglosa el total.
+    function recalcCobImportes() {
+      const netoInp = $('cob-neto'), ivaInp = $('cob-iva'), totalInp = $('cob-importe');
+      if (!netoInp || !ivaInp || !totalInp) return;
+      const round2 = (n) => Math.round(n * 100) / 100;
+      let total = 0;
+      document.querySelectorAll('#cob-items .cob-item-importe').forEach((inp) => {
+        total += Number(inp.value) || 0;
+      });
+      total = round2(total);
+      const neto = round2(total / 1.21);
+      totalInp.value = total.toFixed(2);
+      netoInp.value = neto.toFixed(2);
+      ivaInp.value = round2(total - neto).toFixed(2);
     }
 
     async function submitCobranzaInvoice(clientId) {
       const btn = $('cob-submit');
       const docNro = String($('cob-doc').value || '').replace(/\D/g, '');
+      // Ítems (conceptos) de la factura: cada uno con descripción e importe c/IVA.
+      const items = [];
+      document.querySelectorAll('#cob-items .cob-item').forEach((row) => {
+        const detalle = String(row.querySelector('.cob-item-detalle').value || '').trim();
+        const importe = Number(row.querySelector('.cob-item-importe').value) || 0;
+        if (importe > 0) items.push({ detalle: detalle || 'Ítem', importe });
+      });
+      if (!items.length) {
+        toast('Agregá al menos un ítem con importe.', 'error');
+        return;
+      }
+      const impTotal = Math.round(items.reduce((s, it) => s + it.importe, 0) * 100) / 100;
+      const cbteTipo = Number($('cob-tipo').value);
+      const sinArca = cbteTipo === 0; // comprobante no fiscal: sólo genera el PDF
       const body = {
-        impTotal: Number($('cob-importe').value),
-        cbteTipo: Number($('cob-tipo').value),
+        impTotal,
+        items,
+        sinArca,
+        cbteTipo,
         concepto: Number($('cob-concepto').value),
         docTipo: docNro.length === 11 ? 80 : 99,
         docNro: docNro || '0',
         condIvaReceptor: Number($('cob-condiva').value),
-        detalle: $('cob-detalle').value,
+        detalle: items.map((it) => it.detalle).join(' + ').slice(0, 500),
         // Registrar la factura como movimiento en la cuenta del cliente (aparece en Resumen de cuenta)
         registrarMovimiento: true,
       };
@@ -9043,7 +9137,7 @@
         return;
       }
       btn.disabled = true;
-      btn.textContent = 'Emitiendo…';
+      btn.textContent = sinArca ? 'Generando…' : 'Emitiendo…';
       try {
         const data = await api(`/api/admin/cobranzas/${encodeURIComponent(clientId)}/invoice`, {
           method: 'POST', body: JSON.stringify(body),
@@ -9051,21 +9145,21 @@
         const inv = data.invoice;
         $('cob-result').innerHTML = `
         <div style="margin-top:0.6rem;padding:0.7rem;border-radius:var(--r-sm,6px);border:1px solid var(--lime,#84cc16);font-size:0.85rem;display:grid;gap:0.3rem">
-          <strong>✓ Factura ${esc(inv.cbteLetra)} ${esc(inv.numero)} emitida</strong>
-          <span>CAE: <span class="admin-data">${esc(inv.cae)}</span> · Vto CAE: ${esc(inv.caeVto)}</span>
+          <strong>✓ ${sinArca ? 'Comprobante' : 'Factura'} ${esc(inv.cbteLetra)} ${esc(inv.numero)} ${sinArca ? 'generado' : 'emitida'}</strong>
+          ${sinArca ? '<span class="admin-muted">Comprobante interno, sin validez fiscal (no pasó por ARCA).</span>' : `<span>CAE: <span class="admin-data">${esc(inv.cae)}</span> · Vto CAE: ${esc(inv.caeVto)}</span>`}
           <a href="/api/admin/cobranzas/invoices/${esc(inv.id)}/pdf" target="_blank" rel="noopener"><strong>Descargar PDF</strong></a>
-          <a href="${esc(inv.qrUrl)}" target="_blank" rel="noopener">Ver QR / verificar en ARCA</a>
+          ${sinArca ? '' : `<a href="${esc(inv.qrUrl)}" target="_blank" rel="noopener">Ver QR / verificar en ARCA</a>`}
           ${cobranzasData?.n8nConfigured ? `<button class="btn btn-subtle btn-sm" onclick="closeCobranzaOverlay();openCobranzaAviso('${clientId}','${inv.id}')">Enviar aviso al cliente</button>` : ''}
         </div>`;
         btn.style.display = 'none';
-        toast(`Factura ${inv.numero} emitida (CAE ${inv.cae})`, 'success');
+        toast(sinArca ? `Comprobante ${inv.numero} generado` : `Factura ${inv.numero} emitida (CAE ${inv.cae})`, 'success');
         loadCobranzas();
         loadAppData?.();
         // Refrescar el resumen de cuenta del cliente para que aparezca la factura recién emitida
         loadMovementsForClient?.(clientId);
       } catch (err) {
         btn.disabled = false;
-        btn.innerHTML = `${icon('receipt')} Emitir factura`;
+        onCobTipoChange();
         toast(err.message || 'No se pudo emitir la factura.', 'error');
       }
     }

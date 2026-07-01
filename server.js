@@ -104,6 +104,8 @@ async function ensureDatabaseMigrations() {
   await pool.query("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS detalle TEXT NOT NULL DEFAULT ''");
   await pool.query("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS imp_neto NUMERIC(14,2) NOT NULL DEFAULT 0");
   await pool.query("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS imp_iva NUMERIC(14,2) NOT NULL DEFAULT 0");
+  // Ítems (conceptos) de la factura: [{ detalle, importe }] con IVA incluido en cada importe
+  await pool.query("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS items JSONB NOT NULL DEFAULT '[]'::jsonb");
   await pool.query("ALTER TABLE clients ADD COLUMN IF NOT EXISTS ultimo_aviso BIGINT NOT NULL DEFAULT 0");
   // Datos generales: mensualidad (facturacion mensual automatica), dia de vencimiento y metodo de envio del aviso
   await pool.query("ALTER TABLE clients ADD COLUMN IF NOT EXISTS mensualidad TEXT NOT NULL DEFAULT 'pasivo'");
@@ -2841,6 +2843,7 @@ function invoiceDTO(row) {
     impNeto: Number(row.imp_neto || 0),
     impIVA: Number(row.imp_iva || 0),
     detalle: row.detalle || '',
+    items: Array.isArray(row.items) ? row.items : [],
     cae: row.cae,
     caeVto: row.cae_vto || '',
     qrUrl: row.qr_url || '',
@@ -2876,15 +2879,64 @@ app.post('/api/admin/cobranzas/:clientId/invoice', requireAdmin, async (req, res
     const cuitCliente = String(b.docNro || client.cuit || '').replace(/\D/g, '');
     const docTipo = Number(b.docTipo || (cuitCliente.length === 11 ? 80 : 99));
 
-    const inv = await arca.emitInvoice({
-      cbteTipo: b.cbteTipo,
-      concepto: b.concepto,
-      docTipo,
-      docNro: docTipo === 99 ? '0' : cuitCliente,
-      impTotal: b.impTotal,
-      condIvaReceptor: b.condIvaReceptor,
-    });
-    const detalleFactura = String(b.detalle || '').trim().slice(0, 500);
+    // Ítems (conceptos) de la factura: cada uno con importe IVA incluido.
+    // El total facturado es la suma de los ítems (o el impTotal legado si no hay ítems).
+    const items = Array.isArray(b.items)
+      ? b.items
+          .map((it) => ({
+            detalle: String((it && it.detalle) || '').trim().slice(0, 500) || 'Ítem',
+            importe: Math.round((Number(it && it.importe) || 0) * 100) / 100,
+          }))
+          .filter((it) => it.importe > 0)
+      : [];
+    const impTotal = items.length
+      ? Math.round(items.reduce((s, it) => s + it.importe, 0) * 100) / 100
+      : Number(b.impTotal);
+
+    // "Sin ARCA": comprobante interno no fiscal. No pasa por AFIP/ARCA, sólo se
+    // genera el PDF. Le asignamos una numeración local propia (letra X).
+    const sinArca = b.sinArca === true || Number(b.cbteTipo) === 0;
+    const docNroInv = docTipo === 99 ? '0' : cuitCliente;
+    let inv;
+    if (sinArca) {
+      if (!Number.isFinite(impTotal) || impTotal <= 0) {
+        return res.status(400).json({ error: 'Importe inválido.' });
+      }
+      const { rows: seqRows } = await pool.query(
+        "SELECT COUNT(*)::int AS n FROM invoices WHERE cbte_tipo = 0"
+      );
+      const cbteNro = (seqRows[0]?.n || 0) + 1;
+      const ptoVta = Number(arca.status().ptoVta || 1);
+      inv = {
+        cbteTipo: 0,
+        cbteLetra: 'X',
+        ptoVta,
+        cbteNro,
+        numero: `${String(ptoVta).padStart(4, '0')}-${String(cbteNro).padStart(8, '0')}`,
+        fecha: new Date().toISOString().slice(0, 10),
+        docTipo,
+        docNro: docNroInv,
+        impTotal,
+        impNeto: impTotal, // no se discrimina IVA en un comprobante no fiscal
+        impIVA: 0,
+        cae: '',
+        caeVto: '',
+        qrUrl: '',
+        production: false,
+      };
+    } else {
+      inv = await arca.emitInvoice({
+        cbteTipo: b.cbteTipo,
+        concepto: b.concepto,
+        docTipo,
+        docNro: docNroInv,
+        impTotal,
+        condIvaReceptor: b.condIvaReceptor,
+      });
+    }
+    const detalleFactura = (items.length
+      ? items.map((it) => it.detalle).join(' + ')
+      : String(b.detalle || '').trim()).slice(0, 500);
 
     const id = mkId();
     const creadoEn = Date.now();
@@ -2900,7 +2952,9 @@ app.post('/api/admin/cobranzas/:clientId/invoice', requireAdmin, async (req, res
          ) VALUES ($1,$2,$3,'','',$4,$5,$6,0,$7,$8,'[]'::jsonb)`,
         [
           movementId, client.id, inv.fecha,
-          `Factura ${inv.cbteLetra} ${inv.numero} — CAE ${inv.cae}`,
+          sinArca
+            ? `Comprobante ${inv.cbteLetra} ${inv.numero} (sin ARCA)`
+            : `Factura ${inv.cbteLetra} ${inv.numero} — CAE ${inv.cae}`,
           inv.impTotal, inv.impTotal, req.user.id, creadoEn,
         ]
       );
@@ -2910,17 +2964,18 @@ app.post('/api/admin/cobranzas/:clientId/invoice', requireAdmin, async (req, res
       `INSERT INTO invoices (
          id, client_id, cbte_tipo, cbte_letra, pto_vta, cbte_nro, numero, fecha,
          doc_tipo, doc_nro, imp_total, imp_neto, imp_iva, detalle, cae, cae_vto,
-         qr_url, production, movement_id, creado_por, creado_en
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)`,
+         qr_url, production, movement_id, creado_por, creado_en, items
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)`,
       [
         id, client.id, inv.cbteTipo, inv.cbteLetra, inv.ptoVta, inv.cbteNro,
         inv.numero, inv.fecha, inv.docTipo, inv.docNro, inv.impTotal,
         inv.impNeto, inv.impIVA, detalleFactura, inv.cae, inv.caeVto,
         inv.qrUrl, inv.production, movementId, req.user.id, creadoEn,
+        JSON.stringify(items),
       ]
     );
 
-    const invoiceOut = { id, clientId: client.id, creadoEn, detalle: detalleFactura, ...inv };
+    const invoiceOut = { id, clientId: client.id, creadoEn, detalle: detalleFactura, items, ...inv };
 
     // Disparar el webhook de n8n al facturar (no bloquea ni revierte la factura si falla)
     let webhook = null;
@@ -2961,7 +3016,7 @@ app.get('/api/admin/cobranzas/invoices/:id/pdf', requireAdmin, async (req, res, 
     const dto = client ? clientDTO(client) : { razonSocial: '', nombreFantasia: '', direccion: '' };
 
     const pdf = await buildInvoicePdf(inv, dto, arca.status().cuit || '');
-    const fname = `Factura_${inv.cbteLetra}_${inv.numero}.pdf`;
+    const fname = `${inv.cbteTipo === 0 ? 'Comprobante' : 'Factura'}_${inv.cbteLetra}_${inv.numero}.pdf`;
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="${fname}"`);
     res.send(pdf);
