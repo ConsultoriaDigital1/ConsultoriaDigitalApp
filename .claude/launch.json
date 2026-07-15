@@ -9,6 +9,15 @@
       ],
       "port": 3100,
       "autoPort": true
+    },
+    {
+      "name": "consultoria-digital-dev",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "scripts/dev.js"
+      ],
+      "port": 3100,
+      "autoPort": true
     }
   ]
 }
