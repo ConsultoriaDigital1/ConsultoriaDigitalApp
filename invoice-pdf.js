@@ -140,8 +140,8 @@ async function buildInvoicePdf(inv, client, cuitEmisor) {
     let nameY = headY;
     if (LOGO_BUFFER) {
       try {
-        doc.image(LOGO_BUFFER, X, headY, { fit: [200, 52], align: 'left', valign: 'top' });
-        nameY = headY + 60;
+        doc.image(LOGO_BUFFER, X, headY, { fit: [190, 66], align: 'left', valign: 'top' });
+        nameY = headY + 74;
       } catch (_e) {
         doc.fillColor(NAVY).font('Helvetica-Bold').fontSize(20).text(EMISOR.razonSocial, X, headY, { width: emisorW });
         nameY = headY + 30;
