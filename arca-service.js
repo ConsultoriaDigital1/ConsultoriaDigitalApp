@@ -6,6 +6,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 const fs = require('fs');
 const path = require('path');
+const https = require('https');
 const forge = require('node-forge');
 
 const CUIT = String(process.env.ARCA_CUIT || '').replace(/\D/g, '');
@@ -50,22 +51,51 @@ function xmlUnescape(s) {
     .replace(/&amp;/g, '&');
 }
 
-async function soapPost(url, action, body) {
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'text/xml; charset=utf-8',
-      // WSAA exige el header SOAPAction presente aunque sea vacío ("no SOAPAction header!")
-      SOAPAction: action || '',
-    },
-    body,
+// Los servidores de ARCA ofrecen por defecto un cipher DHE con una clave más chica
+// de lo que acepta OpenSSL 3 (ERR_SSL_DH_KEY_TOO_SMALL) y el handshake se corta antes
+// de mandar nada. Forzamos ECDHE, que soportan los cuatro endpoints (producción y
+// homologación) y además mantiene forward secrecy. Por eso va https en vez de fetch:
+// fetch no permite tocar los ciphers del socket.
+const SOAP_TIMEOUT_MS = 30000;
+const arcaAgent = new https.Agent({ keepAlive: true, ciphers: 'ECDHE:DEFAULT:!DHE' });
+
+function soapPost(url, action, body) {
+  const { hostname, pathname, search } = new URL(url);
+  const payload = Buffer.from(body, 'utf8');
+  return new Promise((resolve, reject) => {
+    const req = https.request(
+      {
+        agent: arcaAgent,
+        hostname,
+        path: pathname + search,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'text/xml; charset=utf-8',
+          'Content-Length': payload.length,
+          // WSAA exige el header SOAPAction presente aunque sea vacío ("no SOAPAction header!")
+          SOAPAction: action || '',
+        },
+      },
+      (res) => {
+        let text = '';
+        res.setEncoding('utf8');
+        res.on('data', (chunk) => { text += chunk; });
+        res.on('end', () => {
+          if (res.statusCode < 200 || res.statusCode >= 300) {
+            const fault = xmlVal(text, 'faultstring') || text.slice(0, 300);
+            reject(new Error(`ARCA respondió ${res.statusCode}: ${fault}`));
+            return;
+          }
+          resolve(text);
+        });
+      }
+    );
+    req.setTimeout(SOAP_TIMEOUT_MS, () => {
+      req.destroy(new Error('ARCA no respondió a tiempo (timeout).'));
+    });
+    req.on('error', reject);
+    req.end(payload);
   });
-  const text = await res.text();
-  if (!res.ok) {
-    const fault = xmlVal(text, 'faultstring') || text.slice(0, 300);
-    throw new Error(`ARCA respondió ${res.status}: ${fault}`);
-  }
-  return text;
 }
 
 // ── WSAA: obtener token + sign ──
