@@ -106,6 +106,15 @@ async function ensureDatabaseMigrations() {
   await pool.query("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS imp_iva NUMERIC(14,2) NOT NULL DEFAULT 0");
   // Ítems (conceptos) de la factura: [{ detalle, importe }] con IVA incluido en cada importe
   await pool.query("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS items JSONB NOT NULL DEFAULT '[]'::jsonb");
+  // Borradores: la fila se crea ANTES de pedir el CAE, así una factura que ARCA
+  // autorizó pero que no se llegó a guardar nunca queda huérfana, y un error de
+  // red no obliga a rearmar el comprobante. 'borrador' -> 'emitida' al obtener CAE.
+  await pool.query("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS estado TEXT NOT NULL DEFAULT 'emitida'");
+  await pool.query("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS last_error TEXT NOT NULL DEFAULT ''");
+  await pool.query('ALTER TABLE invoices ADD COLUMN IF NOT EXISTS intentos INTEGER NOT NULL DEFAULT 0');
+  // Datos del pedido original, para poder reintentar sin que el usuario recargue nada
+  await pool.query("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS payload JSONB NOT NULL DEFAULT '{}'::jsonb");
+  await pool.query("CREATE INDEX IF NOT EXISTS idx_invoices_borradores ON invoices(creado_en DESC) WHERE estado <> 'emitida'");
   await pool.query("ALTER TABLE clients ADD COLUMN IF NOT EXISTS ultimo_aviso BIGINT NOT NULL DEFAULT 0");
   // Datos generales: mensualidad (facturacion mensual automatica), dia de vencimiento y metodo de envio del aviso
   await pool.query("ALTER TABLE clients ADD COLUMN IF NOT EXISTS mensualidad TEXT NOT NULL DEFAULT 'pasivo'");
@@ -1735,7 +1744,7 @@ app.get('/api/admin/clients/:id/movements', requireAdmin, async (req, res, next)
     // Facturas electrónicas vinculadas a movimientos, para abrir el PDF desde el resumen de cuenta
     const { rows: invRows } = await pool.query(
       `SELECT id, movement_id, cbte_letra, numero FROM invoices
-       WHERE client_id = $1 AND movement_id IS NOT NULL`,
+       WHERE client_id = $1 AND movement_id IS NOT NULL AND estado = 'emitida'`,
       [req.params.id]
     );
     const invByMov = new Map(invRows.map((i) => [i.movement_id, i]));
@@ -2849,6 +2858,12 @@ function invoiceDTO(row) {
     qrUrl: row.qr_url || '',
     production: Boolean(row.production),
     creadoEn: Number(row.creado_en) || 0,
+    estado: row.estado || 'emitida',
+    lastError: row.last_error || '',
+    intentos: Number(row.intentos) || 0,
+    // Sólo para borradores: datos del pedido, para reintentar o corregir
+    payload: row.estado && row.estado !== 'emitida' && row.payload ? row.payload : undefined,
+    clienteNombre: row.cliente_nombre || undefined,
   };
 }
 
@@ -2858,16 +2873,139 @@ app.get('/api/admin/cobranzas', requireAdmin, async (_req, res, next) => {
     const clients = await listClients();
     const pendientes = clients.filter((c) => Number(c.saldo || 0) > 0);
     const { rows: invRows } = await pool.query(
-      'SELECT * FROM invoices ORDER BY creado_en DESC LIMIT 50'
+      "SELECT * FROM invoices WHERE estado = 'emitida' ORDER BY creado_en DESC LIMIT 50"
+    );
+    // Facturas que no llegaron a obtener CAE: quedan a la vista para reintentar
+    const { rows: draftRows } = await pool.query(
+      `SELECT i.*, COALESCE(NULLIF(c.nombre_fantasia, ''), c.razon_social) AS cliente_nombre
+         FROM invoices i JOIN clients c ON c.id = i.client_id
+        WHERE i.estado <> 'emitida'
+        ORDER BY i.creado_en DESC LIMIT 50`
     );
     res.json({
       arca: arca.status(),
       n8nConfigured: Boolean(process.env.N8N_WEBHOOK_URL),
       pendientes,
       invoices: invRows.map(invoiceDTO),
+      borradores: draftRows.map(invoiceDTO),
     });
   } catch (err) { next(err); }
 });
+
+// Pasa un borrador a "emitida" con lo que devolvió ARCA y registra el movimiento
+// en la cuenta del cliente. El movimiento se crea acá y no antes, para que una
+// factura que nunca se emitió no le infle el saldo al cliente.
+async function finalizarFactura(invoiceId, inv, opts) {
+  const { client, userId, detalle, items, registrarMovimiento, sinArca } = opts;
+  let movementId = null;
+  if (registrarMovimiento) {
+    movementId = mkId();
+    await pool.query(
+      `INSERT INTO client_movements (
+         id, client_id, fecha, medio_pago, banco, detalle,
+         monto_factura, debe, haber, creado_por, creado_en, archivos
+       ) VALUES ($1,$2,$3,'','',$4,$5,$6,0,$7,$8,'[]'::jsonb)`,
+      [
+        movementId, client.id, inv.fecha,
+        sinArca
+          ? `Comprobante ${inv.cbteLetra} ${inv.numero} (sin ARCA)`
+          : `Factura ${inv.cbteLetra} ${inv.numero} — CAE ${inv.cae}`,
+        inv.impTotal, inv.impTotal, userId, Date.now(),
+      ]
+    );
+  }
+  const { rows } = await pool.query(
+    `UPDATE invoices SET
+       estado = 'emitida', cbte_tipo = $2, cbte_letra = $3, pto_vta = $4, cbte_nro = $5,
+       numero = $6, fecha = $7, doc_tipo = $8, doc_nro = $9, imp_total = $10,
+       imp_neto = $11, imp_iva = $12, cae = $13, cae_vto = $14, qr_url = $15,
+       production = $16, movement_id = $17, detalle = $18, items = $19, last_error = ''
+     WHERE id = $1 RETURNING *`,
+    [
+      invoiceId, inv.cbteTipo, inv.cbteLetra, inv.ptoVta, inv.cbteNro, inv.numero,
+      inv.fecha, inv.docTipo, inv.docNro, inv.impTotal, inv.impNeto, inv.impIVA,
+      inv.cae, inv.caeVto, inv.qrUrl, inv.production, movementId, detalle,
+      JSON.stringify(items),
+    ]
+  );
+  return invoiceDTO(rows[0]);
+}
+
+// Deja constancia del fallo en el borrador para poder reintentarlo después.
+async function marcarErrorFactura(invoiceId, err) {
+  await pool.query(
+    "UPDATE invoices SET estado = 'borrador', last_error = $2, intentos = intentos + 1 WHERE id = $1",
+    [invoiceId, String((err && err.message) || err || '').slice(0, 500)]
+  );
+}
+
+// Pide el CAE para un borrador ya persistido y lo finaliza.
+async function emitirBorrador(invoiceId, { client, userId, payload, reconciliarCbteNro }) {
+  const inv = await arca.emitInvoice(
+    {
+      cbteTipo: payload.cbteTipo,
+      concepto: payload.concepto,
+      docTipo: payload.docTipo,
+      docNro: payload.docNro,
+      impTotal: payload.impTotal,
+      condIvaReceptor: payload.condIvaReceptor,
+    },
+    {
+      // Guardar el número reservado ANTES de pedir el CAE es lo que después
+      // permite preguntarle a ARCA si la factura salió, en vez de emitir de nuevo.
+      onNumeroReservado: (cbteNro) =>
+        pool.query('UPDATE invoices SET cbte_nro = $2 WHERE id = $1', [invoiceId, cbteNro]),
+      reconciliarCbteNro,
+    }
+  );
+  return finalizarFactura(invoiceId, inv, {
+    client,
+    userId,
+    detalle: payload.detalle,
+    items: payload.items || [],
+    registrarMovimiento: payload.registrarMovimiento !== false,
+    sinArca: false,
+  });
+}
+
+// Webhook a n8n avisando que se emitió la factura (no revierte nada si falla)
+async function avisarFacturaEmitida(client, invoiceOut) {
+  if (!process.env.N8N_WEBHOOK_URL) return null;
+  const balances = await clientBalances();
+  const saldo = Number((balances[client.id] || {}).saldo || 0);
+  const webhook = await sendCobranzaWebhook({
+    evento: 'factura_emitida',
+    enviadoEn: new Date().toISOString(),
+    cliente: {
+      id: client.id,
+      nombreFantasia: client.nombre_fantasia || '',
+      razonSocial: client.razon_social || '',
+      cuit: client.cuit || '',
+      telAdmin: client.tel_admin || '',
+      telDueno: client.tel_dueno || '',
+      mail1: client.mail1 || '',
+      mail2: client.mail2 || '',
+      vence: client.vence || '',
+      saldo,
+    },
+    factura: invoiceOut,
+  });
+  if (!webhook.ok) console.warn('[cobranzas] webhook n8n falló al facturar:', webhook.status, webhook.error);
+  return webhook;
+}
+
+// Respuesta uniforme cuando no se pudo emitir: el borrador queda guardado y el
+// front muestra el error real de ARCA en vez de un 500 mudo.
+function responderFallaFactura(res, invoiceId, err) {
+  const rechazo = Boolean(err && err.arcaRechazo);
+  return res.status(502).json({
+    error: (err && err.message) || 'No se pudo emitir la factura.',
+    invoiceId,
+    rechazo,
+    // Un rechazo por datos hay que corregirlo antes: reintentar igual da lo mismo.
+    reintentable: !rechazo,
+  });
+}
 
 // Emitir factura electrónica en ARCA y registrarla como movimiento del cliente
 app.post('/api/admin/cobranzas/:clientId/invoice', requireAdmin, async (req, res, next) => {
@@ -2899,17 +3037,54 @@ app.post('/api/admin/cobranzas/:clientId/invoice', requireAdmin, async (req, res
     // genera el PDF. Le asignamos una numeración local propia (letra X).
     const sinArca = b.sinArca === true || Number(b.cbteTipo) === 0;
     const docNroInv = docTipo === 99 ? '0' : cuitCliente;
-    let inv;
+    if (!Number.isFinite(impTotal) || impTotal <= 0) {
+      return res.status(400).json({ error: 'Importe inválido.' });
+    }
+    const detalleFactura = (items.length
+      ? items.map((it) => it.detalle).join(' + ')
+      : String(b.detalle || '').trim()).slice(0, 500);
+
+    const id = mkId();
+    const creadoEn = Date.now();
+    const registrarMovimiento = b.registrarMovimiento !== false;
+    const payload = {
+      cbteTipo: Number(b.cbteTipo),
+      concepto: Number(b.concepto),
+      docTipo,
+      docNro: docNroInv,
+      condIvaReceptor: Number(b.condIvaReceptor),
+      impTotal,
+      items,
+      detalle: detalleFactura,
+      registrarMovimiento,
+      sinArca,
+    };
+
+    // La fila se crea como borrador ANTES de hablar con ARCA. Si el CAE sale pero
+    // se cae el proceso, la factura ya está registrada y se reconcilia al reintentar.
+    await pool.query(
+      `INSERT INTO invoices (
+         id, client_id, cbte_tipo, cbte_letra, pto_vta, cbte_nro, numero, fecha,
+         doc_tipo, doc_nro, imp_total, imp_neto, imp_iva, detalle, cae, cae_vto,
+         qr_url, production, creado_por, creado_en, items, estado, payload
+       ) VALUES ($1,$2,$3,'',$4,0,'',$5,$6,$7,$8,0,0,$9,'','','',$10,$11,$12,$13,'borrador',$14)`,
+      [
+        id, client.id, sinArca ? 0 : Number(b.cbteTipo) || 0,
+        Number(arca.status().ptoVta || 1), new Date().toISOString().slice(0, 10),
+        docTipo, docNroInv, impTotal, detalleFactura, arca.status().production,
+        req.user.id, creadoEn, JSON.stringify(items), JSON.stringify(payload),
+      ]
+    );
+
+    let invoiceOut;
     if (sinArca) {
-      if (!Number.isFinite(impTotal) || impTotal <= 0) {
-        return res.status(400).json({ error: 'Importe inválido.' });
-      }
+      // Comprobante interno no fiscal: no pasa por ARCA, numeración local propia (letra X).
       const { rows: seqRows } = await pool.query(
-        "SELECT COUNT(*)::int AS n FROM invoices WHERE cbte_tipo = 0"
+        "SELECT COUNT(*)::int AS n FROM invoices WHERE cbte_tipo = 0 AND estado = 'emitida'"
       );
       const cbteNro = (seqRows[0]?.n || 0) + 1;
       const ptoVta = Number(arca.status().ptoVta || 1);
-      inv = {
+      invoiceOut = await finalizarFactura(id, {
         cbteTipo: 0,
         cbteLetra: 'X',
         ptoVta,
@@ -2925,86 +3100,111 @@ app.post('/api/admin/cobranzas/:clientId/invoice', requireAdmin, async (req, res
         caeVto: '',
         qrUrl: '',
         production: false,
-      };
+      }, { client, userId: req.user.id, detalle: detalleFactura, items, registrarMovimiento, sinArca: true });
     } else {
-      inv = await arca.emitInvoice({
-        cbteTipo: b.cbteTipo,
-        concepto: b.concepto,
-        docTipo,
-        docNro: docNroInv,
-        impTotal,
-        condIvaReceptor: b.condIvaReceptor,
-      });
+      try {
+        invoiceOut = await emitirBorrador(id, { client, userId: req.user.id, payload });
+      } catch (err) {
+        console.error('[cobranzas] no se pudo emitir la factura', id, err);
+        await marcarErrorFactura(id, err);
+        return responderFallaFactura(res, id, err);
+      }
     }
-    const detalleFactura = (items.length
+
+    const webhook = await avisarFacturaEmitida(client, invoiceOut);
+    res.status(201).json({ invoice: invoiceOut, webhook });
+  } catch (err) { next(err); }
+});
+
+// Reintentar un borrador que no llegó a obtener CAE. Acepta correcciones en el
+// body (por ejemplo si ARCA rechazó por un CUIT mal cargado).
+app.post('/api/admin/cobranzas/invoices/:id/retry', requireAdmin, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM invoices WHERE id = $1', [req.params.id]);
+    const row = rows[0];
+    if (!row) return res.status(404).json({ error: 'Factura no encontrada.' });
+    if (row.estado === 'emitida') {
+      return res.json({ invoice: invoiceDTO(row), yaEmitida: true });
+    }
+    const client = await getClientById(row.client_id);
+    if (!client) return res.status(404).json({ error: 'Cliente no encontrado.' });
+
+    const b = req.body || {};
+    const previo = row.payload && typeof row.payload === 'object' ? row.payload : {};
+    // Sólo se pisan los campos que vinieron corregidos; el resto queda como estaba.
+    const items = Array.isArray(b.items)
+      ? b.items
+          .map((it) => ({
+            detalle: String((it && it.detalle) || '').trim().slice(0, 500) || 'Ítem',
+            importe: Math.round((Number(it && it.importe) || 0) * 100) / 100,
+          }))
+          .filter((it) => it.importe > 0)
+      : (previo.items || []);
+    const impTotalBody = Number(b.impTotal);
+    const impTotal = Number.isFinite(impTotalBody) && impTotalBody > 0
+      ? Math.round(impTotalBody * 100) / 100
+      : Number(previo.impTotal);
+    if (!Number.isFinite(impTotal) || impTotal <= 0) {
+      return res.status(400).json({ error: 'Importe inválido.' });
+    }
+    const docNro = b.docNro !== undefined
+      ? String(b.docNro || '').replace(/\D/g, '')
+      : String(previo.docNro || '0');
+    const docTipo = b.docNro !== undefined
+      ? (docNro.length === 11 ? 80 : 99)
+      : Number(previo.docTipo || 99);
+    const detalle = (items.length
       ? items.map((it) => it.detalle).join(' + ')
-      : String(b.detalle || '').trim()).slice(0, 500);
+      : String(b.detalle || previo.detalle || '').trim()).slice(0, 500);
 
-    const id = mkId();
-    const creadoEn = Date.now();
-    let movementId = null;
-
-    // Registrar también como movimiento (suma al debe del cliente) si se pidió
-    if (b.registrarMovimiento !== false) {
-      movementId = mkId();
-      await pool.query(
-        `INSERT INTO client_movements (
-           id, client_id, fecha, medio_pago, banco, detalle,
-           monto_factura, debe, haber, creado_por, creado_en, archivos
-         ) VALUES ($1,$2,$3,'','',$4,$5,$6,0,$7,$8,'[]'::jsonb)`,
-        [
-          movementId, client.id, inv.fecha,
-          sinArca
-            ? `Comprobante ${inv.cbteLetra} ${inv.numero} (sin ARCA)`
-            : `Factura ${inv.cbteLetra} ${inv.numero} — CAE ${inv.cae}`,
-          inv.impTotal, inv.impTotal, req.user.id, creadoEn,
-        ]
-      );
-    }
-
+    const payload = {
+      ...previo,
+      cbteTipo: b.cbteTipo !== undefined ? Number(b.cbteTipo) : Number(previo.cbteTipo),
+      concepto: b.concepto !== undefined ? Number(b.concepto) : Number(previo.concepto),
+      condIvaReceptor: b.condIvaReceptor !== undefined
+        ? Number(b.condIvaReceptor)
+        : Number(previo.condIvaReceptor),
+      docTipo,
+      docNro: docTipo === 99 ? '0' : docNro,
+      impTotal,
+      items,
+      detalle,
+    };
     await pool.query(
-      `INSERT INTO invoices (
-         id, client_id, cbte_tipo, cbte_letra, pto_vta, cbte_nro, numero, fecha,
-         doc_tipo, doc_nro, imp_total, imp_neto, imp_iva, detalle, cae, cae_vto,
-         qr_url, production, movement_id, creado_por, creado_en, items
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)`,
-      [
-        id, client.id, inv.cbteTipo, inv.cbteLetra, inv.ptoVta, inv.cbteNro,
-        inv.numero, inv.fecha, inv.docTipo, inv.docNro, inv.impTotal,
-        inv.impNeto, inv.impIVA, detalleFactura, inv.cae, inv.caeVto,
-        inv.qrUrl, inv.production, movementId, req.user.id, creadoEn,
-        JSON.stringify(items),
-      ]
+      'UPDATE invoices SET payload = $2, items = $3, imp_total = $4, detalle = $5, doc_tipo = $6, doc_nro = $7 WHERE id = $1',
+      [row.id, JSON.stringify(payload), JSON.stringify(items), impTotal, detalle, payload.docTipo, payload.docNro]
     );
 
-    const invoiceOut = { id, clientId: client.id, creadoEn, detalle: detalleFactura, items, ...inv };
-
-    // Disparar el webhook de n8n al facturar (no bloquea ni revierte la factura si falla)
-    let webhook = null;
-    if (process.env.N8N_WEBHOOK_URL) {
-      const balances = await clientBalances();
-      const saldo = Number((balances[client.id] || {}).saldo || 0);
-      webhook = await sendCobranzaWebhook({
-        evento: 'factura_emitida',
-        enviadoEn: new Date().toISOString(),
-        cliente: {
-          id: client.id,
-          nombreFantasia: client.nombre_fantasia || '',
-          razonSocial: client.razon_social || '',
-          cuit: client.cuit || '',
-          telAdmin: client.tel_admin || '',
-          telDueno: client.tel_dueno || '',
-          mail1: client.mail1 || '',
-          mail2: client.mail2 || '',
-          vence: client.vence || '',
-          saldo,
-        },
-        factura: invoiceOut,
+    try {
+      // Si el intento anterior alcanzó a reservar número, se consulta en ARCA antes
+      // de emitir: si ese comprobante ya tiene CAE, se adopta en vez de duplicarlo.
+      const invoiceOut = await emitirBorrador(row.id, {
+        client,
+        userId: req.user.id,
+        payload,
+        reconciliarCbteNro: Number(row.cbte_nro) > 0 ? Number(row.cbte_nro) : null,
       });
-      if (!webhook.ok) console.warn('[cobranzas] webhook n8n falló al facturar:', webhook.status, webhook.error);
+      const webhook = await avisarFacturaEmitida(client, invoiceOut);
+      return res.json({ invoice: invoiceOut, webhook });
+    } catch (err) {
+      console.error('[cobranzas] falló el reintento de la factura', row.id, err);
+      await marcarErrorFactura(row.id, err);
+      return responderFallaFactura(res, row.id, err);
     }
+  } catch (err) { next(err); }
+});
 
-    res.status(201).json({ invoice: invoiceOut, webhook });
+// Descartar un borrador. Nunca borra una factura ya emitida: eso se anula con
+// nota de crédito en ARCA, no borrando la fila.
+app.delete('/api/admin/cobranzas/invoices/:id', requireAdmin, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query('SELECT estado FROM invoices WHERE id = $1', [req.params.id]);
+    if (!rows[0]) return res.status(404).json({ error: 'Factura no encontrada.' });
+    if (rows[0].estado === 'emitida') {
+      return res.status(409).json({ error: 'La factura ya fue emitida en ARCA: no se puede borrar.' });
+    }
+    await pool.query("DELETE FROM invoices WHERE id = $1 AND estado <> 'emitida'", [req.params.id]);
+    res.json({ ok: true });
   } catch (err) { next(err); }
 });
 
@@ -3013,6 +3213,9 @@ app.get('/api/admin/cobranzas/invoices/:id/pdf', requireAdmin, async (req, res, 
   try {
     const { rows } = await pool.query('SELECT * FROM invoices WHERE id = $1', [req.params.id]);
     if (!rows[0]) return res.status(404).json({ error: 'Factura no encontrada.' });
+    if (rows[0].estado && rows[0].estado !== 'emitida') {
+      return res.status(409).json({ error: 'La factura todavía no se emitió: no tiene número ni CAE.' });
+    }
     const inv = invoiceDTO(rows[0]);
     const client = await getClientById(inv.clientId);
     const dto = client ? clientDTO(client) : { razonSocial: '', nombreFantasia: '', direccion: '' };

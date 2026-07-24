@@ -8635,6 +8635,7 @@
       if (!res.ok) {
         const err = new Error(data.error || 'Error de servidor.');
         err.status = res.status;
+        err.data = data; // el endpoint puede mandar contexto extra (ej. el borrador de una factura)
         throw err;
       }
       return data;
@@ -8972,11 +8973,68 @@
       return esc(new Date(ms).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }));
     }
 
+    // Facturas que quedaron sin CAE (se cortó la red, ARCA rechazó, etc). Se muestran
+    // arriba de todo para que no pasen desapercibidas: los datos ya están guardados,
+    // sólo hay que reintentar.
+    function renderBorradoresFactura(borradores) {
+      if (!borradores || !borradores.length) return '';
+      const filas = borradores.map((b) => `
+        <div style="display:flex;gap:0.7rem;align-items:flex-start;justify-content:space-between;padding:0.6rem 0;border-top:1px solid var(--border2,#333)">
+          <div style="min-width:0">
+            <div style="font-weight:600;font-size:0.85rem">${esc(b.clienteNombre || 'Cliente')} · <span class="admin-money">${esc(moneyText(b.impTotal))}</span></div>
+            <div class="admin-muted" style="font-size:0.75rem;margin-top:0.15rem">${esc(b.detalle || 'Sin detalle')}</div>
+            <div style="font-size:0.75rem;margin-top:0.25rem;color:var(--muted,#8a8a8a)">
+              ${esc(b.lastError || 'No se pudo emitir.')}
+              ${b.intentos ? ` <span style="opacity:0.7">(${b.intentos} intento${b.intentos === 1 ? '' : 's'})</span>` : ''}
+            </div>
+          </div>
+          <div style="display:flex;gap:0.4rem;flex-shrink:0">
+            <button class="btn btn-lime btn-sm" onclick="reintentarBorradorFactura('${esc(b.id)}')">${icon('receipt')} Reintentar</button>
+            <button class="btn btn-ghost btn-sm" onclick="descartarBorradorFactura('${esc(b.id)}')" title="Descartar el borrador">${icon('x')}</button>
+          </div>
+        </div>`).join('');
+      return `
+      <div style="margin-bottom:1rem;padding:0.8rem 1rem;border-radius:var(--r-sm,6px);background:rgba(250,200,50,0.10);border:1px solid rgba(250,200,50,0.45)">
+        <div style="font-weight:700;font-size:0.88rem">${borradores.length} factura${borradores.length === 1 ? '' : 's'} sin emitir</div>
+        <div class="admin-muted" style="font-size:0.78rem;margin-top:0.15rem">Los datos quedaron guardados. Al reintentar se verifica primero en ARCA si el comprobante llegó a emitirse, así no se duplica.</div>
+        ${filas}
+      </div>`;
+    }
+
+    async function reintentarBorradorFactura(id) {
+      try {
+        const data = await api(`/api/admin/cobranzas/invoices/${encodeURIComponent(id)}/retry`, { method: 'POST', body: '{}' });
+        const inv = data.invoice;
+        toast(data.yaEmitida
+          ? `La factura ${inv.numero} ya estaba emitida en ARCA (CAE ${inv.cae})`
+          : `Factura ${inv.numero} emitida (CAE ${inv.cae})`, 'success');
+        loadCobranzas();
+        loadAppData?.();
+      } catch (err) {
+        toast(err.data?.rechazo
+          ? `ARCA rechazó la factura: ${err.message} Corregí los datos del cliente y reintentá.`
+          : (err.message || 'No se pudo emitir la factura.'), 'error');
+        loadCobranzas();
+      }
+    }
+
+    async function descartarBorradorFactura(id) {
+      if (!confirm('¿Descartar este borrador? Los datos de la factura se pierden.')) return;
+      try {
+        await api(`/api/admin/cobranzas/invoices/${encodeURIComponent(id)}`, { method: 'DELETE' });
+        toast('Borrador descartado', 'success');
+        loadCobranzas();
+      } catch (err) {
+        toast(err.message || 'No se pudo descartar el borrador.', 'error');
+      }
+    }
+
     function renderCobranzasResults() {
       const box = $('cobranzas-results');
       if (!box || !cobranzasData) return;
       const d = cobranzasData;
       const todayStr = new Date().toISOString().slice(0, 10);
+      const borradoresHtml = renderBorradoresFactura(d.borradores);
 
       const statusBox = $('cobranzas-status');
       if (statusBox) {
@@ -8992,7 +9050,7 @@
       if (sub) sub.innerHTML = `${d.pendientes.length} cliente${d.pendientes.length === 1 ? '' : 's'} con saldo pendiente · Total <span class="admin-money">${esc(moneyText(totalPend))}</span>`;
 
       if (!d.pendientes.length) {
-        box.innerHTML = `<div class="admin-placeholder"><strong>Sin pendientes</strong> Todos los clientes están al día. 🎉</div>`;
+        box.innerHTML = borradoresHtml + `<div class="admin-placeholder"><strong>Sin pendientes</strong> Todos los clientes están al día. 🎉</div>`;
         return;
       }
 
@@ -9005,7 +9063,7 @@
         : d.pendientes;
 
       if (!pendientesFiltrados.length) {
-        box.innerHTML = `<div class="admin-placeholder"><strong>Sin resultados</strong> No hay pendientes que coincidan con “${esc(cobranzasSearchTerm.trim())}”.</div>`;
+        box.innerHTML = borradoresHtml + `<div class="admin-placeholder"><strong>Sin resultados</strong> No hay pendientes que coincidan con “${esc(cobranzasSearchTerm.trim())}”.</div>`;
         return;
       }
 
@@ -9040,7 +9098,7 @@
         </tr>`;
         }).join('');
 
-      box.innerHTML = `
+      box.innerHTML = borradoresHtml + `
     <div style="overflow-x:auto">
       <table class="clients-table">
         <thead>
@@ -9075,7 +9133,13 @@
       document.body.appendChild(wrap);
     }
 
+    // Si un intento deja un borrador, el siguiente "Emitir" del mismo popup reintenta
+    // ese borrador en vez de crear uno nuevo. Sin esto, cada rechazo de ARCA que el
+    // usuario corrige y reenvía dejaría un borrador huérfano acumulado.
+    let cobBorradorId = null;
+
     async function openCobranzaInvoice(clientId) {
+      cobBorradorId = null;
       // Puede invocarse desde Cobranzas o desde Clientes/Resumen de cuenta:
       // aseguramos tener el estado de ARCA y buscamos el cliente en ambos caches.
       if (!cobranzasData) { try { await loadCobranzas(); } catch (_e) { /* se valida abajo */ } }
@@ -9304,9 +9368,16 @@
       btn.disabled = true;
       btn.textContent = sinArca ? 'Generando…' : 'Emitiendo…';
       try {
-        const data = await api(`/api/admin/cobranzas/${encodeURIComponent(clientId)}/invoice`, {
-          method: 'POST', body: JSON.stringify(body),
-        });
+        // Si ya hay un borrador de este popup, se reintenta ése con los datos
+        // corregidos; si no, se crea uno nuevo.
+        const data = cobBorradorId
+          ? await api(`/api/admin/cobranzas/invoices/${encodeURIComponent(cobBorradorId)}/retry`, {
+            method: 'POST', body: JSON.stringify(body),
+          })
+          : await api(`/api/admin/cobranzas/${encodeURIComponent(clientId)}/invoice`, {
+            method: 'POST', body: JSON.stringify(body),
+          });
+        cobBorradorId = null;
         const inv = data.invoice;
         $('cob-result').innerHTML = `
         <div style="margin-top:0.6rem;padding:0.7rem;border-radius:var(--r-sm,6px);border:1px solid var(--lime,#84cc16);font-size:0.85rem;display:grid;gap:0.3rem">
@@ -9325,7 +9396,21 @@
       } catch (err) {
         btn.disabled = false;
         onCobTipoChange();
+        const info = err.data || {};
+        if (info.invoiceId) cobBorradorId = info.invoiceId;
+        const resultBox = $('cob-result');
+        if (resultBox && cobBorradorId) {
+          resultBox.innerHTML = `
+        <div style="margin-top:0.6rem;padding:0.7rem;border-radius:var(--r-sm,6px);border:1px solid rgba(250,200,50,0.55);background:rgba(250,200,50,0.10);font-size:0.85rem;display:grid;gap:0.35rem">
+          <strong>No se pudo emitir en ARCA</strong>
+          <span>${esc(err.message)}</span>
+          <span class="admin-muted">${info.rechazo
+            ? 'ARCA rechazó los datos del comprobante. Corregilos acá arriba y tocá Emitir de nuevo: se reintenta esta misma factura, no se duplica.'
+            : 'La factura quedó guardada como borrador, no hace falta rearmarla. Tocá Emitir de nuevo, o reintentá más tarde desde la lista de Cobranzas.'}</span>
+        </div>`;
+        }
         toast(err.message || 'No se pudo emitir la factura.', 'error');
+        loadCobranzas();
       }
     }
 

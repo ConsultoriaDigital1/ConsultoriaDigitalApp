@@ -40,7 +40,9 @@ function status() {
 
 // ── helpers XML (las respuestas de ARCA son acotadas y predecibles) ──
 function xmlVal(xml, tag) {
-  const m = xml.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`));
+  // El nombre del tag tiene que terminar acá: si no, buscar <FchVto> matchearía
+  // <FchVtoPago>, y <CAE> matchearía <CAEFchVto>.
+  const m = xml.match(new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)</${tag}>`));
   return m ? m[1].trim() : '';
 }
 
@@ -58,6 +60,33 @@ function xmlUnescape(s) {
 // fetch no permite tocar los ciphers del socket.
 const SOAP_TIMEOUT_MS = 30000;
 const arcaAgent = new https.Agent({ keepAlive: true, ciphers: 'ECDHE:DEFAULT:!DHE' });
+
+// Esperas entre reintentos de errores de transporte.
+const RETRY_DELAYS_MS = [1000, 2000, 4000];
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Marca un error como "no llegó a procesarse" (red, TLS, timeout, 5xx). Sólo estos
+// se reintentan: un rechazo de ARCA por datos da siempre el mismo resultado.
+function retryable(err) {
+  err.arcaRetryable = true;
+  return err;
+}
+
+/**
+ * Reintenta con backoff, pero SÓLO errores de transporte.
+ * Usar únicamente en llamadas idempotentes (consultas, login): reintentar
+ * FECAESolicitar a ciegas puede emitir la misma factura dos veces.
+ */
+async function withRetry(fn, reintentos = RETRY_DELAYS_MS.length) {
+  for (let i = 0; ; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (!err.arcaRetryable || i >= reintentos) throw err;
+      await sleep(RETRY_DELAYS_MS[Math.min(i, RETRY_DELAYS_MS.length - 1)]);
+    }
+  }
+}
 
 function soapPost(url, action, body) {
   const { hostname, pathname, search } = new URL(url);
@@ -83,7 +112,9 @@ function soapPost(url, action, body) {
         res.on('end', () => {
           if (res.statusCode < 200 || res.statusCode >= 300) {
             const fault = xmlVal(text, 'faultstring') || text.slice(0, 300);
-            reject(new Error(`ARCA respondió ${res.statusCode}: ${fault}`));
+            const err = new Error(`ARCA respondió ${res.statusCode}: ${fault}`);
+            // 5xx = problema del lado de ARCA, puede andar en el próximo intento.
+            reject(res.statusCode >= 500 ? retryable(err) : err);
             return;
           }
           resolve(text);
@@ -91,9 +122,10 @@ function soapPost(url, action, body) {
       }
     );
     req.setTimeout(SOAP_TIMEOUT_MS, () => {
-      req.destroy(new Error('ARCA no respondió a tiempo (timeout).'));
+      req.destroy(retryable(new Error('ARCA no respondió a tiempo (timeout).')));
     });
-    req.on('error', reject);
+    // Cualquier fallo de socket/TLS/DNS: la request no llegó a destino.
+    req.on('error', (err) => reject(retryable(err)));
     req.end(payload);
   });
 }
@@ -157,7 +189,7 @@ async function getTA() {
   </soapenv:Body>
 </soapenv:Envelope>`;
 
-  const resXml = await soapPost(WSAA_URL, '', envelope);
+  const resXml = await withRetry(() => soapPost(WSAA_URL, '', envelope));
   const inner = xmlUnescape(xmlVal(resXml, 'loginCmsReturn'));
   const token = xmlVal(inner, 'token');
   const sign = xmlVal(inner, 'sign');
@@ -173,9 +205,11 @@ async function getTA() {
 }
 
 // ── WSFEv1 ──
-async function wsfeCall(method, innerXml) {
-  const ta = await getTA();
-  const envelope = `<?xml version="1.0" encoding="utf-8"?>
+// `reintentos: 0` para las llamadas que NO son idempotentes (FECAESolicitar).
+async function wsfeCall(method, innerXml, { reintentos = RETRY_DELAYS_MS.length } = {}) {
+  const enviar = async () => {
+    const ta = await getTA();
+    const envelope = `<?xml version="1.0" encoding="utf-8"?>
 <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ar="http://ar.gov.afip.dif.FEV1/">
   <soap:Body>
     <ar:${method}>
@@ -188,22 +222,52 @@ async function wsfeCall(method, innerXml) {
     </ar:${method}>
   </soap:Body>
 </soap:Envelope>`;
-  const resXml = await soapPost(WSFE_URL, `http://ar.gov.afip.dif.FEV1/${method}`, envelope);
+    const resXml = await soapPost(WSFE_URL, `http://ar.gov.afip.dif.FEV1/${method}`, envelope);
 
-  // Errores a nivel servicio
-  const errBlock = xmlVal(resXml, 'Errors');
-  if (errBlock) {
-    const code = xmlVal(errBlock, 'Code');
-    const msg = xmlVal(errBlock, 'Msg');
-    throw new Error(`ARCA WSFE error ${code}: ${msg}`);
-  }
-  return resXml;
+    // Errores a nivel servicio
+    const errBlock = xmlVal(resXml, 'Errors');
+    if (errBlock) {
+      const code = Number(xmlVal(errBlock, 'Code')) || 0;
+      const msg = xmlVal(errBlock, 'Msg');
+      const err = new Error(`ARCA WSFE error ${code}: ${msg}`);
+      err.arcaCode = code;
+      // Ticket de acceso vencido o inválido: tiramos el cache para forzar un
+      // login nuevo. Si no, toda factura falla hasta borrar el archivo a mano.
+      if (code === 600 || /token|sign/i.test(msg)) {
+        try { fs.unlinkSync(TA_CACHE_FILE); } catch (_e) { /* ya no estaba */ }
+        throw retryable(err);
+      }
+      throw err;
+    }
+    return resXml;
+  };
+  return reintentos > 0 ? withRetry(enviar, reintentos) : enviar();
 }
 
 async function lastVoucher(ptoVta, cbteTipo) {
   const xml = await wsfeCall('FECompUltimoAutorizado',
     `<ar:PtoVta>${ptoVta}</ar:PtoVta><ar:CbteTipo>${cbteTipo}</ar:CbteTipo>`);
   return Number(xmlVal(xml, 'CbteNro') || 0);
+}
+
+/**
+ * Consulta un comprobante ya emitido (FECompConsultar). Devuelve null si ARCA no
+ * lo tiene registrado. Es la pieza que hace seguro el reintento: antes de volver
+ * a pedir un CAE preguntamos si ese número ya salió, para no duplicar la factura.
+ */
+async function fetchVoucher(ptoVta, cbteTipo, cbteNro) {
+  let xml;
+  try {
+    xml = await wsfeCall('FECompConsultar',
+      `<ar:FeCompConsReq><ar:CbteTipo>${cbteTipo}</ar:CbteTipo><ar:CbteNro>${cbteNro}</ar:CbteNro><ar:PtoVta>${ptoVta}</ar:PtoVta></ar:FeCompConsReq>`);
+  } catch (err) {
+    // 602 = "no existen datos para los parámetros ingresados": el comprobante no se emitió.
+    if (err.arcaCode === 602 || /no existen datos/i.test(err.message)) return null;
+    throw err;
+  }
+  const cae = xmlVal(xml, 'CodAutorizacion');
+  if (!cae) return null;
+  return { cae, caeVto: xmlVal(xml, 'FchVto'), fechaCbte: xmlVal(xml, 'CbteFch') };
 }
 
 const CBTE_LETTER = { 1: 'A', 6: 'B', 11: 'C' };
@@ -217,8 +281,15 @@ const CBTE_LETTER = { 1: 'A', 6: 'B', 11: 'C' };
  *  - docNro: número de documento (0 para consumidor final)
  *  - impTotal: importe total
  *  - condIvaReceptor: condición de IVA del receptor (RG 5616): 1 RI, 4 exento, 5 CF, 6 monotributo
+ * @param {object} hooks
+ *  - onNumeroReservado(cbteNro): se llama con el número correlativo ANTES de pedir
+ *    el CAE, para que el llamador lo persista. Sin esto no se puede reconciliar
+ *    después de un corte de red.
+ *  - reconciliarCbteNro: al reintentar un borrador, el número que había quedado
+ *    reservado. Se consulta primero en ARCA y, si ya tiene CAE, se adopta en vez
+ *    de emitir de nuevo.
  */
-async function emitInvoice(p) {
+async function emitInvoice(p, hooks = {}) {
   if (!isConfigured()) {
     throw new Error('ARCA no está configurado. Definí ARCA_CUIT, ARCA_CERT_PATH y ARCA_KEY_PATH en .env (ver COBRANZAS_SETUP.md).');
   }
@@ -251,9 +322,7 @@ async function emitInvoice(p) {
     ? `<ar:FchServDesde>${fechaCbte}</ar:FchServDesde><ar:FchServHasta>${fechaCbte}</ar:FchServHasta><ar:FchVtoPago>${fechaCbte}</ar:FchVtoPago>`
     : '';
 
-  const cbteNro = (await lastVoucher(ptoVta, cbteTipo)) + 1;
-
-  const detalle = `
+  const detalleXml = (cbteNro) => `
     <ar:FeCAEReq>
       <ar:FeCabReq>
         <ar:CantReg>1</ar:CantReg>
@@ -283,53 +352,95 @@ async function emitInvoice(p) {
       </ar:FeDetReq>
     </ar:FeCAEReq>`;
 
-  const xml = await wsfeCall('FECAESolicitar', detalle);
+  const yyyymmddAIso = (s) => (s && s.length === 8 ? `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}` : '');
 
-  const resultado = xmlVal(xml, 'Resultado'); // A aprobado, R rechazado
-  const cae = xmlVal(xml, 'CAE');
-  const caeVto = xmlVal(xml, 'CAEFchVto');
+  // Arma el resultado final, venga el CAE de FECAESolicitar o de una reconciliación.
+  const armarResultado = (cbteNro, r) => {
+    const fecha = yyyymmddAIso(r.fechaCbte) || hoy.toISOString().slice(0, 10);
+    const qrPayload = {
+      ver: 1,
+      fecha,
+      cuit: Number(CUIT),
+      ptoVta,
+      tipoCmp: cbteTipo,
+      nroCmp: cbteNro,
+      importe: impTotal,
+      moneda: 'PES',
+      ctz: 1,
+      tipoDocRec: docTipo,
+      nroDocRec: Number(docNro),
+      tipoCodAut: 'E',
+      codAut: Number(r.cae),
+    };
+    return {
+      cbteTipo,
+      cbteLetra: CBTE_LETTER[cbteTipo],
+      ptoVta,
+      cbteNro,
+      numero: `${String(ptoVta).padStart(4, '0')}-${String(cbteNro).padStart(8, '0')}`,
+      fecha,
+      docTipo,
+      docNro,
+      impTotal,
+      impNeto,
+      impIVA,
+      cae: r.cae,
+      caeVto: yyyymmddAIso(r.caeVto),
+      qrUrl: 'https://www.afip.gob.ar/fe/qr/?p=' + Buffer.from(JSON.stringify(qrPayload)).toString('base64'),
+      production: PRODUCTION,
+    };
+  };
 
-  if (resultado !== 'A' || !cae) {
-    const obs = xmlVal(xml, 'Observaciones');
-    const motivo = obs ? `${xmlVal(obs, 'Code')}: ${xmlVal(obs, 'Msg')}` : 'sin detalle';
-    throw new Error(`ARCA rechazó el comprobante (${motivo}).`);
+  // Reintento de un borrador: si el número reservado la vez anterior ya tiene CAE,
+  // la factura sí se emitió (se perdió la respuesta). La adoptamos, no emitimos otra.
+  if (hooks.reconciliarCbteNro) {
+    const ya = await fetchVoucher(ptoVta, cbteTipo, Number(hooks.reconciliarCbteNro));
+    if (ya) return armarResultado(Number(hooks.reconciliarCbteNro), ya);
   }
 
-  // QR oficial de ARCA para impresión del comprobante
-  const qrPayload = {
-    ver: 1,
-    fecha: hoy.toISOString().slice(0, 10),
-    cuit: Number(CUIT),
-    ptoVta,
-    tipoCmp: cbteTipo,
-    nroCmp: cbteNro,
-    importe: impTotal,
-    moneda: 'PES',
-    ctz: 1,
-    tipoDocRec: docTipo,
-    nroDocRec: Number(docNro),
-    tipoCodAut: 'E',
-    codAut: Number(cae),
-  };
-  const qrUrl = 'https://www.afip.gob.ar/fe/qr/?p=' + Buffer.from(JSON.stringify(qrPayload)).toString('base64');
+  const MAX_INTENTOS = 3;
+  for (let intento = 1; ; intento++) {
+    // Se recalcula en cada vuelta: otro comprobante pudo haber avanzado la numeración.
+    const cbteNro = (await lastVoucher(ptoVta, cbteTipo)) + 1;
+    if (hooks.onNumeroReservado) await hooks.onNumeroReservado(cbteNro);
 
-  return {
-    cbteTipo,
-    cbteLetra: CBTE_LETTER[cbteTipo],
-    ptoVta,
-    cbteNro,
-    numero: `${String(ptoVta).padStart(4, '0')}-${String(cbteNro).padStart(8, '0')}`,
-    fecha: hoy.toISOString().slice(0, 10),
-    docTipo,
-    docNro,
-    impTotal,
-    impNeto,
-    impIVA,
-    cae,
-    caeVto: caeVto ? `${caeVto.slice(0, 4)}-${caeVto.slice(4, 6)}-${caeVto.slice(6, 8)}` : '',
-    qrUrl,
-    production: PRODUCTION,
-  };
+    let xml;
+    try {
+      // reintentos: 0 — reenviar esto a ciegas duplicaría la factura.
+      xml = await wsfeCall('FECAESolicitar', detalleXml(cbteNro), { reintentos: 0 });
+    } catch (err) {
+      if (!err.arcaRetryable) throw err;
+
+      // Zona gris: se cortó la comunicación, pero ARCA pudo haber procesado el pedido.
+      // Nunca reenviamos sin antes preguntar si ese número ya salió.
+      let ya;
+      try {
+        ya = await fetchVoucher(ptoVta, cbteTipo, cbteNro);
+      } catch (e) {
+        throw retryable(new Error(
+          `No se pudo confirmar en ARCA si el comprobante ${ptoVta}-${cbteNro} llegó a emitirse (${e.message}). ` +
+          'Quedó guardado como borrador: al reintentar se verifica antes de volver a emitir.'
+        ));
+      }
+      if (ya) return armarResultado(cbteNro, ya);
+
+      if (intento >= MAX_INTENTOS) throw err;
+      await sleep(RETRY_DELAYS_MS[Math.min(intento - 1, RETRY_DELAYS_MS.length - 1)]);
+      continue;
+    }
+
+    const resultado = xmlVal(xml, 'Resultado'); // A aprobado, R rechazado
+    const cae = xmlVal(xml, 'CAE');
+    if (resultado !== 'A' || !cae) {
+      const obs = xmlVal(xml, 'Observaciones');
+      const motivo = obs ? `${xmlVal(obs, 'Code')}: ${xmlVal(obs, 'Msg')}` : 'sin detalle';
+      const err = new Error(`ARCA rechazó el comprobante (${motivo}).`);
+      // Rechazo por datos: reintentar sin corregir da siempre lo mismo.
+      err.arcaRechazo = true;
+      throw err;
+    }
+    return armarResultado(cbteNro, { cae, caeVto: xmlVal(xml, 'CAEFchVto') });
+  }
 }
 
-module.exports = { isConfigured, status, emitInvoice, lastVoucher };
+module.exports = { isConfigured, status, emitInvoice, lastVoucher, fetchVoucher };
