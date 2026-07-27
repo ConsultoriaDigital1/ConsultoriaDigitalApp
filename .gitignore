@@ -1,13 +1,47 @@
 node_modules/
-.env
-.local/
 npm-debug.log*
-.env.local.backup
-# Credenciales de Google service account (ver GOOGLE_CALENDAR_SETUP.md) — NUNCA subir
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment files and local overrides
+.env
+.env.*
+!.env.example
+.local/
+
+# Local editor/agent settings
+.claude/settings.local.json
+
+# Credentials and private keys
 secrets/
 *service-account*.json
 gcal-*.json
+*.pem
+*.key
+*.crt
+*.cer
+*.p12
+*.pfx
+*.csr
 
-# Sesiones ocultas de WhatsApp Web (Puppeteer)
+# ARCA / AFIP certificates and private material
+certs/
+arca-certs/
+arca-secrets/
+
+# WhatsApp Web browser sessions (Puppeteer)
 .wwebjs_auth/
 .wwebjs_cache/
+
+# Local databases, dumps and generated artifacts
+*.sqlite
+*.sqlite3
+*.db
+*.dump
+*.bak
+*.backup
+tmp/
+temp/
+logs/
+*.log
