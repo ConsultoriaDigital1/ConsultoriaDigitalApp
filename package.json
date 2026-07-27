@@ -12,6 +12,7 @@
     "db:down": "docker compose stop postgres",
     "db:schema": "node db/schema.js",
     "db:seed": "node db/seed.js",
+    "db:demo-leads": "node db/seed-demo-leads.js",
     "db:admin": "node db/create-admin.js"
   },
   "dependencies": {
