@@ -56,7 +56,7 @@ async function ensureDatabaseMigrations() {
   await pool.query("ALTER TABLE cards DROP CONSTRAINT IF EXISTS cards_equipo_check");
   await pool.query("ALTER TABLE cards ADD CONSTRAINT cards_equipo_check CHECK (equipo IN ('marketing', 'desarrollo', 'admin', 'ventas'))");
   await pool.query("ALTER TABLE cards DROP CONSTRAINT IF EXISTS cards_estado_check");
-  await pool.query("ALTER TABLE cards ADD CONSTRAINT cards_estado_check CHECK (estado IN ('iniciada', 'en_proceso', 'finalizado', 'contactado', 'presupuestado', 'reunion', 'venta_exitosa', 'papelera'))");
+  await pool.query("ALTER TABLE cards ADD CONSTRAINT cards_estado_check CHECK (estado IN ('iniciada', 'en_proceso', 'finalizado', 'contactado', 'seguimiento', 'presupuestado', 'reunion', 'venta_exitosa', 'papelera'))");
 
   // Migrate old sales cards in 'papelera' column status to actual soft-deleted cards
   await pool.query("UPDATE cards SET deleted_at = NOW(), estado = 'presupuestado', updated_at = NOW() WHERE equipo = 'ventas' AND estado = 'papelera' AND deleted_at IS NULL");
@@ -1034,7 +1034,7 @@ function cardValues(body, user, existing = {}) {
     estado: (() => {
       const isVentas = (equipo === 'ventas');
       const validStatuses = isVentas
-        ? ['contactado', 'presupuestado', 'reunion', 'venta_exitosa', 'papelera']
+        ? ['contactado', 'seguimiento', 'presupuestado', 'reunion', 'venta_exitosa', 'papelera']
         : ['iniciada', 'en_proceso', 'finalizado'];
       const defaultStatus = isVentas ? 'contactado' : 'iniciada';
       return validStatuses.includes(body.estado) ? body.estado : defaultStatus;
@@ -2255,7 +2255,7 @@ app.put('/api/cards/reorder', requireAuth, async (req, res, next) => {
     if (!equipo) return res.status(400).json({ error: 'Equipo invalido.' });
     const isVentas = (equipo === 'ventas');
     const validStatuses = isVentas
-      ? ['contactado', 'presupuestado', 'reunion', 'venta_exitosa', 'papelera']
+      ? ['contactado', 'seguimiento', 'presupuestado', 'reunion', 'venta_exitosa', 'papelera']
       : ['iniciada', 'en_proceso', 'finalizado'];
     if (!validStatuses.includes(estado)) return res.status(400).json({ error: 'Estado invalido.' });
     if (!canAccessTeam(req.user, equipo)) return res.status(403).json({ error: 'Sin permiso.' });
@@ -2359,7 +2359,7 @@ async function handleExternalCardStatusUpdate(req, res, next, options = {}) {
     return res.status(400).json({ error: 'El campo "estado" es obligatorio.' });
   }
 
-  const validStatuses = ['contactado', 'presupuestado', 'reunion', 'venta_exitosa', 'papelera'];
+  const validStatuses = ['contactado', 'seguimiento', 'presupuestado', 'reunion', 'venta_exitosa', 'papelera'];
   if (!validStatuses.includes(estado)) {
     return res.status(400).json({
       error: `Estado inválido. Debe ser uno de: ${validStatuses.join(', ')}`
