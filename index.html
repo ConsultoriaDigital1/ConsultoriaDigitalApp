@@ -8806,8 +8806,8 @@
       }
       set('adash-ingresos', formatMoney(data.ingresosTotales));
       set('adash-cobrados', formatMoney(data.cobrados));
-      // Pendiente de cobro este mes = Ingresos totales del mes − Cobrados
-      set('adash-pendientes', formatMoney(Number(data.ingresosTotales || 0) - Number(data.cobrados || 0)));
+      // Suma los saldos positivos de los mismos clientes que muestra el filtro mensual.
+      set('adash-pendientes', formatMoney(data.pendientesMes));
       // Pendiente de cobro total = suma de saldos pendientes (incluye canje, excluye saldos a favor).
       // Usa el cálculo único del backend para que coincida con la lista al filtrar por la tarjeta.
       set('adash-pendientes-total', formatMoney(data.pendientes));

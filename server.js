@@ -1702,17 +1702,33 @@ app.get('/api/admin/dashboard', requireAdmin, async (req, res, next) => {
         [prefix + '%']
       ),
       pool.query(
-        `SELECT
-           COALESCE(SUM(GREATEST(bal.saldo, 0)), 0)        AS pendientes,
-           COUNT(*) FILTER (WHERE bal.saldo > 0 AND c.vence != '' AND c.vence < $1) AS vencidos
-         FROM (
+        `WITH balances AS (
            SELECT client_id,
              COALESCE(SUM(monto_factura), 0) - COALESCE(SUM(haber), 0) AS saldo
-           FROM client_movements GROUP BY client_id
-         ) bal
+           FROM client_movements
+           GROUP BY client_id
+         ),
+         clientes_facturados_mes AS (
+           SELECT DISTINCT client_id
+           FROM client_movements
+           WHERE fecha LIKE $2
+             AND monto_factura > 0
+         )
+         SELECT
+           COALESCE(
+             SUM(GREATEST(bal.saldo, 0))
+               FILTER (WHERE mes.client_id IS NOT NULL),
+             0
+           ) AS pendientes_mes,
+           COALESCE(SUM(GREATEST(bal.saldo, 0)), 0) AS pendientes,
+           COUNT(*) FILTER (
+             WHERE bal.saldo > 0 AND c.vence != '' AND c.vence < $1
+           ) AS vencidos
+         FROM balances bal
          JOIN clients c ON c.id = bal.client_id
+         LEFT JOIN clientes_facturados_mes mes ON mes.client_id = bal.client_id
          WHERE c.deleted_at IS NULL`,
-        [now.toISOString().slice(0, 10)]
+        [now.toISOString().slice(0, 10), prefix + '%']
       ),
     ]);
 
@@ -1720,6 +1736,7 @@ app.get('/api/admin/dashboard', requireAdmin, async (req, res, next) => {
       year, month,
       ingresosTotales: Number(ingresosRes.rows[0].ingresos_totales),
       cobrados: Number(ingresosRes.rows[0].cobrados),
+      pendientesMes: Number(pendientesRes.rows[0].pendientes_mes),
       pendientes: Number(pendientesRes.rows[0].pendientes),
       vencidos: Number(pendientesRes.rows[0].vencidos),
     });
