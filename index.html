@@ -461,6 +461,9 @@
    LOGIN / REGISTER
    ═══════════════════════════════════════════ */
     #login-screen {
+      position: relative;
+      isolation: isolate;
+      overflow: hidden;
       min-height: calc(100vh / var(--zoom));
       display: flex;
       align-items: center;
@@ -471,7 +474,19 @@
       padding: 1rem;
     }
 
+    #login-particles {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      opacity: 0.9;
+      z-index: -1;
+    }
+
     .auth-card {
+      position: relative;
+      z-index: 1;
       background: var(--surface);
       border-radius: var(--r-xl);
       padding: 2.2rem 1.9rem 1.9rem;
@@ -479,6 +494,12 @@
       max-width: 410px;
       box-shadow: var(--shadow-lg);
       border: 1px solid var(--border);
+      animation: auth-build 700ms cubic-bezier(.22, 1, .36, 1) both;
+    }
+
+    @keyframes auth-build {
+      from { opacity: 0; transform: translateY(12px) scale(0.97); filter: blur(8px); }
+      to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
     }
 
     .auth-logo {
@@ -4553,10 +4574,10 @@
       max-height: calc(100vh - 20px);
       overflow-y: auto;
       z-index: 500;
-      padding: 0.55rem;
-      background: #282a2e;
-      border: 1px solid #3f454d;
-      border-radius: 8px;
+      padding: 0.7rem;
+      background: linear-gradient(180deg, #2c3036, #22272b);
+      border: 1px solid rgba(244, 163, 64, 0.34);
+      border-radius: 13px;
       box-shadow: 0 18px 44px rgba(0, 0, 0, 0.5);
       color: #b6c2cf;
     }
@@ -4569,7 +4590,9 @@
       display: grid;
       grid-template-columns: 28px 1fr 28px;
       align-items: center;
-      margin-bottom: 0.42rem;
+      padding-bottom: 0.55rem;
+      margin-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border2);
       color: var(--text-hi);
       font-size: 0.68rem;
       font-weight: 900;
@@ -5829,6 +5852,27 @@
     .cal-event.evt:hover {
       background: #579dff22;
       color: inherit;
+    }
+
+    .cal-event {
+      display: flex;
+      align-items: center;
+      gap: 0.22rem;
+      min-width: 0;
+    }
+
+    .cal-event-time {
+      flex-shrink: 0;
+      color: currentColor;
+      opacity: 0.78;
+      font-size: 0.54rem;
+      font-weight: 800;
+    }
+
+    .cal-event-label {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .cal-daynum {
@@ -7199,6 +7243,720 @@
       resize: none !important;
       width: 100%;
     }
+
+    /* ── Clientes · nueva capa visual ── */
+    #tab-clientes {
+      --team-accent: #78a9ff;
+      --team-accent-soft: rgba(120, 169, 255, 0.14);
+      --team-accent-line: rgba(120, 169, 255, 0.34);
+      background:
+        radial-gradient(circle at 8% 0%, rgba(120, 169, 255, 0.07), transparent 27rem),
+        var(--bg);
+    }
+
+    #tab-clientes[data-team="marketing"] {
+      --team-accent: #78a9ff;
+      --team-accent-soft: rgba(120, 169, 255, 0.14);
+      --team-accent-line: rgba(120, 169, 255, 0.34);
+    }
+
+    #tab-clientes[data-team="desarrollo"] {
+      --team-accent: #65dc9b;
+      --team-accent-soft: rgba(101, 220, 155, 0.14);
+      --team-accent-line: rgba(101, 220, 155, 0.34);
+      background:
+        radial-gradient(circle at 8% 0%, rgba(101, 220, 155, 0.07), transparent 27rem),
+        var(--bg);
+    }
+
+    #clientes-cbar {
+      position: relative;
+      min-height: 82px;
+      padding: 1rem 1.35rem 0.9rem 1.55rem;
+      background: rgba(22, 27, 34, 0.78);
+      border-bottom-color: rgba(166, 197, 226, 0.13);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+      isolation: isolate;
+    }
+
+    #clientes-cbar::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      width: 4px;
+      background: var(--team-accent);
+      box-shadow: 0 0 22px var(--team-accent-soft);
+    }
+
+    #clientes-cbar > div:first-child {
+      min-width: 0;
+    }
+
+    #clientes-cbar .cbar-title {
+      font-size: 1.18rem;
+      font-weight: 850;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+    }
+
+    #clientes-cbar .cbar-sub {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.36rem;
+      margin-top: 0.38rem;
+      font-size: 0.68rem;
+      color: var(--text);
+    }
+
+    #clientes-cbar .cbar-sub::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--team-accent);
+      box-shadow: 0 0 0 4px var(--team-accent-soft);
+    }
+
+    #clientes-cbar > div:last-child {
+      gap: 0.5rem !important;
+    }
+
+    #clientes-cbar .btn {
+      min-height: 2rem;
+      border-radius: 9px;
+      border-color: rgba(166, 197, 226, 0.16);
+      font-size: 0.72rem;
+    }
+
+    #clientes-cbar .btn:hover {
+      border-color: var(--team-accent-line);
+      box-shadow: 0 5px 14px rgba(0, 0, 0, 0.18);
+    }
+
+    #clientes-cbar #btn-new-card {
+      background: var(--team-accent);
+      color: #101722;
+      border-color: var(--team-accent);
+      font-weight: 800;
+      box-shadow: 0 5px 16px var(--team-accent-soft);
+    }
+
+    #clientes-cbar #btn-new-card:hover {
+      background: #a9c8ff;
+      border-color: #a9c8ff;
+      color: #101722;
+    }
+
+    .sb-btn.active[data-team="marketing"] {
+      background: rgba(120, 169, 255, 0.14);
+      color: #b7d1ff;
+      box-shadow: inset 3px 0 0 #78a9ff;
+    }
+
+    .sb-btn.active[data-team="desarrollo"] {
+      background: rgba(101, 220, 155, 0.14);
+      color: #b9f3d2;
+      box-shadow: inset 3px 0 0 #65dc9b;
+    }
+
+    #tab-clientes .clientes-body {
+      background: transparent;
+    }
+
+    #tab-clientes .kanban-wrap {
+      gap: 1rem;
+      padding: 1.15rem 1.35rem 1.35rem;
+      scrollbar-color: rgba(166, 197, 226, 0.28) transparent;
+      scrollbar-width: thin;
+    }
+
+    #tab-clientes .kanban-col,
+    #tab-clientes .kanban-pendientes,
+    #tab-clientes .clientes-agenda {
+      position: relative;
+      border: 1px solid rgba(166, 197, 226, 0.13);
+      border-radius: 15px;
+      background: linear-gradient(180deg, rgba(44, 51, 58, 0.84), rgba(31, 37, 43, 0.92));
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.025);
+    }
+
+    #tab-clientes .kanban-col::before,
+    #tab-clientes .kanban-pendientes::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 1rem;
+      right: 1rem;
+      height: 2px;
+      border-radius: 0 0 5px 5px;
+      background: var(--team-accent);
+      opacity: 0.75;
+    }
+
+    .clientes-agenda {
+      min-width: 310px;
+      width: 310px;
+      height: 100%;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      position: relative;
+    }
+
+    #tab-clientes .clientes-agenda::before {
+      content: '';
+      position: absolute;
+      inset: 0 0 auto;
+      height: 2px;
+      background: #a78bfa;
+      box-shadow: 0 0 18px rgba(167, 139, 250, 0.35);
+    }
+
+    .agenda-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.5rem;
+      padding: 0.78rem 0.85rem 0.62rem;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .agenda-kicker {
+      color: #a78bfa;
+      font-size: 0.56rem;
+      font-weight: 900;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .agenda-title {
+      color: var(--text-hi);
+      font-family: var(--font-disp);
+      font-size: 0.9rem;
+      font-weight: 850;
+      line-height: 1.1;
+      margin-top: 0.16rem;
+    }
+
+    .agenda-count {
+      min-width: 22px;
+      padding: 0.16rem 0.42rem;
+      border-radius: 999px;
+      background: rgba(167, 139, 250, 0.14);
+      color: #c4b5fd;
+      font-size: 0.62rem;
+      font-weight: 900;
+      text-align: center;
+    }
+
+    .agenda-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0.58rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.42rem;
+    }
+
+    .agenda-item {
+      display: grid;
+      grid-template-columns: 42px minmax(0, 1fr);
+      gap: 0.55rem;
+      align-items: center;
+      padding: 0.52rem;
+      border: 1px solid var(--border2);
+      border-left: 3px solid var(--agenda-color, #a78bfa);
+      border-radius: 9px;
+      background: rgba(44, 51, 58, 0.72);
+      cursor: pointer;
+      transition: background 150ms, transform 150ms, border-color 150ms;
+    }
+
+    .agenda-item:hover {
+      background: rgba(55, 65, 75, 0.92);
+      border-color: rgba(167, 139, 250, 0.42);
+      transform: translateX(2px);
+    }
+
+    .agenda-date {
+      color: var(--text-hi);
+      font-size: 0.6rem;
+      font-weight: 900;
+      line-height: 1.25;
+      text-align: center;
+      text-transform: uppercase;
+    }
+
+    .agenda-date strong {
+      display: block;
+      color: var(--agenda-color, #c4b5fd);
+      font-size: 0.78rem;
+    }
+
+    .agenda-item-title {
+      overflow: hidden;
+      color: var(--text-hi);
+      font-size: 0.68rem;
+      font-weight: 800;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .agenda-item-meta {
+      overflow: hidden;
+      margin-top: 0.16rem;
+      color: var(--muted);
+      font-size: 0.58rem;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .agenda-empty {
+      color: var(--muted);
+      font-size: 0.66rem;
+      line-height: 1.45;
+      padding: 1.1rem 0.5rem;
+      text-align: center;
+    }
+
+    #tab-clientes .kanban-col:nth-child(2)::before {
+      background: #a78bfa;
+    }
+
+    #tab-clientes .kanban-col:nth-child(3)::before {
+      background: #65dc9b;
+    }
+
+    #tab-clientes .kanban-pendientes::before {
+      background: #f4a340;
+    }
+
+    #tab-clientes .kanban-col {
+      min-width: 300px;
+      width: 300px;
+      overflow: hidden;
+    }
+
+    #tab-clientes .kanban-pendientes {
+      min-width: 330px;
+      width: 330px;
+    }
+
+    #tab-clientes .col-head,
+    #tab-clientes .pend-head {
+      padding: 1rem 0.95rem 0.7rem;
+    }
+
+    #tab-clientes .col-title,
+    #tab-clientes .pend-title {
+      font-size: 0.76rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    #tab-clientes .col-badge {
+      min-width: 1.6rem;
+      text-align: center;
+      padding: 0.18rem 0.42rem;
+      background: var(--team-accent-soft);
+      color: var(--team-accent);
+    }
+
+    #tab-clientes .kanban-col:nth-child(2) .col-badge {
+      background: rgba(167, 139, 250, 0.13);
+      color: #c4b5fd;
+    }
+
+    #tab-clientes .kanban-col:nth-child(3) .col-badge {
+      background: rgba(101, 220, 155, 0.13);
+      color: #9ae6ba;
+    }
+
+    #tab-clientes .col-cards {
+      gap: 0.58rem;
+      padding: 0.15rem 0.7rem 0.8rem;
+    }
+
+    #tab-clientes .kcard {
+      min-height: 74px;
+      border: 1px solid rgba(166, 197, 226, 0.12);
+      border-left: 3px solid var(--team-accent-line);
+      border-radius: 11px;
+      background: linear-gradient(135deg, rgba(46, 55, 64, 0.96), rgba(38, 45, 52, 0.96));
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+    }
+
+    #tab-clientes .kanban-col:nth-child(2) .kcard {
+      border-left-color: rgba(167, 139, 250, 0.5);
+    }
+
+    #tab-clientes .kanban-col:nth-child(3) .kcard {
+      border-left-color: rgba(101, 220, 155, 0.5);
+    }
+
+    #tab-clientes .kcard:hover {
+      border-color: rgba(166, 197, 226, 0.28);
+      border-left-color: var(--team-accent);
+      background: linear-gradient(135deg, rgba(57, 68, 79, 0.98), rgba(43, 51, 59, 0.98));
+      transform: translateY(-2px);
+      box-shadow: 0 10px 22px rgba(0, 0, 0, 0.22), 0 0 0 1px var(--team-accent-soft);
+    }
+
+    #tab-clientes .kcard-body {
+      gap: 0.48rem;
+      padding: 0.72rem 0.72rem 0.7rem;
+    }
+
+    #tab-clientes .kcard-top {
+      align-items: center;
+      gap: 0.55rem;
+    }
+
+    #tab-clientes .kcard-check {
+      width: 16px;
+      height: 16px;
+      margin-top: 0;
+      border-color: rgba(166, 197, 226, 0.3);
+      background: rgba(13, 18, 24, 0.2);
+    }
+
+    #tab-clientes .kcard-title {
+      font-size: 0.78rem;
+      font-weight: 700;
+      line-height: 1.35;
+      letter-spacing: -0.01em;
+    }
+
+    #tab-clientes .kcard-checklist {
+      padding: 0.18rem 0.38rem;
+      border-radius: 6px;
+      background: rgba(166, 197, 226, 0.08);
+      color: var(--muted);
+      font-size: 0.6rem;
+    }
+
+    #tab-clientes .kcard-checklist.done {
+      background: rgba(75, 206, 151, 0.13);
+      color: #8de0bd;
+    }
+
+    #tab-clientes .kcard-ava {
+      width: 21px;
+      height: 21px;
+      border-color: #2f3943;
+      font-size: 0.52rem;
+    }
+
+    #tab-clientes .add-card-btn {
+      margin: 0 0.55rem 0.55rem;
+      width: calc(100% - 1.1rem);
+      min-height: 2.15rem;
+      padding: 0.55rem 0.65rem;
+      border: 1px dashed rgba(166, 197, 226, 0.16);
+      border-radius: 8px;
+      background: rgba(166, 197, 226, 0.025);
+      font-size: 0.72rem;
+    }
+
+    #tab-clientes .add-card-btn:hover {
+      border-color: var(--team-accent-line);
+      background: var(--team-accent-soft);
+      color: var(--text-hi);
+    }
+
+    #tab-clientes .empty-col {
+      margin: 0.2rem 0;
+      padding: 1.6rem 0.8rem;
+      border: 1px dashed rgba(166, 197, 226, 0.13);
+      border-radius: 9px;
+      color: var(--muted);
+      font-size: 0.68rem;
+    }
+
+    #tab-clientes .pend-head {
+      border-bottom: 1px solid rgba(251, 146, 60, 0.12);
+    }
+
+    #tab-clientes .pend-title {
+      color: #f4b35e;
+    }
+
+    #tab-clientes .pend-filters {
+      padding-top: 0.7rem;
+    }
+
+    #tab-clientes .pend-item {
+      padding: 0.62rem 0.58rem;
+      border-radius: 9px;
+      background: rgba(44, 51, 58, 0.78);
+      border-color: rgba(166, 197, 226, 0.12);
+      transition: background 150ms ease, border-color 150ms ease, transform 150ms ease;
+    }
+
+    #tab-clientes .pend-item:hover {
+      background: rgba(55, 65, 75, 0.9);
+      border-color: rgba(251, 146, 60, 0.34);
+      transform: translateX(2px);
+    }
+
+    #tab-clientes .pend-item-text {
+      font-size: 0.68rem;
+      font-weight: 650;
+    }
+
+    #tab-clientes .pend-client-filter,
+    #tab-clientes .pend-list {
+      padding-left: 0.72rem;
+      padding-right: 0.72rem;
+    }
+
+    #tab-clientes .kcard:has(> .kcard-body)::before,
+    #tab-clientes .kcard:has(> .kcard-body)::after {
+      display: none;
+    }
+
+    @media (max-width: 820px) {
+      #clientes-cbar {
+        align-items: flex-start;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+      }
+
+      #clientes-cbar > div:last-child {
+        width: 100%;
+        justify-content: flex-start !important;
+      }
+
+      #tab-clientes .kanban-wrap {
+        padding: 0.9rem;
+      }
+
+      #tab-clientes .kanban-col {
+        min-width: 278px;
+        width: 278px;
+      }
+
+      #tab-clientes .kanban-pendientes {
+        min-width: 300px;
+        width: 300px;
+      }
+
+      #tab-clientes .clientes-agenda {
+        min-width: 280px;
+        width: 280px;
+      }
+    }
+
+    @media (max-width: 520px) {
+      #clientes-cbar {
+        padding: 0.9rem 0.95rem 0.8rem 1.15rem;
+      }
+
+      #clientes-cbar > div:last-child .btn {
+        flex: 1 1 auto;
+      }
+
+      #tab-clientes .kanban-wrap {
+        gap: 0.75rem;
+        padding: 0.75rem;
+      }
+
+      #tab-clientes .kanban-col {
+        min-width: min(82vw, 286px);
+        width: min(82vw, 286px);
+      }
+
+      #tab-clientes .kanban-pendientes {
+        min-width: min(82vw, 300px);
+        width: min(82vw, 300px);
+      }
+    }
+
+    .mobile-bottom-nav {
+      display: none;
+    }
+
+    @media (max-width: 700px) {
+      body {
+        overflow: hidden;
+      }
+
+      #app {
+        height: calc(100vh / var(--zoom));
+      }
+
+      .topnav {
+        height: 54px;
+        padding: 0 0.55rem;
+      }
+
+      .brand {
+        margin-right: 0;
+      }
+
+      .brand-logo-img {
+        width: 112px;
+        height: 24px;
+      }
+
+      .topnav .nav-tabs {
+        display: none;
+      }
+
+      .topnav-right {
+        gap: 0.28rem;
+      }
+
+      .global-whatsapp-btn {
+        width: 30px;
+        min-width: 30px;
+        padding: 0.35rem;
+        font-size: 0;
+      }
+
+      .global-whatsapp-btn .btn-dot {
+        display: none;
+      }
+
+      .user-pill {
+        padding: 0.2rem;
+      }
+
+      .user-pill #pill-name {
+        display: none;
+      }
+
+      .main-layout {
+        height: calc(100% - 54px - 66px);
+      }
+
+      .content {
+        min-height: 0;
+      }
+
+      .cbar {
+        padding: 0.75rem 0.85rem;
+      }
+
+      #clientes-cbar {
+        min-height: 74px;
+        padding: 0.8rem 0.85rem;
+        gap: 0.55rem;
+      }
+
+      #clientes-cbar > div:last-child {
+        width: 100%;
+        justify-content: flex-start !important;
+        overflow-x: auto;
+        flex-wrap: nowrap !important;
+        padding-bottom: 0.08rem;
+      }
+
+      #clientes-cbar > div:last-child .btn {
+        flex: 0 0 auto;
+      }
+
+      #tab-clientes .kanban-wrap {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        align-content: start;
+        gap: 0.75rem;
+        overflow-x: hidden;
+        overflow-y: auto;
+        padding: 0.75rem;
+      }
+
+      #tab-clientes .kanban-col,
+      #tab-clientes .kanban-pendientes,
+      #tab-clientes .clientes-agenda {
+        width: 100%;
+        min-width: 0;
+        height: auto;
+        min-height: 190px;
+        max-height: 360px;
+      }
+
+      #tab-clientes .kanban-col .col-cards {
+        min-height: 110px;
+      }
+
+      #tab-calendario .cbar,
+      #tab-notas .cbar,
+      #tab-talentos .cbar {
+        min-height: 62px;
+      }
+
+      .cal-wrap,
+      .notas-wrap,
+      .talentos-wrap {
+        padding: 0.75rem;
+      }
+
+      .cal-grid {
+        gap: 0.2rem;
+      }
+
+      .cal-day {
+        min-height: 66px;
+        padding: 0.3rem;
+      }
+
+      .cal-event {
+        font-size: 0.54rem;
+      }
+
+      .mobile-bottom-nav {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 450;
+        height: 66px;
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 0.2rem;
+        padding: 0.35rem 0.45rem calc(0.35rem + env(safe-area-inset-bottom));
+        background: rgba(22, 27, 34, 0.96);
+        border-top: 1px solid var(--border2);
+        box-shadow: 0 -10px 28px rgba(0, 0, 0, 0.26);
+        backdrop-filter: blur(14px);
+      }
+
+      .mobile-nav-tab {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 0.16rem;
+        min-width: 0;
+        border: 0;
+        border-radius: 9px;
+        background: transparent;
+        color: var(--muted);
+        cursor: pointer;
+        font-family: var(--font-body);
+        font-size: 0.58rem;
+        font-weight: 800;
+        transition: background 150ms, color 150ms;
+      }
+
+      .mobile-nav-tab .ico-ph {
+        font-size: 1rem;
+      }
+
+      .mobile-nav-tab.active {
+        background: rgba(231, 255, 79, 0.12);
+        color: var(--lime);
+      }
+
+      .mobile-nav-tab:active {
+        transform: scale(0.96);
+      }
+    }
   </style>
 </head>
 
@@ -7208,6 +7966,7 @@
      LOGIN / REGISTER
      ═══════════════════════════════════════════ -->
   <div id="login-screen">
+    <canvas id="login-particles" aria-hidden="true"></canvas>
     <div class="auth-card">
       <div class="auth-logo">
         <img class="auth-logo-img" src="logo.webp" alt="consultor&iacute;a digital" />
@@ -7250,7 +8009,7 @@
      ═══════════════════════════════════════════ -->
   <div id="app">
     <!-- Top Nav -->
-    <nav class="topnav">
+      <nav class="topnav">
       <button class="hamburger-btn" id="hamburger-btn" onclick="toggleSidebar()" title="Filtrar por equipo"
         aria-label="Abrir panel de equipos">
         <span></span><span></span><span></span>
@@ -7343,7 +8102,7 @@
       <main class="content">
 
         <!-- ── CLIENTES TAB ── -->
-        <div id="tab-clientes" class="tab-panel active">
+        <div id="tab-clientes" class="tab-panel active" data-team="all">
           <div class="cbar" id="clientes-cbar">
             <div>
               <div class="cbar-title" id="clientes-title">Gestión de Clientes</div>
@@ -7481,6 +8240,23 @@
 
       </main>
     </div>
+    <nav class="mobile-bottom-nav" aria-label="Navegación principal">
+      <button class="mobile-nav-tab active" data-tab="clientes" onclick="switchTab('clientes')">
+        <i class="ico-ph" data-ico="users"></i><span>Clientes</span>
+      </button>
+      <button class="mobile-nav-tab" data-tab="calendario" onclick="switchTab('calendario')">
+        <i class="ico-ph" data-ico="calendar"></i><span>Calendario</span>
+      </button>
+      <button class="mobile-nav-tab" data-tab="notas" onclick="switchTab('notas')">
+        <i class="ico-ph" data-ico="book"></i><span>Notas</span>
+      </button>
+      <button class="mobile-nav-tab" data-tab="talentos" onclick="switchTab('talentos')">
+        <i class="ico-ph" data-ico="users"></i><span>Equipo</span>
+      </button>
+      <button class="mobile-nav-tab" data-tab="ventas" onclick="switchTab('ventas')" style="display:none">
+        <i class="ico-ph" data-ico="receipt"></i><span>Ventas</span>
+      </button>
+    </nav>
   </div>
 
   <!-- ═══════════════════════════════════════════
@@ -7579,7 +8355,7 @@
                   onclick="openChecklistFromMenu(event)"><span class="checklist-action-icon"></span>
                   Checklist</button>
                 <button id="due-action-btn" class="trello-action" type="button"
-                  onclick="openDueFromMenu(event)">Evento</button>
+                  onclick="openDueFromMenu(event)">Vencimiento</button>
                 <button id="pauta-action-btn" class="trello-action" type="button" onclick="openPautaFromMenu()"
                   style="display:none">PAUTA</button>
                 <button id="client-details-action-btn" class="trello-action" type="button"
@@ -7763,7 +8539,7 @@
             <button id="checklist-footer-btn" class="trello-action" data-view-btn="checklist" type="button"
               onclick="openChecklistFromMenu(event)"><span class="checklist-action-icon"></span> Checklist</button>
             <button id="due-footer-btn" class="trello-action" type="button"
-              onclick="openDueFromMenu(event)">Evento</button>
+              onclick="openDueFromMenu(event)">Vencimiento</button>
             <button id="pauta-footer-btn" class="trello-action" type="button" onclick="openPautaFromMenu()"
               style="display:none">PAUTA</button>
             <button id="details-footer-btn" class="trello-action" data-view-btn="details" type="button"
@@ -7867,7 +8643,7 @@
   <div id="due-popover" class="due-popover" onclick="event.stopPropagation()">
     <div class="due-head">
       <span></span>
-      <span style="text-align:center">Fechas</span>
+      <span style="text-align:center">Vencimiento</span>
       <button class="due-close" type="button" onclick="closeDuePopover()">&times;</button>
     </div>
     <div class="due-nav">
@@ -10788,6 +11564,7 @@
       const u = currentUser;
       loadMyClientsPref();
       activeTeam = canViewTeam(activeTeam) ? activeTeam : u.equipo;
+      syncClientesTheme();
       setAvatarElement($('pill-ava'), u);
       $('pill-name').textContent = u.nombre;
       $('dd-name').textContent = u.nombre + ' ' + (u.apellido || '');
@@ -10819,10 +11596,13 @@
       document.querySelectorAll('[onclick="openUserModal()"]').forEach(btn => {
         btn.style.display = isAdmin() ? '' : 'none';
       });
-      const clientesTabBtn = document.querySelector('.nav-tab[data-tab="clientes"]');
-      if (clientesTabBtn) {
-        clientesTabBtn.style.display = (currentUser && currentUser.equipo === 'ventas' && !isAdmin()) ? 'none' : '';
-      }
+      const hideClientesTab = currentUser && currentUser.equipo === 'ventas' && !isAdmin();
+      document.querySelectorAll('[data-tab="clientes"]').forEach(btn => {
+        btn.style.display = hideClientesTab ? 'none' : '';
+      });
+      document.querySelectorAll('[data-tab="ventas"]').forEach(btn => {
+        if (btn.classList.contains('mobile-nav-tab')) btn.style.display = currentUser && (currentUser.equipo === 'ventas' || isAdmin()) ? 'flex' : 'none';
+      });
       const wppBtn = $('global-whatsapp-btn');
       if (wppBtn) wppBtn.style.display = isAdmin() ? '' : 'none';
       syncTeamSelect('f-equipo');
@@ -10838,6 +11618,11 @@
         opt.hidden = !ok;
       });
       if (!canViewTeam(sel.value)) sel.value = currentUser.equipo;
+    }
+
+    function syncClientesTheme() {
+      const panel = $('tab-clientes');
+      if (panel) panel.dataset.team = activeTeam || 'all';
     }
 
     /* ─────────────────────────────────────────
@@ -11200,7 +11985,7 @@
     ───────────────────────────────────────── */
     function switchTab(tab) {
       activeTab = tab;
-      document.querySelectorAll('.nav-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+      document.querySelectorAll('.nav-tab, .mobile-nav-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
       document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + tab));
       closeDD();
       if (tab === 'clientes') {
@@ -11208,6 +11993,7 @@
           activeTeam = 'all';
           document.querySelectorAll('.sb-btn[data-team]').forEach(b => b.classList.toggle('active', b.dataset.team === activeTeam));
         }
+        syncClientesTheme();
         cardsView = 'active';
         renderClientesNotes();
         renderBoard();
@@ -11262,6 +12048,7 @@
         switchTab('clientes');
       }
       activeTeam = team;
+      syncClientesTheme();
       closeSidebar();
       document.querySelectorAll('.sb-btn[data-team]').forEach(b => b.classList.toggle('active', b.dataset.team === team));
       $('clientes-sub').textContent = (team === 'admin' ? 'Tabla de control — ' : 'Tablero Kanban — ') + (TEAMS[team] || 'Todos');
@@ -11367,7 +12154,21 @@
     </div>
     <div class="pend-list" id="pend-list"></div>`;
       board.appendChild(pendPanel);
+      const agendaPanel = document.createElement('aside');
+      agendaPanel.className = 'clientes-agenda';
+      agendaPanel.id = 'clientes-agenda';
+      agendaPanel.innerHTML = `
+    <div class="agenda-head">
+      <div>
+        <div class="agenda-kicker">Vencimientos</div>
+        <div class="agenda-title">Calendario</div>
+      </div>
+      <span class="agenda-count" id="agenda-count">0</span>
+    </div>
+    <div class="agenda-list" id="agenda-list"></div>`;
+      board.appendChild(agendaPanel);
       renderPendientesList();
+      renderClientesAgenda();
 
       initKanbanSortables();
     }
@@ -11537,6 +12338,82 @@
         clearInterval(pendTickTimer);
         pendTickTimer = null;
       }
+    }
+
+    function calendarDateTime(iso, time) {
+      const date = dateFromInput(iso);
+      if (!date) return null;
+      const match = String(time || '').match(/^(\d{2}):(\d{2})$/);
+      date.setHours(match ? Number(match[1]) : 23, match ? Number(match[2]) : 59, 0, 0);
+      return date;
+    }
+
+    function agendaDateText(date) {
+      const today = new Date();
+      const sameDay = date.toDateString() === today.toDateString();
+      return {
+        top: sameDay ? 'Hoy' : String(date.getDate()),
+        bottom: sameDay ? '' : date.toLocaleDateString('es-AR', { month: 'short' }).replace('.', ''),
+      };
+    }
+
+    function agendaItems() {
+      const items = [];
+      filteredCards().filter(c => c.vence && !c.deletedAt).forEach(card => {
+        const date = calendarDateTime(card.vence, card.venceHora);
+        if (date) items.push({
+          type: 'client',
+          date,
+          card,
+          title: card.nf || card.rs || 'Cliente sin nombre',
+          meta: card.venceHora ? card.venceHora + ' · Vencimiento' : 'Todo el día · Vencimiento',
+          color: '#f4a340',
+        });
+      });
+      getEvents().filter(ev => ev.fecha && (activeTeam === 'all' || ev.equipo === activeTeam)).forEach(ev => {
+        const date = calendarDateTime(ev.fecha, ev.horaInicio);
+        if (date) items.push({
+          type: 'event',
+          date,
+          event: ev,
+          title: ev.titulo,
+          meta: (ev.horaInicio || 'Todo el día') + ' · Evento del equipo',
+          color: EVT_COLORS[ev.color] || '#579dff',
+        });
+      });
+      const cutoff = Date.now() - 86400000;
+      return items.filter(item => item.date.getTime() >= cutoff).sort((a, b) => a.date - b.date).slice(0, 14);
+    }
+
+    function renderClientesAgenda() {
+      const list = $('agenda-list');
+      if (!list) return;
+      const items = agendaItems();
+      const count = $('agenda-count');
+      if (count) count.textContent = items.length;
+      if (!items.length) {
+        list.innerHTML = '<div class="agenda-empty">No hay vencimientos ni eventos próximos.<br>Agregá uno desde una tarjeta o desde Calendario.</div>';
+        return;
+      }
+      list.innerHTML = items.map(item => {
+        const label = agendaDateText(item.date);
+        const action = item.type === 'client'
+          ? `openCard('${esc(item.card.id)}')`
+          : `openAgendaEvent('${esc(item.event.id)}')`;
+        return `<button class="agenda-item" type="button" style="--agenda-color:${item.color}" onclick="${action}">
+      <span class="agenda-date"><strong>${esc(label.top)}</strong>${esc(label.bottom)}</span>
+      <span>
+        <span class="agenda-item-title">${esc(item.title)}</span>
+        <span class="agenda-item-meta">${esc(item.meta)}</span>
+      </span>
+    </button>`;
+      }).join('');
+    }
+
+    function openAgendaEvent(id) {
+      if (!getEvents().some(event => event.id === id)) return;
+      calMode = 'local';
+      openEditEvent(id);
     }
 
     function markPendienteDone(cardId, itemId) {
@@ -12737,7 +13614,7 @@
       ['due-action-btn', 'due-footer-btn'].forEach(id => {
         const btn = $(id);
         if (!btn) return;
-        btn.textContent = value ? 'Evento: ' + formatDueDate(value, hora) : 'Evento';
+        btn.textContent = value ? 'Vencimiento: ' + formatDueDate(value, hora) : 'Vencimiento';
         btn.classList.toggle('has-due', !!value);
       });
     }
@@ -14665,8 +15542,8 @@
         html += `<div class="cal-day cal-day-add${isToday ? ' today' : ''}" onclick="openEventModal('${isoDate}')" title="Agregar evento">
       <div class="cal-daynum">${d}</div>
       ${shown.map(item => item.type === 'event'
-          ? `<div class="cal-event evt" style="border-left-color:${EVT_COLORS[item.data.color] || '#579dff'};color:${EVT_COLORS[item.data.color] || '#579dff'}" onclick="event.stopPropagation();openEditEvent('${item.data.id}')">${esc(item.data.titulo)}</div>`
-          : `<div class="cal-event" onclick="event.stopPropagation();openCard('${item.data.id}')">${esc(item.data.nf || item.data.rs || '—')}</div>`
+          ? `<div class="cal-event evt" style="border-left-color:${EVT_COLORS[item.data.color] || '#579dff'};color:${EVT_COLORS[item.data.color] || '#579dff'}" onclick="event.stopPropagation();openEditEvent('${item.data.id}')"><span class="cal-event-time">${esc(item.data.horaInicio || '')}</span><span class="cal-event-label">${esc(item.data.titulo)}</span></div>`
+          : `<div class="cal-event" style="border-left:2px solid #f4a340" onclick="event.stopPropagation();openCard('${item.data.id}')"><span class="cal-event-time">${esc(item.data.venceHora || '')}</span><span class="cal-event-label">${esc(item.data.nf || item.data.rs || '—')}</span></div>`
         ).join('')}
       ${extra ? `<div class="cal-event" style="background:var(--surface3)">+${extra} más</div>` : ''}
     </div>`;
@@ -15286,6 +16163,7 @@
           closeEventModal();
           toast(eventModalMode === 'edit' ? 'Evento actualizado' : 'Evento creado', 'success');
           renderCalendar(); // refresca desde Google
+          renderClientesAgenda();
           return;
         }
 
@@ -15299,6 +16177,7 @@
           eventsCache.push(data.event);
         }
         renderCalendar();
+        renderClientesAgenda();
         closeEventModal();
         toast(eventModalMode === 'edit' ? 'Evento actualizado' : 'Evento creado', 'success');
       } catch (err) {
@@ -15318,11 +16197,13 @@
           closeEventModal();
           toast('Evento eliminado', 'success');
           renderCalendar(); // refresca desde Google
+          renderClientesAgenda();
           return;
         }
         await api(`/api/events/${id}`, { method: 'DELETE' });
         eventsCache = eventsCache.filter(e => e.id !== id);
         renderCalendar();
+        renderClientesAgenda();
         closeEventModal();
         toast('Evento eliminado', 'success');
       } catch (err) {
@@ -15978,7 +16859,101 @@
     /* ─────────────────────────────────────────
        BOOT
     ───────────────────────────────────────── */
+    function initLoginParticles() {
+      const canvas = $('login-particles');
+      if (!canvas || !canvas.getContext) return;
+      const ctx = canvas.getContext('2d');
+      const source = document.createElement('canvas');
+      const sourceCtx = source.getContext('2d', { willReadFrequently: true });
+      const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      let particles = [];
+      let pointer = { x: -9999, y: -9999 };
+      let startedAt = performance.now();
+      let width = 0;
+      let height = 0;
+
+      function resize() {
+        const rect = canvas.getBoundingClientRect();
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        width = Math.max(1, rect.width);
+        height = Math.max(1, rect.height);
+        canvas.width = Math.round(width * dpr);
+        canvas.height = Math.round(height * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        source.width = Math.round(width);
+        source.height = Math.round(height);
+        sourceCtx.clearRect(0, 0, width, height);
+        sourceCtx.fillStyle = '#ffffff';
+        sourceCtx.textAlign = 'center';
+        sourceCtx.textBaseline = 'middle';
+        const compact = width < 520;
+        sourceCtx.font = `900 ${Math.max(compact ? 34 : 28, Math.min(compact ? 72 : 62, width / (compact ? 2.3 : 11)))}px Nunito Sans, sans-serif`;
+        sourceCtx.fillText(compact ? 'CD' : 'CONSULTORIA DIGITAL', width / 2, height * 0.18);
+        const pixels = sourceCtx.getImageData(0, 0, source.width, source.height).data;
+        const targets = [];
+        const step = compact ? 3 : 4;
+        for (let y = 0; y < source.height; y += step) {
+          for (let x = 0; x < source.width; x += step) {
+            if (pixels[(y * source.width + x) * 4 + 3] > 130) targets.push({ x, y });
+          }
+        }
+        const max = compact ? 520 : 900;
+        while (targets.length > max) targets.splice(Math.floor(Math.random() * targets.length), 1);
+        particles = targets.map(target => ({
+          x: Math.random() * width,
+          y: Math.random() * height,
+          tx: target.x,
+          ty: target.y,
+          size: Math.random() * 1.35 + 0.45,
+          alpha: Math.random() * 0.55 + 0.35,
+        }));
+        startedAt = performance.now();
+      }
+
+      function draw(now) {
+        const progress = reduced ? 1 : Math.min(1, (now - startedAt) / 1700);
+        const ease = 1 - Math.pow(1 - progress, 3);
+        ctx.clearRect(0, 0, width, height);
+        particles.forEach(p => {
+          if (reduced) {
+            p.x = p.tx;
+            p.y = p.ty;
+          }
+          const dx = p.tx - p.x;
+          const dy = p.ty - p.y;
+          if (!reduced) {
+            p.x += dx * (0.025 + ease * 0.06);
+            p.y += dy * (0.025 + ease * 0.06);
+          }
+          const px = p.x - pointer.x;
+          const py = p.y - pointer.y;
+          const distance = Math.hypot(px, py);
+          if (!reduced && distance < 80) {
+            const push = (80 - distance) / 80;
+            p.x += (px / (distance || 1)) * push * 1.8;
+            p.y += (py / (distance || 1)) * push * 1.8;
+          }
+          ctx.fillStyle = `rgba(231,255,79,${p.alpha * (0.32 + ease * 0.68)})`;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          ctx.fill();
+        });
+        if (!reduced) requestAnimationFrame(draw);
+      }
+
+      canvas.addEventListener('pointermove', event => {
+        const rect = canvas.getBoundingClientRect();
+        pointer.x = event.clientX - rect.left;
+        pointer.y = event.clientY - rect.top;
+      });
+      canvas.addEventListener('pointerleave', () => { pointer.x = -9999; pointer.y = -9999; });
+      window.addEventListener('resize', resize);
+      resize();
+      requestAnimationFrame(draw);
+    }
+
     (async function boot() {
+      initLoginParticles();
       hydrateIcons();
       try {
         await loadAppData();
