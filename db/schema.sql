@@ -119,6 +119,7 @@ CREATE TABLE IF NOT EXISTS calendar_events (
   hora_inicio TEXT NOT NULL DEFAULT '',
   hora_fin TEXT NOT NULL DEFAULT '',
   equipo TEXT NOT NULL CHECK (equipo IN ('marketing', 'desarrollo', 'admin')),
+  cliente_id TEXT NOT NULL DEFAULT '',
   color TEXT NOT NULL DEFAULT 'blue',
   creado_por TEXT REFERENCES users(id) ON DELETE SET NULL,
   creado_en BIGINT NOT NULL
@@ -126,6 +127,7 @@ CREATE TABLE IF NOT EXISTS calendar_events (
 
 CREATE INDEX IF NOT EXISTS idx_calendar_events_equipo ON calendar_events(equipo);
 CREATE INDEX IF NOT EXISTS idx_calendar_events_fecha  ON calendar_events(fecha);
+CREATE INDEX IF NOT EXISTS idx_calendar_events_cliente ON calendar_events(cliente_id);
 
 -- ──────────────────────────────────────────────
 -- NOTAS

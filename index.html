@@ -513,7 +513,7 @@
       height: 100%;
       pointer-events: none;
       opacity: 0.9;
-      z-index: -1;
+      z-index: 0;
     }
 
     .auth-card {
@@ -1202,6 +1202,49 @@
       display: flex;
       gap: 1rem;
       align-items: stretch;
+      position: relative;
+    }
+
+    /* Fondo tipo Lightfall: luces suaves animadas, conservando la paleta actual. */
+    #tab-clientes .clientes-body {
+      position: relative;
+      isolation: isolate;
+      background: #20262d;
+    }
+
+    #tab-clientes .clientes-body::before,
+    #tab-clientes .clientes-body::after {
+      content: '';
+      position: absolute;
+      inset: -18% -8%;
+      pointer-events: none;
+      z-index: -1;
+      opacity: 0.7;
+      background:
+        radial-gradient(ellipse at 18% 10%, rgba(120, 169, 255, 0.18), transparent 32%),
+        radial-gradient(ellipse at 78% 4%, rgba(101, 220, 155, 0.12), transparent 28%),
+        linear-gradient(116deg, transparent 0 42%, rgba(166, 197, 226, 0.08) 46%, transparent 50% 100%),
+        linear-gradient(126deg, transparent 0 64%, rgba(120, 169, 255, 0.07) 68%, transparent 73% 100%);
+      filter: blur(16px);
+      transform: translate3d(-2%, -5%, 0) rotate(-3deg);
+      animation: clients-lightfall 15s ease-in-out infinite alternate;
+    }
+
+    #tab-clientes .clientes-body::after {
+      opacity: 0.38;
+      transform: translate3d(5%, 7%, 0) rotate(5deg) scale(1.08);
+      animation-duration: 22s;
+      animation-direction: alternate-reverse;
+    }
+
+    @keyframes clients-lightfall {
+      from { transform: translate3d(-3%, -5%, 0) rotate(-4deg) scale(1); }
+      to { transform: translate3d(4%, 8%, 0) rotate(3deg) scale(1.07); }
+    }
+
+    #tab-clientes .kanban-wrap {
+      position: relative;
+      z-index: 1;
     }
 
     /* ─── Cuerpo de Clientes: tablero ─── */
@@ -1540,6 +1583,39 @@
       gap: 0;
       background: var(--surface);
       border-radius: var(--r-md);
+    }
+
+    .kanban-col,
+    .kanban-pendientes,
+    .clientes-agenda {
+      position: relative;
+    }
+
+    .kanban-resize-handle {
+      position: absolute;
+      top: 0.6rem;
+      right: 0.32rem;
+      bottom: 0.6rem;
+      width: 7px;
+      border-radius: 999px;
+      cursor: col-resize;
+      opacity: 0;
+      background: linear-gradient(180deg, transparent, rgba(166, 197, 226, 0.6), transparent);
+      transition: opacity 150ms ease, background 150ms ease;
+      z-index: 5;
+      touch-action: none;
+    }
+
+    .kanban-col:hover .kanban-resize-handle,
+    .kanban-pendientes:hover .kanban-resize-handle,
+    .clientes-agenda:hover .kanban-resize-handle,
+    .kanban-resize-handle:focus-visible {
+      opacity: 1;
+    }
+
+    .kanban-resize-handle:hover,
+    .kanban-resize-handle:active {
+      background: linear-gradient(180deg, transparent, var(--team-accent, #78a9ff), transparent);
     }
 
     /* Tablero Kanban de Ventas: columnas 20% más anchas */
@@ -4270,14 +4346,45 @@
 
     /* Footer con todas las opciones en una fila, al pie del panel */
     .card-view-footer {
-      margin-top: auto;
-      padding-top: 0.7rem;
-      border-top: 1px solid var(--border2);
+      order: -1;
+      margin: 0 0 0.8rem;
+      padding: 0.25rem 0 0.75rem;
+      border-top: none;
+      border-bottom: 1px solid var(--border2);
       display: flex;
       gap: 0.32rem;
       flex-wrap: wrap;
       align-items: center;
     }
+
+    .card-view-footer .trello-action {
+      min-height: 34px;
+      padding: 0.42rem 0.72rem;
+      border-radius: 10px;
+      border-color: rgba(166, 197, 226, 0.2);
+      background: linear-gradient(135deg, rgba(87, 157, 255, 0.12), rgba(166, 197, 226, 0.04));
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+      transition: transform 160ms ease, border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+    }
+
+    .card-view-footer .trello-action:hover {
+      transform: translateY(-1px);
+      border-color: var(--team-accent-line, rgba(87, 157, 255, 0.48));
+      background: linear-gradient(135deg, rgba(87, 157, 255, 0.22), rgba(166, 197, 226, 0.08));
+      box-shadow: 0 7px 16px rgba(0, 0, 0, 0.18);
+    }
+
+    .card-view-footer .trello-action::before {
+      color: var(--team-accent, #78a9ff);
+      font-size: 0.78rem;
+      line-height: 1;
+    }
+
+    .card-view-footer .trello-action[data-view-btn="members"]::before { content: '◉'; }
+    .card-view-footer .trello-action[data-view-btn="checklist"]::before { content: '✓'; }
+    .card-view-footer .trello-action[data-view-btn="details"]::before { content: '⌁'; }
+    .card-view-footer .trello-action[data-view-btn="attachments"]::before { content: '↗'; }
+    .card-view-footer .trello-action:not([data-view-btn])::before { content: '◷'; }
 
     .card-view-footer .trello-action.view-on {
       background: var(--surface3);
@@ -5128,6 +5235,36 @@
       gap: 0.28rem;
       margin-bottom: 0.45rem;
     }
+
+    .checklist-more-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      margin: 0 0 0.55rem;
+      padding: 0.35rem 0.58rem;
+      border: 1px solid rgba(87, 157, 255, 0.22);
+      border-radius: 999px;
+      background: rgba(87, 157, 255, 0.08);
+      color: #a9c8ff;
+      font-size: 0.62rem;
+      font-weight: 800;
+      cursor: pointer;
+      transition: background 150ms ease, border-color 150ms ease, transform 150ms ease;
+    }
+
+    .checklist-more-btn:hover {
+      background: rgba(87, 157, 255, 0.16);
+      border-color: rgba(87, 157, 255, 0.46);
+      transform: translateY(-1px);
+    }
+
+    .checklist-more-btn .checklist-more-arrow {
+      font-size: 0.9rem;
+      line-height: 0.6;
+      transition: transform 150ms ease;
+    }
+
+    .checklist-more-btn.is-open .checklist-more-arrow { transform: rotate(180deg); }
 
     .checklist-item {
       display: grid;
@@ -8451,6 +8588,9 @@
                   class="checklist-progress-bar"></span></div>
             </div>
             <div id="checklist-items" class="checklist-items"></div>
+            <button id="checklist-more-btn" class="checklist-more-btn" type="button" onclick="toggleChecklistMore()"
+              style="display:none"><span id="checklist-more-label">Ver más</span><span
+                class="checklist-more-arrow">⌄</span></button>
             <div id="checklist-empty" class="checklist-empty">Sin elementos todavia.</div>
             <div id="checklist-add" class="checklist-add">
               <textarea id="checklist-new-text" class="form-textarea trello-description" rows="2"
@@ -8879,17 +9019,24 @@
           </div>
           <div class="form-group">
             <label class="form-label">Equipo</label>
-            <select id="ev-equipo" class="form-select">
+            <select id="ev-equipo" class="form-select" onchange="syncEventTeamChange()">
               <option value="marketing">Equipo de Marketing</option>
               <option value="desarrollo">Equipo de Desarrollo</option>
               <option value="admin">Administracion</option>
             </select>
           </div>
         </div>
+        <div class="form-group">
+          <label class="form-label">Cliente asignado <span style="color:var(--muted);font-weight:400">(opcional)</span></label>
+          <select id="ev-cliente" class="form-select" onchange="syncEventClientHint()">
+            <option value="">Sin asignar</option>
+          </select>
+          <div id="ev-cliente-hint" style="color:var(--muted);font-size:0.66rem;margin-top:0.3rem"></div>
+        </div>
         <div class="form-row">
           <div class="form-group">
             <label class="form-label">Hora inicio</label>
-            <input id="ev-hora-inicio" class="form-input" type="time" />
+            <input id="ev-hora-inicio" class="form-input" type="time" required />
           </div>
           <div class="form-group">
             <label class="form-label">Hora fin</label>
@@ -8905,6 +9052,9 @@
       <div class="modal-foot">
         <button id="ev-delete-btn" class="btn btn-ghost btn-sm" style="color:#ff5c5c;margin-right:auto;display:none"
           onclick="confirmDeleteEvent()">Eliminar evento</button>
+        <button class="btn btn-ghost btn-sm" type="button" disabled title="Disponible próximamente">
+          Agendar en Google
+        </button>
         <button class="btn btn-ghost btn-sm" onclick="closeEventModal()">Cancelar</button>
         <button class="btn btn-primary btn-sm" onclick="saveEvent()">Guardar</button>
       </div>
@@ -11548,6 +11698,7 @@
     let dueDraftDate = '';
     let modalChecklist = [];
     let checklistHideDone = false;
+    let checklistShowAll = false;
     let modalUserIds = [];
     let membersPopoverOpen = false;
     let membersSearch = '';
@@ -11948,6 +12099,11 @@
       renderChecklist();
     }
 
+    function toggleChecklistMore() {
+      checklistShowAll = !checklistShowAll;
+      renderChecklist();
+    }
+
     function deleteChecklist() {
       if (modalChecklist.length && !confirm('Eliminar checklist?')) return;
       modalChecklist = [];
@@ -11995,9 +12151,10 @@
         hideBtn.textContent = checklistHideDone ? 'Mostrar marcados' : 'Ocultar marcados';
       }
 
-      const visibleItems = modalChecklist
+      const filteredItems = modalChecklist
         .map((item, index) => ({ item, index }))
         .filter(({ item }) => !checklistHideDone || !item.done);
+      const visibleItems = checklistShowAll ? filteredItems : filteredItems.slice(-5);
       const itemsEl = $('checklist-items');
       if (itemsEl) {
         itemsEl.innerHTML = visibleItems.map(({ item, index }) => `
@@ -12009,6 +12166,14 @@
         <button class="checklist-item-del" type="button" onmousedown="event.preventDefault()" onclick="deleteChecklistItem(${index})" title="Eliminar">x</button>
       </div>
     `).join('');
+      }
+      const moreBtn = $('checklist-more-btn');
+      const moreLabel = $('checklist-more-label');
+      if (moreBtn && moreLabel) {
+        const hasMore = filteredItems.length > 5;
+        moreBtn.style.display = hasMore ? 'inline-flex' : 'none';
+        moreBtn.classList.toggle('is-open', checklistShowAll);
+        moreLabel.textContent = checklistShowAll ? 'Ver menos' : `Ver más (${filteredItems.length - 5})`;
       }
       const empty = $('checklist-empty');
       if (empty) {
@@ -12170,7 +12335,8 @@
       <button class="add-card-btn" onclick="openNewCard('${status}')">
         ${icon('plus')} Añade una tarjeta
         <span class="add-card-expand">${icon('expand')}</span>
-      </button>`;
+      </button>
+      <span class="kanban-resize-handle" tabindex="0" data-resize-key="${status}" title="Arrastra para cambiar el ancho"></span>`;
         board.appendChild(col);
       });
 
@@ -12190,7 +12356,8 @@
     <div class="pend-client-filter">
       <select id="pend-client-select" class="pend-client-select" onchange="setPendientesClient(this.value)"></select>
     </div>
-    <div class="pend-list" id="pend-list"></div>`;
+    <div class="pend-list" id="pend-list"></div>
+    <span class="kanban-resize-handle" tabindex="0" data-resize-key="pendientes" title="Arrastra para cambiar el ancho"></span>`;
       board.appendChild(pendPanel);
       const agendaPanel = document.createElement('aside');
       agendaPanel.className = 'clientes-agenda';
@@ -12198,17 +12365,49 @@
       agendaPanel.innerHTML = `
     <div class="agenda-head">
       <div>
-        <div class="agenda-kicker">Vencimientos</div>
-        <div class="agenda-title">Calendario</div>
+        <div class="agenda-title">Calendario de eventos</div>
       </div>
       <span class="agenda-count" id="agenda-count">0</span>
     </div>
-    <div class="agenda-list" id="agenda-list"></div>`;
+    <div class="agenda-list" id="agenda-list"></div>
+    <span class="kanban-resize-handle" tabindex="0" data-resize-key="agenda" title="Arrastra para cambiar el ancho"></span>`;
       board.appendChild(agendaPanel);
       renderPendientesList();
       renderClientesAgenda();
+      setupKanbanResizers();
 
       initKanbanSortables();
+    }
+
+    function setupKanbanResizers() {
+      const board = $('kanban-board');
+      if (!board) return;
+      board.querySelectorAll('.kanban-resize-handle').forEach(handle => {
+        const key = handle.dataset.resizeKey;
+        const panel = handle.parentElement;
+        const saved = Number(localStorage.getItem(`kanban-width-${key}`));
+        if (saved >= 260 && saved <= 760) panel.style.width = `${saved}px`;
+        handle.addEventListener('pointerdown', event => {
+          event.preventDefault();
+          event.stopPropagation();
+          handle.setPointerCapture?.(event.pointerId);
+          const startX = event.clientX;
+          const startWidth = panel.getBoundingClientRect().width;
+          const onMove = moveEvent => {
+            const width = Math.max(260, Math.min(760, startWidth + moveEvent.clientX - startX));
+            panel.style.width = `${Math.round(width)}px`;
+          };
+          const onUp = () => {
+            const width = Math.round(panel.getBoundingClientRect().width);
+            localStorage.setItem(`kanban-width-${key}`, String(width));
+            document.removeEventListener('pointermove', onMove);
+            document.removeEventListener('pointerup', onUp);
+            handle.releasePointerCapture?.(event.pointerId);
+          };
+          document.addEventListener('pointermove', onMove);
+          document.addEventListener('pointerup', onUp, { once: true });
+        });
+      });
     }
 
     /* ─────────────────────────────────────────
@@ -12415,7 +12614,7 @@
           date,
           event: ev,
           title: ev.titulo,
-          meta: (ev.horaInicio || 'Todo el día') + ' · Evento del equipo',
+          meta: (ev.horaInicio || 'Todo el día') + ' · Evento del equipo' + eventClientLabel(ev),
           color: EVT_COLORS[ev.color] || '#579dff',
         });
       });
@@ -13970,6 +14169,7 @@
       modalChecklist = [];
       modalAttachments = [];
       checklistHideDone = false;
+      checklistShowAll = false;
       modalCardView = 'details'; // tarjeta nueva: arranca cargando los datos
       if ($('checklist-section')) $('checklist-section').dataset.open = 'false';
       $('modal-title').textContent = 'Nueva tarjeta';
@@ -14049,6 +14249,7 @@
       membersSearch = '';
       modalChecklist = normalizeChecklist(c.checklist);
       checklistHideDone = false;
+      checklistShowAll = false;
       // Para devs/marketing la checklist es el foco de la tarjeta: vista inicial.
       modalCardView = 'checklist';
       if ($('checklist-section')) $('checklist-section').dataset.open = (!isVentas || modalChecklist.length) ? 'true' : 'false';
@@ -15542,6 +15743,12 @@
       }
     }
 
+    function eventClientLabel(event) {
+      if (!event || !event.clienteId) return '';
+      const card = getCards().find(item => item.id === event.clienteId);
+      return card ? ' · ' + clientName(card) : '';
+    }
+
     function renderCalendarGrid(team, events) {
       $('cal-header').innerHTML = DAYS.map(d => `<div class="cal-lbl">${d}</div>`).join('');
 
@@ -15580,7 +15787,7 @@
         html += `<div class="cal-day cal-day-add${isToday ? ' today' : ''}" onclick="openEventModal('${isoDate}')" title="Agregar evento">
       <div class="cal-daynum">${d}</div>
       ${shown.map(item => item.type === 'event'
-          ? `<div class="cal-event evt" style="border-left-color:${EVT_COLORS[item.data.color] || '#579dff'};color:${EVT_COLORS[item.data.color] || '#579dff'}" onclick="event.stopPropagation();openEditEvent('${item.data.id}')"><span class="cal-event-time">${esc(item.data.horaInicio || '')}</span><span class="cal-event-label">${esc(item.data.titulo)}</span></div>`
+          ? `<div class="cal-event evt" style="border-left-color:${EVT_COLORS[item.data.color] || '#579dff'};color:${EVT_COLORS[item.data.color] || '#579dff'}" onclick="event.stopPropagation();openEditEvent('${item.data.id}')"><span class="cal-event-time">${esc(item.data.horaInicio || '')}</span><span class="cal-event-label">${esc(item.data.titulo)}${esc(eventClientLabel(item.data))}</span></div>`
           : `<div class="cal-event" style="border-left:2px solid #f4a340" onclick="event.stopPropagation();openCard('${item.data.id}')"><span class="cal-event-time">${esc(item.data.venceHora || '')}</span><span class="cal-event-label">${esc(item.data.nf || item.data.rs || '—')}</span></div>`
         ).join('')}
       ${extra ? `<div class="cal-event" style="background:var(--surface3)">+${extra} más</div>` : ''}
@@ -16136,6 +16343,32 @@
       renderEvColorPicker(key);
     }
 
+    function populateEventClientSelect(selected = '') {
+      const select = $('ev-cliente');
+      if (!select) return;
+      const team = $('ev-equipo') ? $('ev-equipo').value : '';
+      const clients = getCards()
+        .filter(card => !card.deletedAt && (!team || card.equipo === team))
+        .sort((a, b) => clientName(a).localeCompare(clientName(b), 'es'));
+      select.innerHTML = '<option value="">Sin asignar</option>' + clients.map(card =>
+        `<option value="${esc(card.id)}"${card.id === selected ? ' selected' : ''}>${esc(clientName(card))}</option>`
+      ).join('');
+      if (selected && !clients.some(card => card.id === selected)) select.value = '';
+      syncEventClientHint();
+    }
+
+    function syncEventTeamChange() {
+      populateEventClientSelect($('ev-cliente') ? $('ev-cliente').value : '');
+      syncTeamSelect('ev-equipo');
+    }
+
+    function syncEventClientHint() {
+      const hint = $('ev-cliente-hint');
+      const select = $('ev-cliente');
+      if (!hint || !select) return;
+      hint.textContent = select.value ? 'Este evento quedará vinculado a la ficha del cliente.' : 'Podés dejarlo sin cliente asignado.';
+    }
+
     function openEventModal(fecha) {
       eventModalMode = 'create';
       $('ev-id').value = '';
@@ -16146,6 +16379,7 @@
       $('ev-hora-fin').value = '';
       $('ev-equipo').value = activeTeam !== 'all' ? activeTeam : (currentUser.equipo || 'marketing');
       syncTeamSelect('ev-equipo');
+      populateEventClientSelect('');
       renderEvColorPicker('blue');
       $('event-modal-title').textContent = 'Nuevo evento';
       $('ev-delete-btn').style.display = 'none';
@@ -16166,6 +16400,7 @@
       $('ev-hora-fin').value = ev.horaFin || '';
       $('ev-equipo').value = ev.equipo;
       syncTeamSelect('ev-equipo');
+      populateEventClientSelect(ev.clienteId || '');
       renderEvColorPicker(ev.color || 'blue');
       $('event-modal-title').textContent = 'Editar evento';
       $('ev-delete-btn').style.display = '';
@@ -16184,10 +16419,12 @@
       const horaInicio = $('ev-hora-inicio').value;
       const horaFin = $('ev-hora-fin').value;
       const equipo = $('ev-equipo').value;
+      const clienteId = $('ev-cliente').value || '';
       if (!titulo) { showErr('ev-err', 'El titulo es requerido.'); return; }
       if (!fecha) { showErr('ev-err', 'La fecha es requerida.'); return; }
+      if (!horaInicio) { showErr('ev-err', 'La hora de inicio es requerida.'); return; }
       try {
-        const body = { titulo, descripcion, fecha, horaInicio, horaFin, equipo, color: evColorSelected };
+        const body = { titulo, descripcion, fecha, horaInicio, horaFin, equipo, clienteId, color: evColorSelected };
 
         if (calMode === 'google') {
           // El evento vive en Google Calendar; se rutea por el equipo en vista (calTeam).

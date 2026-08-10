@@ -36,6 +36,8 @@ async function ensureDatabaseMigrations() {
   await pool.query("ALTER TABLE cards ADD COLUMN IF NOT EXISTS pauta_url TEXT NOT NULL DEFAULT ''");
   await pool.query("ALTER TABLE cards ADD COLUMN IF NOT EXISTS attachments JSONB NOT NULL DEFAULT '[]'::jsonb");
   await pool.query("ALTER TABLE client_movements ADD COLUMN IF NOT EXISTS archivos JSONB NOT NULL DEFAULT '[]'::jsonb");
+  await pool.query("ALTER TABLE calendar_events ADD COLUMN IF NOT EXISTS cliente_id TEXT NOT NULL DEFAULT ''");
+  await pool.query("CREATE INDEX IF NOT EXISTS idx_calendar_events_cliente ON calendar_events(cliente_id)");
   await pool.query(`
     CREATE TABLE IF NOT EXISTS app_notes (
       id TEXT PRIMARY KEY,
@@ -878,7 +880,7 @@ async function visibleEvents(user) {
   return rows.map(r => ({
     id: r.id, titulo: r.titulo, descripcion: r.descripcion,
     fecha: r.fecha, horaInicio: r.hora_inicio, horaFin: r.hora_fin,
-    equipo: r.equipo, color: r.color, creadoPor: r.creado_por, creadoEn: r.creado_en,
+    equipo: r.equipo, clienteId: r.cliente_id || '', color: r.color, creadoPor: r.creado_por, creadoEn: r.creado_en,
   }));
 }
 
@@ -1993,7 +1995,7 @@ function eventDTO(r) {
   return {
     id: r.id, titulo: r.titulo, descripcion: r.descripcion,
     fecha: r.fecha, horaInicio: r.hora_inicio, horaFin: r.hora_fin,
-    equipo: r.equipo, color: r.color, creadoPor: r.creado_por, creadoEn: r.creado_en,
+    equipo: r.equipo, clienteId: r.cliente_id || '', color: r.color, creadoPor: r.creado_por, creadoEn: r.creado_en,
   };
 }
 
@@ -2005,13 +2007,14 @@ app.post('/api/events', requireAuth, async (req, res, next) => {
     const horaInicio = String(req.body.horaInicio || '').trim();
     const horaFin = String(req.body.horaFin || '').trim();
     const equipo = cleanTeam(req.body.equipo) || req.user.equipo;
+    const clienteId = String(req.body.clienteId || '').trim();
     const color = String(req.body.color || 'blue').trim();
     if (!titulo || !fecha) return res.status(400).json({ error: 'Titulo y fecha son requeridos.' });
     if (!canAccessTeam(req.user, equipo)) return res.status(403).json({ error: 'Sin acceso a ese equipo.' });
     const { rows } = await pool.query(
-      `INSERT INTO calendar_events (id,titulo,descripcion,fecha,hora_inicio,hora_fin,equipo,color,creado_por,creado_en)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
-      [mkId(), titulo, descripcion, fecha, horaInicio, horaFin, equipo, color, req.user.id, Date.now()]
+      `INSERT INTO calendar_events (id,titulo,descripcion,fecha,hora_inicio,hora_fin,equipo,cliente_id,color,creado_por,creado_en)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+      [mkId(), titulo, descripcion, fecha, horaInicio, horaFin, equipo, clienteId, color, req.user.id, Date.now()]
     );
     res.status(201).json({ event: eventDTO(rows[0]) });
   } catch (err) { next(err); }
@@ -2028,12 +2031,13 @@ app.patch('/api/events/:id', requireAuth, async (req, res, next) => {
     const horaInicio = String(req.body.horaInicio || '').trim();
     const horaFin = String(req.body.horaFin || '').trim();
     const equipo = cleanTeam(req.body.equipo) || ex[0].equipo;
+    const clienteId = String(req.body.clienteId || '').trim();
     const color = String(req.body.color || ex[0].color).trim();
     if (!titulo || !fecha) return res.status(400).json({ error: 'Titulo y fecha son requeridos.' });
     if (!canAccessTeam(req.user, equipo)) return res.status(403).json({ error: 'Sin acceso a ese equipo.' });
     const { rows } = await pool.query(
-      `UPDATE calendar_events SET titulo=$2,descripcion=$3,fecha=$4,hora_inicio=$5,hora_fin=$6,equipo=$7,color=$8 WHERE id=$1 RETURNING *`,
-      [req.params.id, titulo, descripcion, fecha, horaInicio, horaFin, equipo, color]
+      `UPDATE calendar_events SET titulo=$2,descripcion=$3,fecha=$4,hora_inicio=$5,hora_fin=$6,equipo=$7,cliente_id=$8,color=$9 WHERE id=$1 RETURNING *`,
+      [req.params.id, titulo, descripcion, fecha, horaInicio, horaFin, equipo, clienteId, color]
     );
     res.json({ event: eventDTO(rows[0]) });
   } catch (err) { next(err); }
