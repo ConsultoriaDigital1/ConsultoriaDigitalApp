@@ -468,10 +468,42 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      background: radial-gradient(ellipse at 60% 0%, rgba(87, 157, 255, 0.12) 0%, transparent 55%),
-        radial-gradient(ellipse at 10% 100%, rgba(124, 58, 237, 0.08) 0%, transparent 50%),
-        var(--bg);
+      background: linear-gradient(135deg, #343a40 0%, #252b31 48%, #1b2025 100%);
       padding: 1rem;
+    }
+
+    #login-screen::before {
+      content: "";
+      position: absolute;
+      inset: -45%;
+      z-index: -2;
+      pointer-events: none;
+      background: conic-gradient(from 204deg at 50% 38%,
+          transparent 0deg 18deg,
+          rgba(231, 255, 79, 0.1) 22deg 28deg,
+          transparent 32deg 47deg,
+          rgba(255, 255, 255, 0.08) 51deg 57deg,
+          transparent 61deg 75deg,
+          rgba(231, 255, 79, 0.07) 79deg 86deg,
+          transparent 90deg 360deg);
+      filter: blur(18px);
+      opacity: 0.78;
+      transform-origin: 50% 38%;
+      animation: login-light-rays 16s ease-in-out infinite alternate;
+    }
+
+    #login-screen::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: -2;
+      pointer-events: none;
+      background: radial-gradient(ellipse at center, transparent 22%, rgba(11, 14, 17, 0.32) 100%);
+    }
+
+    @keyframes login-light-rays {
+      from { transform: rotate(-5deg) scale(1.02); opacity: 0.58; }
+      to { transform: rotate(5deg) scale(1.08); opacity: 0.88; }
     }
 
     #login-particles {
@@ -495,6 +527,12 @@
       box-shadow: var(--shadow-lg);
       border: 1px solid var(--border);
       animation: auth-build 700ms cubic-bezier(.22, 1, .36, 1) both;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      #login-screen::before {
+        animation: none;
+      }
     }
 
     @keyframes auth-build {
@@ -16865,12 +16903,21 @@
       const ctx = canvas.getContext('2d');
       const source = document.createElement('canvas');
       const sourceCtx = source.getContext('2d', { willReadFrequently: true });
+      const logo = new Image();
       const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       let particles = [];
       let pointer = { x: -9999, y: -9999 };
       let startedAt = performance.now();
       let width = 0;
       let height = 0;
+      let logoLoaded = false;
+
+      logo.onload = () => {
+        logoLoaded = true;
+        resize();
+        requestAnimationFrame(draw);
+      };
+      logo.src = 'logo.webp';
 
       function resize() {
         const rect = canvas.getBoundingClientRect();
@@ -16883,18 +16930,24 @@
         source.width = Math.round(width);
         source.height = Math.round(height);
         sourceCtx.clearRect(0, 0, width, height);
-        sourceCtx.fillStyle = '#ffffff';
-        sourceCtx.textAlign = 'center';
-        sourceCtx.textBaseline = 'middle';
         const compact = width < 520;
-        sourceCtx.font = `900 ${Math.max(compact ? 34 : 28, Math.min(compact ? 72 : 62, width / (compact ? 2.3 : 11)))}px Nunito Sans, sans-serif`;
-        sourceCtx.fillText(compact ? 'CD' : 'CONSULTORIA DIGITAL', width / 2, height * 0.18);
+        if (!logoLoaded) {
+          particles = [];
+          return;
+        }
+        const imageRatio = logo.naturalWidth / logo.naturalHeight || 5;
+        const imageWidth = Math.min(width * (compact ? 0.78 : 0.56), compact ? 430 : 620);
+        const imageHeight = imageWidth / imageRatio;
+        sourceCtx.drawImage(logo, (width - imageWidth) / 2, height * 0.18 - imageHeight / 2, imageWidth, imageHeight);
         const pixels = sourceCtx.getImageData(0, 0, source.width, source.height).data;
         const targets = [];
         const step = compact ? 3 : 4;
         for (let y = 0; y < source.height; y += step) {
           for (let x = 0; x < source.width; x += step) {
-            if (pixels[(y * source.width + x) * 4 + 3] > 130) targets.push({ x, y });
+            const pixel = (y * source.width + x) * 4;
+            if (pixels[pixel + 3] > 90) {
+              targets.push({ x, y, r: pixels[pixel], g: pixels[pixel + 1], b: pixels[pixel + 2] });
+            }
           }
         }
         const max = compact ? 520 : 900;
@@ -16906,8 +16959,12 @@
           ty: target.y,
           size: Math.random() * 1.35 + 0.45,
           alpha: Math.random() * 0.55 + 0.35,
+          r: target.r,
+          g: target.g,
+          b: target.b,
         }));
         startedAt = performance.now();
+        if (reduced) requestAnimationFrame(draw);
       }
 
       function draw(now) {
@@ -16933,7 +16990,7 @@
             p.x += (px / (distance || 1)) * push * 1.8;
             p.y += (py / (distance || 1)) * push * 1.8;
           }
-          ctx.fillStyle = `rgba(231,255,79,${p.alpha * (0.32 + ease * 0.68)})`;
+          ctx.fillStyle = `rgba(${p.r},${p.g},${p.b},${p.alpha * (0.32 + ease * 0.68)})`;
           ctx.beginPath();
           ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
           ctx.fill();
