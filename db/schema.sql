@@ -127,6 +127,7 @@ CREATE TABLE IF NOT EXISTS calendar_events (
 
 CREATE INDEX IF NOT EXISTS idx_calendar_events_equipo ON calendar_events(equipo);
 CREATE INDEX IF NOT EXISTS idx_calendar_events_fecha  ON calendar_events(fecha);
+ALTER TABLE calendar_events ADD COLUMN IF NOT EXISTS cliente_id TEXT NOT NULL DEFAULT '';
 CREATE INDEX IF NOT EXISTS idx_calendar_events_cliente ON calendar_events(cliente_id);
 
 -- ──────────────────────────────────────────────
