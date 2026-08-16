@@ -233,7 +233,20 @@ CREATE TABLE IF NOT EXISTS whatsapp_messages (
   body TEXT NOT NULL,
   timestamp BIGINT NOT NULL,
   from_me BOOLEAN NOT NULL,
+  media_type TEXT NOT NULL DEFAULT '',
+  media_mime TEXT NOT NULL DEFAULT '',
+  media_filename TEXT NOT NULL DEFAULT '',
+  media_path TEXT NOT NULL DEFAULT '',
+  media_size BIGINT NOT NULL DEFAULT 0,
+  media_error TEXT NOT NULL DEFAULT '',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_whatsapp_messages_chat_jid ON whatsapp_messages(chat_jid, timestamp);
+
+ALTER TABLE whatsapp_messages ADD COLUMN IF NOT EXISTS media_type TEXT NOT NULL DEFAULT '';
+ALTER TABLE whatsapp_messages ADD COLUMN IF NOT EXISTS media_mime TEXT NOT NULL DEFAULT '';
+ALTER TABLE whatsapp_messages ADD COLUMN IF NOT EXISTS media_filename TEXT NOT NULL DEFAULT '';
+ALTER TABLE whatsapp_messages ADD COLUMN IF NOT EXISTS media_path TEXT NOT NULL DEFAULT '';
+ALTER TABLE whatsapp_messages ADD COLUMN IF NOT EXISTS media_size BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE whatsapp_messages ADD COLUMN IF NOT EXISTS media_error TEXT NOT NULL DEFAULT '';

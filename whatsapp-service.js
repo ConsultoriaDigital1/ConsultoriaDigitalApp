@@ -5,6 +5,7 @@ const {
   DisconnectReason,
   Browsers,
   jidNormalizedUser,
+  downloadContentFromMessage,
 } = require('@whiskeysockets/baileys');
 const qrcode = require('qrcode');
 const pino = require('pino');
@@ -32,6 +33,11 @@ const MAX_MESSAGES_PER_CHAT = 100;
 const logger = pino({ level: 'silent' });
 
 const AUTH_DIR = path.join(os.homedir(), '.baileys_auth', 'consultoria-digital');
+const WHATSAPP_MEDIA_DIR = process.env.WHATSAPP_MEDIA_DIR || path.join(__dirname, '.local', 'whatsapp-media');
+const configuredMediaMb = Number(process.env.WHATSAPP_MAX_MEDIA_MB || 32);
+const MAX_MEDIA_BYTES = (Number.isFinite(configuredMediaMb) && configuredMediaMb > 0 && configuredMediaMb <= 100
+  ? configuredMediaMb
+  : 32) * 1024 * 1024;
 
 const MAPPING_FILE = path.join(__dirname, '.local', 'lid-mappings.json');
 const lidToPnMap = new Map();
@@ -338,6 +344,93 @@ function mediaPlaceholder(message, fromMe = false) {
   return '';
 }
 
+function extensionForMedia(mimeType, fileName = '') {
+  const byName = path.extname(fileName).toLowerCase();
+  if (/^\.[a-z0-9]{1,10}$/.test(byName)) return byName;
+  const extensions = {
+    'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp',
+    'audio/ogg': '.ogg', 'audio/mpeg': '.mp3', 'audio/mp4': '.m4a',
+    'video/mp4': '.mp4', 'application/pdf': '.pdf',
+  };
+  return extensions[String(mimeType || '').toLowerCase()] || '';
+}
+
+function getMediaInfo(message) {
+  const content = unwrapMessage(message);
+  if (!content) return null;
+
+  const types = [
+    ['imageMessage', 'image'], ['audioMessage', 'audio'], ['videoMessage', 'video'],
+    ['documentMessage', 'document'], ['stickerMessage', 'sticker'],
+  ];
+  for (const [key, type] of types) {
+    const media = content[key];
+    if (!media) continue;
+    return {
+      type,
+      content: media,
+      mime: String(media.mimetype || (type === 'sticker' ? 'image/webp' : 'application/octet-stream')).slice(0, 128),
+      filename: String(media.fileName || '').slice(0, 255),
+      size: Number(media.fileLength || 0),
+    };
+  }
+  return null;
+}
+
+async function persistMediaMessage(message) {
+  let media = getMediaInfo(message.message);
+  if (!media) return null;
+
+  if (media.size > MAX_MEDIA_BYTES) {
+    console.warn(`[WhatsApp Service] Archivo omitido: supera el limite de ${MAX_MEDIA_BYTES} bytes.`);
+    const { content, ...metadata } = media;
+    return { ...metadata, error: 'El archivo supera el limite configurado.' };
+  }
+
+  try {
+    let stream;
+    try {
+      stream = await downloadContentFromMessage(media.content, media.type);
+    } catch (err) {
+      const status = err?.response?.status;
+      if (!sock?.updateMediaMessage || ![404, 410].includes(status)) throw err;
+
+      const reuploadedMessage = await sock.updateMediaMessage(message);
+      media = getMediaInfo(reuploadedMessage.message);
+      if (!media) throw new Error('WhatsApp no devolvio el archivo para reintentar la descarga.');
+      stream = await downloadContentFromMessage(media.content, media.type);
+    }
+    const chunks = [];
+    let downloadedBytes = 0;
+    for await (const chunk of stream) {
+      downloadedBytes += chunk.length;
+      if (downloadedBytes > MAX_MEDIA_BYTES) {
+        throw new Error('El archivo descargado supera el limite configurado.');
+      }
+      chunks.push(chunk);
+    }
+    const buffer = Buffer.concat(chunks, downloadedBytes);
+
+    await fs.promises.mkdir(WHATSAPP_MEDIA_DIR, { recursive: true });
+    const safeId = String(message.key?.id || Date.now()).replace(/[^a-zA-Z0-9_-]/g, '') || String(Date.now());
+    const extension = extensionForMedia(media.mime, media.filename);
+    const storedName = `${safeId}${extension}`;
+    const storedPath = path.join(WHATSAPP_MEDIA_DIR, storedName);
+    try {
+      await fs.promises.writeFile(storedPath, buffer, { flag: 'wx' });
+    } catch (err) {
+      if (err.code !== 'EEXIST') throw err;
+    }
+
+    const { content, ...metadata } = media;
+    return { ...metadata, size: buffer.length, path: storedName };
+  } catch (err) {
+    console.error('[WhatsApp Service] No se pudo descargar el archivo multimedia:', err.message);
+    const { content, ...metadata } = media;
+    return { ...metadata, error: 'No se pudo descargar el archivo multimedia.' };
+  }
+}
+
 function extractText(message, fromMe = false) {
   message = unwrapMessage(message);
   if (!message) return '';
@@ -378,7 +471,7 @@ function getMessagePhoneJid(m) {
   return rememberLidMapping(rawJid, pnFromSignal, 'signalRepository') || rawJid;
 }
 
-function formatMessage(m) {
+function formatMessage(m, media = null) {
   const jid = getMessagePhoneJid(m);
   const rawJid = m.key?.remoteJid;
   const fromMe = !!m.key.fromMe;
@@ -393,6 +486,10 @@ function formatMessage(m) {
     fromMe,
     pushName,
     lidAlias: isLidJid(rawJid) ? normalizeLidJid(rawJid) : '',
+    media: media ? {
+      ...media,
+      url: `/api/whatsapp/media/${encodeURIComponent(m.key.id)}`,
+    } : null,
   };
 }
 
@@ -450,20 +547,20 @@ async function handleConnectionUpdate(update) {
   }
 }
 
-function handleMessagesUpsert({ messages, type }) {
+async function handleMessagesUpsert({ messages, type }) {
   console.log('========================');
   console.log('UPSERT TYPE:', type);
   console.log('MENSAJES:', messages.length);
 
   for (const m of messages) {
-    console.log('[WhatsApp Service] Mensaje Completo Recibido:', JSON.stringify(m, null, 2));
 
     if (!m.message) continue;
 
     const rawJid = m.key?.remoteJid;
     if (!isIndividualChat(rawJid)) continue;
 
-    const formatted = formatMessage(m);
+    const media = await persistMediaMessage(m);
+    const formatted = formatMessage(m, media);
     const resolvedJid = formatted.fromMe ? formatted.to : formatted.from;
 
     if (rawJid !== resolvedJid) {

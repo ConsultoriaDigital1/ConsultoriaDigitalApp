@@ -6888,6 +6888,64 @@
       align-self: flex-end;
     }
 
+    .chat-media {
+      display: block;
+      max-width: min(360px, 100%);
+      margin-bottom: 0.35rem;
+      border-radius: 5px;
+      overflow: hidden;
+      background: rgba(0, 0, 0, 0.2);
+    }
+
+    .chat-media-image,
+    .chat-media-sticker,
+    .chat-media-video {
+      display: block;
+      max-width: 100%;
+      max-height: 340px;
+      object-fit: contain;
+    }
+
+    .chat-media-sticker {
+      max-width: 180px;
+      background: transparent;
+    }
+
+    .chat-media-audio {
+      display: block;
+      width: min(300px, 100%);
+      min-height: 34px;
+    }
+
+    .chat-media-document {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      min-width: 190px;
+      padding: 0.55rem 0.65rem;
+      color: inherit;
+      text-decoration: none;
+      border-radius: 5px;
+      background: rgba(0, 0, 0, 0.18);
+    }
+
+    .chat-media-document:hover {
+      background: rgba(0, 0, 0, 0.3);
+    }
+
+    .chat-media-document-name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 0.76rem;
+    }
+
+    .chat-media-error {
+      font-size: 0.72rem;
+      color: rgba(255, 255, 255, 0.65);
+      margin-bottom: 0.25rem;
+    }
+
     .chat-qr-setup {
       flex: 1;
       display: flex;
@@ -17272,19 +17330,82 @@
 
       if (messagesContainer.querySelector(`[data-msg-id="${msg.id}"]`)) return;
 
-      const messageBody = String(msg.body || '').trim() || '[mensaje multimedia]';
+      const messageBody = String(msg.body || '').trim() || (msg.media ? '' : '[mensaje multimedia]');
       const bubble = document.createElement('div');
       bubble.className = `chat-message-bubble ${msg.fromMe ? 'outgoing' : 'incoming'}`;
       bubble.dataset.msgId = msg.id;
 
       const timeStr = formatMessageTimestamp(msg.timestamp);
 
-      bubble.innerHTML = `
-    <div class="chat-message-body">${esc(messageBody)}</div>
-    <span class="chat-message-time">${timeStr}</span>
-  `;
+      const mediaElement = buildChatMediaElement(msg.media);
+      if (mediaElement) bubble.appendChild(mediaElement);
+
+      if (messageBody) {
+        const body = document.createElement('div');
+        body.className = 'chat-message-body';
+        body.textContent = messageBody;
+        bubble.appendChild(body);
+      }
+
+      const time = document.createElement('span');
+      time.className = 'chat-message-time';
+      time.textContent = timeStr;
+      bubble.appendChild(time);
 
       messagesContainer.appendChild(bubble);
+    }
+
+    function buildChatMediaElement(media) {
+      if (!media) return null;
+      const url = String(media.url || '');
+      const type = String(media.type || '');
+      if (!url) {
+        const error = document.createElement('div');
+        error.className = 'chat-media-error';
+        error.textContent = media.error || '[archivo multimedia no disponible]';
+        return error;
+      }
+
+      if (type === 'image' || type === 'sticker') {
+        const image = document.createElement('img');
+        image.className = `chat-media chat-media-${type}`;
+        image.src = url;
+        image.alt = type === 'sticker' ? 'Sticker de WhatsApp' : 'Imagen de WhatsApp';
+        image.loading = 'lazy';
+        return image;
+      }
+
+      if (type === 'audio') {
+        const audio = document.createElement('audio');
+        audio.className = 'chat-media chat-media-audio';
+        audio.src = url;
+        audio.controls = true;
+        audio.preload = 'metadata';
+        return audio;
+      }
+
+      if (type === 'video') {
+        const video = document.createElement('video');
+        video.className = 'chat-media chat-media-video';
+        video.src = url;
+        video.controls = true;
+        video.preload = 'metadata';
+        return video;
+      }
+
+      const documentLink = document.createElement('a');
+      documentLink.className = 'chat-media chat-media-document';
+      documentLink.href = url;
+      documentLink.target = '_blank';
+      documentLink.rel = 'noopener';
+      documentLink.title = media.filename || 'Abrir archivo';
+      const fileIcon = document.createElement('span');
+      fileIcon.textContent = 'Descargar';
+      const fileName = document.createElement('span');
+      fileName.className = 'chat-media-document-name';
+      fileName.textContent = media.filename || 'Documento recibido';
+      documentLink.append(fileIcon, fileName);
+      return documentLink;
     }
 
     function formatMessageTimestamp(timestamp) {

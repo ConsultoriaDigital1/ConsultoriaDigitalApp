@@ -25,6 +25,12 @@ const COOKIE_NAME = 'cd_session';
 const SESSION_SECRET = process.env.SESSION_SECRET || 'dev-only-change-me';
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 const GOOGLE_CALENDAR_CTZ = process.env.GOOGLE_CALENDAR_CTZ || 'America/Argentina/Buenos_Aires';
+const INLINE_WHATSAPP_MEDIA_MIME_TYPES = {
+  image: new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']),
+  sticker: new Set(['image/webp']),
+  audio: new Set(['audio/aac', 'audio/mpeg', 'audio/mp4', 'audio/ogg', 'audio/webm']),
+  video: new Set(['video/3gpp', 'video/mp4', 'video/webm']),
+};
 
 if (process.env.NODE_ENV === 'production' && SESSION_SECRET === 'dev-only-change-me') {
   throw new Error('Defini SESSION_SECRET en produccion.');
@@ -73,9 +79,21 @@ async function ensureDatabaseMigrations() {
       body TEXT NOT NULL,
       timestamp BIGINT NOT NULL,
       from_me BOOLEAN NOT NULL,
+      media_type TEXT NOT NULL DEFAULT '',
+      media_mime TEXT NOT NULL DEFAULT '',
+      media_filename TEXT NOT NULL DEFAULT '',
+      media_path TEXT NOT NULL DEFAULT '',
+      media_size BIGINT NOT NULL DEFAULT 0,
+      media_error TEXT NOT NULL DEFAULT '',
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
+  await pool.query("ALTER TABLE whatsapp_messages ADD COLUMN IF NOT EXISTS media_type TEXT NOT NULL DEFAULT ''");
+  await pool.query("ALTER TABLE whatsapp_messages ADD COLUMN IF NOT EXISTS media_mime TEXT NOT NULL DEFAULT ''");
+  await pool.query("ALTER TABLE whatsapp_messages ADD COLUMN IF NOT EXISTS media_filename TEXT NOT NULL DEFAULT ''");
+  await pool.query("ALTER TABLE whatsapp_messages ADD COLUMN IF NOT EXISTS media_path TEXT NOT NULL DEFAULT ''");
+  await pool.query("ALTER TABLE whatsapp_messages ADD COLUMN IF NOT EXISTS media_size BIGINT NOT NULL DEFAULT 0");
+  await pool.query("ALTER TABLE whatsapp_messages ADD COLUMN IF NOT EXISTS media_error TEXT NOT NULL DEFAULT ''");
   await pool.query("CREATE INDEX IF NOT EXISTS idx_whatsapp_messages_chat_jid ON whatsapp_messages(chat_jid, timestamp)");
 
   // Cobranzas: facturas emitidas via ARCA y registro de avisos enviados
@@ -201,6 +219,16 @@ function setSessionCookie(res, userId) {
 
 function clearSessionCookie(res) {
   res.clearCookie(COOKIE_NAME, { path: '/' });
+}
+
+function mediaResponseHeaders(media) {
+  const mime = String(media.media_mime || '').split(';', 1)[0].trim().toLowerCase();
+  const isInline = INLINE_WHATSAPP_MEDIA_MIME_TYPES[media.media_type]?.has(mime);
+  const filename = String(media.media_filename || 'archivo').replace(/["\r\n]/g, '');
+  return {
+    mime: isInline ? mime : 'application/octet-stream',
+    disposition: `${isInline ? 'inline' : 'attachment'}; filename="${filename || 'archivo'}"`,
+  };
 }
 
 function userDTO(row) {
@@ -1372,7 +1400,8 @@ app.get('/api/whatsapp/chats/:phone/messages', requireAuth, async (req, res, nex
     }
 
     const { rows: dbMessages } = await pool.query(
-      `SELECT id, sender_jid AS "from", receiver_jid AS "to", body, timestamp, from_me AS "fromMe"
+      `SELECT id, sender_jid AS "from", receiver_jid AS "to", body, timestamp, from_me AS "fromMe",
+              media_type, media_mime, media_filename, media_size, media_error
        FROM whatsapp_messages
        WHERE chat_jid = ANY($1)
        ORDER BY timestamp ASC`,
@@ -1394,7 +1423,15 @@ app.get('/api/whatsapp/chats/:phone/messages', requireAuth, async (req, res, nex
         to: msg.to,
         body: msg.body,
         timestamp: Number(msg.timestamp),
-        fromMe: msg.fromMe
+        fromMe: msg.fromMe,
+        media: msg.media_type ? {
+          type: msg.media_type,
+          mime: msg.media_mime,
+          filename: msg.media_filename,
+          size: Number(msg.media_size),
+          error: msg.media_error,
+          url: `/api/whatsapp/media/${encodeURIComponent(msg.id)}`,
+        } : null,
       });
     }
     for (const msg of memoryMessages) {
@@ -1405,6 +1442,36 @@ app.get('/api/whatsapp/chats/:phone/messages', requireAuth, async (req, res, nex
     res.json({ messages });
   } catch (err) {
     res.status(500).json({ error: err.message || 'Error al obtener mensajes.' });
+  }
+});
+
+app.get('/api/whatsapp/media/:messageId', requireAuth, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT media_path, media_type, media_mime, media_filename
+       FROM whatsapp_messages WHERE id = $1`,
+      [req.params.messageId]
+    );
+    const media = rows[0];
+    if (!media?.media_path) return res.status(404).json({ error: 'Archivo no disponible.' });
+
+    const mediaDir = path.resolve(process.env.WHATSAPP_MEDIA_DIR || path.join(__dirname, '.local', 'whatsapp-media'));
+    const filePath = path.resolve(mediaDir, media.media_path);
+    if (!filePath.startsWith(mediaDir + path.sep)) return res.status(400).json({ error: 'Ruta de archivo invalida.' });
+
+    const headers = mediaResponseHeaders(media);
+    res.setHeader('Cache-Control', 'private, no-store');
+    return res.type(headers.mime).sendFile(filePath, {
+      headers: {
+        'Content-Disposition': headers.disposition,
+      },
+    }, (err) => {
+      if (!err) return;
+      if (err.code === 'ENOENT') return res.status(404).json({ error: 'Archivo no disponible.' });
+      next(err);
+    });
+  } catch (err) {
+    next(err);
   }
 });
 
@@ -3848,10 +3915,14 @@ async function start() {
       const peerJid = msg.fromMe ? msg.to : msg.from;
       try {
         await pool.query(
-          `INSERT INTO whatsapp_messages (id, chat_jid, sender_jid, receiver_jid, body, timestamp, from_me)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)
+          `INSERT INTO whatsapp_messages
+             (id, chat_jid, sender_jid, receiver_jid, body, timestamp, from_me,
+              media_type, media_mime, media_filename, media_path, media_size, media_error)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
            ON CONFLICT (id) DO NOTHING`,
-          [msg.id, peerJid, msg.from, msg.to, msg.body || '', msg.timestamp, msg.fromMe]
+          [msg.id, peerJid, msg.from, msg.to, msg.body || '', msg.timestamp, msg.fromMe,
+            msg.media?.type || '', msg.media?.mime || '', msg.media?.filename || '',
+            msg.media?.path || '', msg.media?.size || 0, msg.media?.error || '']
         );
       } catch (dbErr) {
         console.error('[WhatsApp Service DB Error] No se pudo guardar el mensaje:', dbErr);
