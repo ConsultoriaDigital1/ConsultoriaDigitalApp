@@ -6890,31 +6890,98 @@
 
     .chat-media {
       display: block;
-      max-width: min(360px, 100%);
-      margin-bottom: 0.35rem;
-      border-radius: 5px;
+      margin-bottom: 0.45rem;
+      border-radius: 6px;
       overflow: hidden;
       background: rgba(0, 0, 0, 0.2);
     }
 
     .chat-media-image,
-    .chat-media-sticker,
     .chat-media-video {
       display: block;
+      width: min(360px, 68vw);
       max-width: 100%;
-      max-height: 340px;
+      max-height: min(440px, 58vh);
       object-fit: contain;
+      background: #101b20;
+    }
+
+    .chat-media-image {
+      min-width: 220px;
+      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset;
     }
 
     .chat-media-sticker {
+      display: block;
+      width: min(180px, 52vw);
       max-width: 180px;
       background: transparent;
     }
 
-    .chat-media-audio {
-      display: block;
-      width: min(300px, 100%);
-      min-height: 34px;
+    .chat-audio-player {
+      width: min(330px, 72vw);
+      max-width: 100%;
+      min-height: 58px;
+      display: grid;
+      grid-template-columns: 34px minmax(0, 1fr) 34px;
+      align-items: center;
+      gap: 0.55rem;
+      padding: 0.5rem 0.55rem;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 6px;
+      background: rgba(3, 13, 18, 0.34);
+    }
+
+    .chat-audio-toggle {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      padding: 0;
+      border: 0;
+      border-radius: 50%;
+      color: #102217;
+      background: #d9ff3f;
+      cursor: pointer;
+    }
+
+    .chat-audio-toggle:hover {
+      background: #ecff88;
+    }
+
+    .chat-audio-toggle .ico {
+      width: 15px;
+      height: 15px;
+      stroke-width: 2.6;
+    }
+
+    .chat-audio-track {
+      min-width: 0;
+      display: grid;
+      gap: 0.35rem;
+    }
+
+    .chat-audio-label {
+      color: rgba(255, 255, 255, 0.72);
+      font-size: 0.62rem;
+      font-weight: 700;
+      letter-spacing: 0;
+      text-transform: uppercase;
+    }
+
+    .chat-audio-seek {
+      width: 100%;
+      height: 4px;
+      margin: 0;
+      accent-color: #d9ff3f;
+      cursor: pointer;
+    }
+
+    .chat-audio-time {
+      color: rgba(255, 255, 255, 0.58);
+      font-size: 0.67rem;
+      font-variant-numeric: tabular-nums;
+      text-align: right;
     }
 
     .chat-media-document {
@@ -9731,6 +9798,8 @@
       trash: '<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/>',
       settings: '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
       external: '<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
+      play: '<polygon points="5 3 19 12 5 21 5 3"/>',
+      pause: '<rect width="4" height="16" x="6" y="4"/><rect width="4" height="16" x="14" y="4"/>',
       x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
       edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
       chevron: '<path d="m9 18 6-6-6-6"/>',
@@ -17376,12 +17445,73 @@
       }
 
       if (type === 'audio') {
+        const player = document.createElement('div');
+        player.className = 'chat-media chat-audio-player';
         const audio = document.createElement('audio');
-        audio.className = 'chat-media chat-media-audio';
         audio.src = url;
-        audio.controls = true;
         audio.preload = 'metadata';
-        return audio;
+
+        const toggle = document.createElement('button');
+        toggle.type = 'button';
+        toggle.className = 'chat-audio-toggle';
+        toggle.title = 'Reproducir audio';
+        toggle.setAttribute('aria-label', 'Reproducir audio');
+        toggle.innerHTML = icon('play');
+
+        const track = document.createElement('div');
+        track.className = 'chat-audio-track';
+        const label = document.createElement('span');
+        label.className = 'chat-audio-label';
+        label.textContent = 'Mensaje de voz';
+        const seek = document.createElement('input');
+        seek.className = 'chat-audio-seek';
+        seek.type = 'range';
+        seek.min = '0';
+        seek.max = '0';
+        seek.value = '0';
+        seek.setAttribute('aria-label', 'Progreso del audio');
+        track.append(label, seek);
+
+        const time = document.createElement('span');
+        time.className = 'chat-audio-time';
+        time.textContent = '0:00';
+        player.append(toggle, track, time, audio);
+
+        const renderToggle = (isPlaying) => {
+          toggle.innerHTML = icon(isPlaying ? 'pause' : 'play');
+          const labelText = isPlaying ? 'Pausar audio' : 'Reproducir audio';
+          toggle.title = labelText;
+          toggle.setAttribute('aria-label', labelText);
+        };
+        const formatAudioTime = (seconds) => {
+          if (!Number.isFinite(seconds) || seconds < 0) return '0:00';
+          const mins = Math.floor(seconds / 60);
+          const secs = Math.floor(seconds % 60).toString().padStart(2, '0');
+          return `${mins}:${secs}`;
+        };
+        const renderTime = () => {
+          const duration = Number.isFinite(audio.duration) ? audio.duration : 0;
+          seek.max = String(duration);
+          seek.value = String(Math.min(audio.currentTime || 0, duration));
+          time.textContent = `${formatAudioTime(audio.currentTime)} / ${formatAudioTime(duration)}`;
+        };
+        toggle.addEventListener('click', () => {
+          if (audio.paused) audio.play().catch(() => {});
+          else audio.pause();
+        });
+        seek.addEventListener('input', () => {
+          audio.currentTime = Number(seek.value);
+          renderTime();
+        });
+        audio.addEventListener('loadedmetadata', renderTime);
+        audio.addEventListener('timeupdate', renderTime);
+        audio.addEventListener('play', () => renderToggle(true));
+        audio.addEventListener('pause', () => renderToggle(false));
+        audio.addEventListener('ended', () => {
+          audio.currentTime = 0;
+          renderTime();
+        });
+        return player;
       }
 
       if (type === 'video') {
