@@ -10434,6 +10434,13 @@
       ${(arcaOk && !prod) ? `<div style="margin-bottom:0.8rem;padding:0.5rem 0.7rem;border-radius:var(--r-sm,6px);background:rgba(250,200,50,0.12);border:1px solid rgba(250,200,50,0.4);font-size:0.8rem">Modo <strong>homologación</strong>: la factura es de prueba, sin validez fiscal.</div>` : ''}
       ${arcaOk ? '' : `<div style="margin-bottom:0.8rem;padding:0.5rem 0.7rem;border-radius:var(--r-sm,6px);background:rgba(120,120,120,0.15);border:1px solid var(--border2,#444);font-size:0.8rem">ARCA no está configurado: sólo podés emitir comprobantes <strong>Sin ARCA</strong> (no fiscales).</div>`}
       <div style="display:grid;gap:0.7rem">
+        <label style="display:grid;gap:0.25rem;font-size:0.8rem">Facturar mediante
+          <select id="cob-arca-emisor" class="clients-search-inp" style="width:100%" onchange="onCobEmisorChange()">
+            <option value="default" ${(c.arcaEmisor || 'default') === 'default' ? 'selected' : ''}>Consultoría Digital / Gonzalo Romero</option>
+            <option value="comydes" ${c.arcaEmisor === 'comydes' ? 'selected' : ''}>COMYDES</option>
+          </select>
+          <span id="cob-arca-hint" class="admin-muted" style="font-size:0.75rem"></span>
+        </label>
         <div style="display:grid;gap:0.35rem">
           <div style="display:flex;justify-content:space-between;align-items:center">
             <span style="font-size:0.8rem;font-weight:600">Ítems de la factura</span>
@@ -10495,6 +10502,27 @@
       };
       $('cob-condiva').addEventListener('change', syncTipoComprobante);
       syncTipoComprobante();
+      onCobEmisorChange();
+      onCobTipoChange();
+    }
+
+    function onCobEmisorChange() {
+      const select = $('cob-arca-emisor');
+      const type = $('cob-tipo');
+      if (!select || !type) return;
+      const state = cobranzasData?.arcaAccounts?.[select.value] || cobranzasData?.arca || {};
+      const configured = Boolean(state.configured);
+      type.querySelectorAll('option[value="1"], option[value="6"]').forEach((opt) => { opt.disabled = !configured; });
+      if (!configured) type.value = '0';
+      else if (type.value === '0') type.value = '6';
+      const hint = $('cob-arca-hint');
+      if (hint) {
+        hint.textContent = !configured
+          ? 'Esta cuenta no está configurada; sólo se puede generar un comprobante interno.'
+          : state.production
+            ? `Producción · CUIT ${state.cuit} · Pto. de venta ${state.ptoVta}`
+            : `Homologación de prueba · CUIT ${state.cuit} · Pto. de venta ${state.ptoVta}`;
+      }
       onCobTipoChange();
     }
 
@@ -10637,6 +10665,7 @@
         docTipo: docNro.length === 11 ? 80 : 99,
         docNro: docNro || '0',
         condIvaReceptor: Number($('cob-condiva').value),
+        arcaEmisor: $('cob-arca-emisor').value || 'default',
         detalle: items.map((it) => it.detalle).join(' + ').slice(0, 500),
         // Registrar la factura como movimiento en la cuenta del cliente (aparece en Resumen de cuenta)
         registrarMovimiento: true,

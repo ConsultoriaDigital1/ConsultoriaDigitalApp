@@ -25,10 +25,10 @@ function configFromEnv(prefix = 'ARCA') {
 }
 
 const DEFAULT_CONFIG = configFromEnv('ARCA');
-const ACCOUNTS = { default: DEFAULT_CONFIG };
-if (process.env.ARCA_COMYDES_CUIT || process.env.ARCA_COMYDES_CERT_PATH || process.env.ARCA_COMYDES_KEY_PATH) {
-  ACCOUNTS.comydes = configFromEnv('ARCA_COMYDES');
-}
+const ACCOUNTS = {
+  default: DEFAULT_CONFIG,
+  comydes: configFromEnv('ARCA_COMYDES'),
+};
 
 function isConfigured(config = DEFAULT_CONFIG) {
   return Boolean(config.cuit && config.certPath && config.keyPath && fs.existsSync(config.certPath) && fs.existsSync(config.keyPath));

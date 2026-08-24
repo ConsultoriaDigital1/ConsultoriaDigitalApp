@@ -666,7 +666,6 @@ function movementDTO(row, saldoAcumulado = null) {
   return {
     id: row.id,
     clientId: row.client_id,
-    arcaEmisor: arcaAccountId(row.arca_emisor),
     fecha: row.fecha || '',
     medioPago: row.medio_pago || '',
     banco: row.banco || '',
@@ -2943,6 +2942,7 @@ function invoiceDTO(row) {
   return {
     id: row.id,
     clientId: row.client_id,
+    arcaEmisor: arcaAccountId(row.arca_emisor),
     cbteTipo: Number(row.cbte_tipo),
     cbteLetra: row.cbte_letra || '',
     ptoVta: Number(row.pto_vta),
@@ -3116,8 +3116,8 @@ app.post('/api/admin/cobranzas/:clientId/invoice', requireAdmin, async (req, res
   try {
     const client = await getClientById(req.params.clientId);
     if (!client) return res.status(404).json({ error: 'Cliente no encontrado.' });
-    const arcaAccount = arcaForClient(client);
     const b = req.body || {};
+    const arcaAccount = arca.forAccount(arcaAccountId(b.arcaEmisor || client.arca_emisor));
 
     const cuitCliente = String(b.docNro || client.cuit || '').replace(/\D/g, '');
     const docTipo = Number(b.docTipo || (cuitCliente.length === 11 ? 80 : 99));
