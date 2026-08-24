@@ -8,7 +8,6 @@ const QRCode = require('qrcode');
 
 const CBTE_NOMBRE = { 0: 'COMPROBANTE', 1: 'FACTURA A', 6: 'FACTURA B', 11: 'FACTURA C' };
 const DOC_NOMBRE = { 80: 'CUIT', 96: 'DNI', 99: 'Consumidor Final' };
-const COND_IVA_EMISOR = process.env.ARCA_COND_IVA || 'Responsable Monotributo';
 
 // Paleta del diseño
 const NAVY = '#16233f';   // azul oscuro (recuadro letra, encabezado tabla, líneas)
@@ -21,14 +20,7 @@ const SUMMARY_BG = '#f9fafc';
 const TOTAL_BG = '#eef1f8';
 const FOOTER_BG = '#f4f5f7';
 
-// Logo del emisor (opcional). Ruta configurable; por defecto .local/arca/logo.png
-const LOGO_PATH = process.env.ARCA_LOGO_PATH || path.join(__dirname, '.local', 'arca', 'logo.png');
-const LOGO_BUFFER = (() => {
-  try { return fs.existsSync(LOGO_PATH) ? fs.readFileSync(LOGO_PATH) : null; }
-  catch (_e) { return null; }
-})();
-
-const EMISOR = {
+const DEFAULT_EMISOR = {
   razonSocial: process.env.ARCA_RAZON_SOCIAL || 'CONSULTORIA DIGITAL',
   domicilio: process.env.ARCA_DOMICILIO || '',
   iibb: process.env.ARCA_IIBB || '',
@@ -93,7 +85,12 @@ function fieldRow(doc, icon, x, y, opts) {
  * @param {object} client cliente (razonSocial, cuit, direccion, ...)
  * @param {string} cuitEmisor CUIT con el que se emitió
  */
-async function buildInvoicePdf(inv, client, cuitEmisor) {
+async function buildInvoicePdf(inv, client, cuitEmisor, emisorData = {}) {
+  const emisor = { ...DEFAULT_EMISOR, ...emisorData };
+  const logoBuffer = (() => {
+    try { return emisor.logoPath && fs.existsSync(emisor.logoPath) ? fs.readFileSync(emisor.logoPath) : null; }
+    catch (_e) { return null; }
+  })();
   // Comprobante "sin ARCA": no fiscal, sin CAE ni QR (tipo 0 / letra X).
   const sinArca = Number(inv.cbteTipo) === 0 || !inv.cae;
   const qrPng = inv.qrUrl
@@ -138,25 +135,27 @@ async function buildInvoicePdf(inv, client, cuitEmisor) {
     // Emisor (izquierda): logo o razón social + datos con íconos
     const emisorW = boxX - 24 - X;
     let nameY = headY;
-    if (LOGO_BUFFER) {
+    if (logoBuffer) {
       try {
-        doc.image(LOGO_BUFFER, X, headY, { fit: [190, 66], align: 'left', valign: 'top' });
+        doc.image(logoBuffer, X, headY, { fit: [190, 66], align: 'left', valign: 'top' });
         nameY = headY + 74;
+        doc.fillColor(NAVY).font('Helvetica-Bold').fontSize(16).text(emisor.razonSocial, X, nameY, { width: emisorW });
+        nameY += 25;
       } catch (_e) {
-        doc.fillColor(NAVY).font('Helvetica-Bold').fontSize(20).text(EMISOR.razonSocial, X, headY, { width: emisorW });
+        doc.fillColor(NAVY).font('Helvetica-Bold').fontSize(20).text(emisor.razonSocial, X, headY, { width: emisorW });
         nameY = headY + 30;
       }
     } else {
-      doc.fillColor(NAVY).font('Helvetica-Bold').fontSize(20).text(EMISOR.razonSocial, X, headY, { width: emisorW });
+      doc.fillColor(NAVY).font('Helvetica-Bold').fontSize(20).text(emisor.razonSocial, X, headY, { width: emisorW });
       nameY = headY + 30;
     }
 
     let ey = nameY;
     const emisorFields = [
-      EMISOR.domicilio && ['pin', 'Domicilio:', EMISOR.domicilio],
-      ['file', 'Condición frente al IVA:', COND_IVA_EMISOR],
-      EMISOR.iibb && ['chart', 'Ingresos Brutos:', EMISOR.iibb],
-      EMISOR.inicioActividades && ['calendar', 'Inicio de actividades:', EMISOR.inicioActividades],
+      emisor.domicilio && ['pin', 'Domicilio:', emisor.domicilio],
+      ['file', 'Condición frente al IVA:', emisor.condIva],
+      emisor.iibb && ['chart', 'Ingresos Brutos:', emisor.iibb],
+      emisor.inicioActividades && ['calendar', 'Inicio de actividades:', emisor.inicioActividades],
     ].filter(Boolean);
     emisorFields.forEach(([ic, label, val]) => {
       fieldRow(doc, ic, X, ey, { label, value: val, width: emisorW, size: 8 });

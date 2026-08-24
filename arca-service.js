@@ -11,6 +11,7 @@ const forge = require('node-forge');
 
 function configFromEnv(prefix = 'ARCA') {
   const production = process.env[`${prefix}_PRODUCTION`] === 'true';
+  const isDefault = prefix === 'ARCA';
   return {
     id: prefix === 'ARCA' ? 'default' : prefix.replace(/^ARCA_/, '').toLowerCase(),
     cuit: String(process.env[`${prefix}_CUIT`] || '').replace(/\D/g, ''),
@@ -21,6 +22,14 @@ function configFromEnv(prefix = 'ARCA') {
     wsaaUrl: production ? 'https://wsaa.afip.gov.ar/ws/services/LoginCms' : 'https://wsaahomo.afip.gov.ar/ws/services/LoginCms',
     wsfeUrl: production ? 'https://servicios1.afip.gov.ar/wsfev1/service.asmx' : 'https://wswhomo.afip.gov.ar/wsfev1/service.asmx',
     taCacheFile: path.join(__dirname, '.local', `arca-ta-${prefix.toLowerCase()}.json`),
+    issuer: {
+      razonSocial: process.env[`${prefix}_RAZON_SOCIAL`] || (isDefault ? process.env.ARCA_RAZON_SOCIAL : 'COMYDES') || '',
+      domicilio: process.env[`${prefix}_DOMICILIO`] || (isDefault ? process.env.ARCA_DOMICILIO : '') || '',
+      iibb: process.env[`${prefix}_IIBB`] || (isDefault ? process.env.ARCA_IIBB : '') || '',
+      inicioActividades: process.env[`${prefix}_INICIO_ACTIVIDADES`] || (isDefault ? process.env.ARCA_INICIO_ACTIVIDADES : '') || '',
+      condIva: process.env[`${prefix}_COND_IVA`] || process.env.ARCA_COND_IVA || 'Responsable Monotributo',
+      logoPath: process.env[`${prefix}_LOGO_PATH`] || process.env.ARCA_LOGO_PATH || path.join(__dirname, '.local', 'arca', 'logo.png'),
+    },
   };
 }
 
@@ -458,6 +467,7 @@ function forAccount(id = 'default') {
   return {
     isConfigured: () => isConfigured(config),
     status: () => status(config),
+    issuerProfile: () => ({ ...config.issuer }),
     emitInvoice: (p, hooks) => emitInvoice(p, hooks, config),
     lastVoucher: (ptoVta, cbteTipo) => lastVoucher(ptoVta, cbteTipo, config),
     fetchVoucher: (ptoVta, cbteTipo, cbteNro) => fetchVoucher(ptoVta, cbteTipo, cbteNro, config),

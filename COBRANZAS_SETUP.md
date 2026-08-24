@@ -59,11 +59,17 @@ ARCA_COMYDES_CERT_PATH=./.local/arca-comydes/cert.crt
 ARCA_COMYDES_KEY_PATH=./.local/arca-comydes/private.key
 ARCA_COMYDES_PTO_VTA=1
 ARCA_COMYDES_PRODUCTION=false
+ARCA_COMYDES_RAZON_SOCIAL=COMYDES
+ARCA_COMYDES_INICIO_ACTIVIDADES=DD/MM/AAAA
 ```
 
 En el formulario del cliente, seleccioná **COMYDES** como cuenta emisora. Los
 clientes existentes quedan asignados a la cuenta `ARCA_*` actual. Cada factura
 y cada borrador conserva la cuenta con la que fue creado.
+
+El PDF reutiliza el logo configurado en `ARCA_LOGO_PATH` y muestra debajo el
+nombre legal del emisor. Si se necesita un logo distinto para COMYDES, se puede
+agregar `ARCA_COMYDES_LOGO_PATH` apuntando a otro archivo de imagen.
 
 Reiniciá el servidor (`npm run dev`). En la pestaña Cobranzas el chip debería decir **"ARCA homologación (prueba)"**.
 

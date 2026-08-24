@@ -3328,7 +3328,8 @@ app.get('/api/admin/cobranzas/invoices/:id/pdf', requireAdmin, async (req, res, 
     const client = await getClientById(inv.clientId);
     const dto = client ? clientDTO(client) : { razonSocial: '', nombreFantasia: '', direccion: '' };
 
-    const pdf = await buildInvoicePdf(inv, dto, arca.forAccount(arcaAccountId(rows[0].arca_emisor)).status().cuit || '');
+    const arcaAccount = arca.forAccount(arcaAccountId(rows[0].arca_emisor));
+    const pdf = await buildInvoicePdf(inv, dto, arcaAccount.status().cuit || '', arcaAccount.issuerProfile());
     const fname = `${inv.cbteTipo === 0 ? 'Comprobante' : 'Factura'}_${inv.cbteLetra}_${inv.numero}.pdf`;
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="${fname}"`);
