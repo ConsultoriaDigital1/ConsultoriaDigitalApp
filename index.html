@@ -12650,10 +12650,11 @@
       const board = $('kanban-board');
       if (!board) return;
       const canResize = window.matchMedia ? window.matchMedia('(min-width: 821px)').matches : true;
+      const widthKeyFor = key => `kanban-client-width-v2-${key}`;
       board.querySelectorAll('.kanban-resize-handle').forEach(handle => {
         const key = handle.dataset.resizeKey;
         const panel = handle.parentElement;
-        const saved = Number(localStorage.getItem(`kanban-width-${key}`));
+        const saved = Number(localStorage.getItem(widthKeyFor(key)));
         const applyWidth = width => {
           const next = Math.max(260, Math.min(760, Math.round(width)));
           panel.style.width = `${next}px`;
@@ -12662,9 +12663,6 @@
         };
         if (canResize && saved >= 260 && saved <= 760) {
           applyWidth(saved);
-        } else if (canResize) {
-          const initial = Math.round(panel.getBoundingClientRect().width);
-          if (initial >= 260) localStorage.setItem(`kanban-width-${key}`, String(initial));
         }
         if (!canResize) return;
         handle.addEventListener('pointerdown', event => {
@@ -12678,7 +12676,7 @@
           };
           const finishResize = () => {
             const width = Math.round(panel.getBoundingClientRect().width);
-            localStorage.setItem(`kanban-width-${key}`, String(width));
+            localStorage.setItem(widthKeyFor(key), String(width));
             document.removeEventListener('pointermove', onMove);
             document.removeEventListener('pointerup', onUp);
             document.removeEventListener('pointercancel', finishResize);
