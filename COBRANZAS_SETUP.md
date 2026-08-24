@@ -48,6 +48,23 @@ ARCA_KEY_PATH=./.local/arca/private.key
 ARCA_PTO_VTA=1                 # punto de venta (en homologación 1 funciona)
 ```
 
+### Dos cuentas emisoras
+
+La app permite asignar una cuenta emisora a cada cliente. Conservá las variables
+`ARCA_*` actuales para la cuenta existente y agregá las de COMYDES:
+
+```ini
+ARCA_COMYDES_CUIT=30719537614
+ARCA_COMYDES_CERT_PATH=./.local/arca-comydes/cert.crt
+ARCA_COMYDES_KEY_PATH=./.local/arca-comydes/private.key
+ARCA_COMYDES_PTO_VTA=1
+ARCA_COMYDES_PRODUCTION=false
+```
+
+En el formulario del cliente, seleccioná **COMYDES** como cuenta emisora. Los
+clientes existentes quedan asignados a la cuenta `ARCA_*` actual. Cada factura
+y cada borrador conserva la cuenta con la que fue creado.
+
 Reiniciá el servidor (`npm run dev`). En la pestaña Cobranzas el chip debería decir **"ARCA homologación (prueba)"**.
 
 ### Paso 4: Probar

@@ -9,33 +9,43 @@ const path = require('path');
 const https = require('https');
 const forge = require('node-forge');
 
-const CUIT = String(process.env.ARCA_CUIT || '').replace(/\D/g, '');
-const PRODUCTION = process.env.ARCA_PRODUCTION === 'true';
-const CERT_PATH = process.env.ARCA_CERT_PATH || '';
-const KEY_PATH = process.env.ARCA_KEY_PATH || '';
-const PTO_VTA = Number(process.env.ARCA_PTO_VTA || 1);
-
-const WSAA_URL = PRODUCTION
-  ? 'https://wsaa.afip.gov.ar/ws/services/LoginCms'
-  : 'https://wsaahomo.afip.gov.ar/ws/services/LoginCms';
-const WSFE_URL = PRODUCTION
-  ? 'https://servicios1.afip.gov.ar/wsfev1/service.asmx'
-  : 'https://wswhomo.afip.gov.ar/wsfev1/service.asmx';
-
-// Cache del Ticket de Acceso (dura 12 h) para no pegarle a WSAA en cada factura
-const TA_CACHE_FILE = path.join(__dirname, '.local', 'arca-ta.json');
-
-function isConfigured() {
-  return Boolean(CUIT && CERT_PATH && KEY_PATH && fs.existsSync(CERT_PATH) && fs.existsSync(KEY_PATH));
+function configFromEnv(prefix = 'ARCA') {
+  const production = process.env[`${prefix}_PRODUCTION`] === 'true';
+  return {
+    id: prefix === 'ARCA' ? 'default' : prefix.replace(/^ARCA_/, '').toLowerCase(),
+    cuit: String(process.env[`${prefix}_CUIT`] || '').replace(/\D/g, ''),
+    production,
+    certPath: process.env[`${prefix}_CERT_PATH`] || '',
+    keyPath: process.env[`${prefix}_KEY_PATH`] || '',
+    ptoVta: Number(process.env[`${prefix}_PTO_VTA`] || 1),
+    wsaaUrl: production ? 'https://wsaa.afip.gov.ar/ws/services/LoginCms' : 'https://wsaahomo.afip.gov.ar/ws/services/LoginCms',
+    wsfeUrl: production ? 'https://servicios1.afip.gov.ar/wsfev1/service.asmx' : 'https://wswhomo.afip.gov.ar/wsfev1/service.asmx',
+    taCacheFile: path.join(__dirname, '.local', `arca-ta-${prefix.toLowerCase()}.json`),
+  };
 }
 
-function status() {
+const DEFAULT_CONFIG = configFromEnv('ARCA');
+const ACCOUNTS = { default: DEFAULT_CONFIG };
+if (process.env.ARCA_COMYDES_CUIT || process.env.ARCA_COMYDES_CERT_PATH || process.env.ARCA_COMYDES_KEY_PATH) {
+  ACCOUNTS.comydes = configFromEnv('ARCA_COMYDES');
+}
+
+function isConfigured(config = DEFAULT_CONFIG) {
+  return Boolean(config.cuit && config.certPath && config.keyPath && fs.existsSync(config.certPath) && fs.existsSync(config.keyPath));
+}
+
+function status(config = DEFAULT_CONFIG) {
   return {
-    configured: isConfigured(),
-    production: PRODUCTION,
-    cuit: CUIT,
-    ptoVta: PTO_VTA,
+    id: config.id,
+    configured: isConfigured(config),
+    production: config.production,
+    cuit: config.cuit,
+    ptoVta: config.ptoVta,
   };
+}
+
+function accountsStatus() {
+  return Object.fromEntries(Object.entries(ACCOUNTS).map(([id, config]) => [id, status(config)]));
 }
 
 // ── helpers XML (las respuestas de ARCA son acotadas y predecibles) ──
@@ -145,9 +155,9 @@ function buildTRA() {
 </loginTicketRequest>`;
 }
 
-function signTRA(tra) {
-  const certPem = fs.readFileSync(CERT_PATH, 'utf8');
-  const keyPem = fs.readFileSync(KEY_PATH, 'utf8');
+function signTRA(tra, config = DEFAULT_CONFIG) {
+  const certPem = fs.readFileSync(config.certPath, 'utf8');
+  const keyPem = fs.readFileSync(config.keyPath, 'utf8');
   const p7 = forge.pkcs7.createSignedData();
   p7.content = forge.util.createBuffer(tra, 'utf8');
   const cert = forge.pki.certificateFromPem(certPem);
@@ -166,22 +176,22 @@ function signTRA(tra) {
   return forge.util.encode64(forge.asn1.toDer(p7.toAsn1()).getBytes());
 }
 
-function readCachedTA() {
+function readCachedTA(config = DEFAULT_CONFIG) {
   try {
-    const ta = JSON.parse(fs.readFileSync(TA_CACHE_FILE, 'utf8'));
+    const ta = JSON.parse(fs.readFileSync(config.taCacheFile, 'utf8'));
     // margen de 5 minutos antes del vencimiento
-    if (ta && ta.production === PRODUCTION && ta.cuit === CUIT && Date.parse(ta.expiration) - Date.now() > 5 * 60 * 1000) {
+    if (ta && ta.production === config.production && ta.cuit === config.cuit && Date.parse(ta.expiration) - Date.now() > 5 * 60 * 1000) {
       return ta;
     }
   } catch (_e) { /* sin cache */ }
   return null;
 }
 
-async function getTA() {
-  const cached = readCachedTA();
+async function getTA(config = DEFAULT_CONFIG) {
+  const cached = readCachedTA(config);
   if (cached) return cached;
 
-  const cms = signTRA(buildTRA());
+  const cms = signTRA(buildTRA(), config);
   const envelope = `<?xml version="1.0" encoding="UTF-8"?>
 <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:wsaa="http://wsaa.view.sua.dvadac.desein.afip.gov">
   <soapenv:Body>
@@ -189,26 +199,26 @@ async function getTA() {
   </soapenv:Body>
 </soapenv:Envelope>`;
 
-  const resXml = await withRetry(() => soapPost(WSAA_URL, '', envelope));
+  const resXml = await withRetry(() => soapPost(config.wsaaUrl, '', envelope));
   const inner = xmlUnescape(xmlVal(resXml, 'loginCmsReturn'));
   const token = xmlVal(inner, 'token');
   const sign = xmlVal(inner, 'sign');
   const expiration = xmlVal(inner, 'expirationTime');
   if (!token || !sign) throw new Error('WSAA no devolvió token/sign. Verificá el certificado y la delegación del servicio wsfe.');
 
-  const ta = { token, sign, expiration, production: PRODUCTION, cuit: CUIT };
+  const ta = { token, sign, expiration, production: config.production, cuit: config.cuit };
   try {
-    fs.mkdirSync(path.dirname(TA_CACHE_FILE), { recursive: true });
-    fs.writeFileSync(TA_CACHE_FILE, JSON.stringify(ta));
+    fs.mkdirSync(path.dirname(config.taCacheFile), { recursive: true });
+    fs.writeFileSync(config.taCacheFile, JSON.stringify(ta));
   } catch (_e) { /* cache no crítico */ }
   return ta;
 }
 
 // ── WSFEv1 ──
 // `reintentos: 0` para las llamadas que NO son idempotentes (FECAESolicitar).
-async function wsfeCall(method, innerXml, { reintentos = RETRY_DELAYS_MS.length } = {}) {
+async function wsfeCall(method, innerXml, { reintentos = RETRY_DELAYS_MS.length } = {}, config = DEFAULT_CONFIG) {
   const enviar = async () => {
-    const ta = await getTA();
+    const ta = await getTA(config);
     const envelope = `<?xml version="1.0" encoding="utf-8"?>
 <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ar="http://ar.gov.afip.dif.FEV1/">
   <soap:Body>
@@ -216,13 +226,13 @@ async function wsfeCall(method, innerXml, { reintentos = RETRY_DELAYS_MS.length 
       <ar:Auth>
         <ar:Token>${ta.token}</ar:Token>
         <ar:Sign>${ta.sign}</ar:Sign>
-        <ar:Cuit>${CUIT}</ar:Cuit>
+        <ar:Cuit>${config.cuit}</ar:Cuit>
       </ar:Auth>
       ${innerXml}
     </ar:${method}>
   </soap:Body>
 </soap:Envelope>`;
-    const resXml = await soapPost(WSFE_URL, `http://ar.gov.afip.dif.FEV1/${method}`, envelope);
+    const resXml = await soapPost(config.wsfeUrl, `http://ar.gov.afip.dif.FEV1/${method}`, envelope);
 
     // Errores a nivel servicio
     const errBlock = xmlVal(resXml, 'Errors');
@@ -234,7 +244,7 @@ async function wsfeCall(method, innerXml, { reintentos = RETRY_DELAYS_MS.length 
       // Ticket de acceso vencido o inválido: tiramos el cache para forzar un
       // login nuevo. Si no, toda factura falla hasta borrar el archivo a mano.
       if (code === 600 || /token|sign/i.test(msg)) {
-        try { fs.unlinkSync(TA_CACHE_FILE); } catch (_e) { /* ya no estaba */ }
+        try { fs.unlinkSync(config.taCacheFile); } catch (_e) { /* ya no estaba */ }
         throw retryable(err);
       }
       throw err;
@@ -244,9 +254,9 @@ async function wsfeCall(method, innerXml, { reintentos = RETRY_DELAYS_MS.length 
   return reintentos > 0 ? withRetry(enviar, reintentos) : enviar();
 }
 
-async function lastVoucher(ptoVta, cbteTipo) {
+async function lastVoucher(ptoVta, cbteTipo, config = DEFAULT_CONFIG) {
   const xml = await wsfeCall('FECompUltimoAutorizado',
-    `<ar:PtoVta>${ptoVta}</ar:PtoVta><ar:CbteTipo>${cbteTipo}</ar:CbteTipo>`);
+    `<ar:PtoVta>${ptoVta}</ar:PtoVta><ar:CbteTipo>${cbteTipo}</ar:CbteTipo>`, {}, config);
   return Number(xmlVal(xml, 'CbteNro') || 0);
 }
 
@@ -255,11 +265,11 @@ async function lastVoucher(ptoVta, cbteTipo) {
  * lo tiene registrado. Es la pieza que hace seguro el reintento: antes de volver
  * a pedir un CAE preguntamos si ese número ya salió, para no duplicar la factura.
  */
-async function fetchVoucher(ptoVta, cbteTipo, cbteNro) {
+async function fetchVoucher(ptoVta, cbteTipo, cbteNro, config = DEFAULT_CONFIG) {
   let xml;
   try {
     xml = await wsfeCall('FECompConsultar',
-      `<ar:FeCompConsReq><ar:CbteTipo>${cbteTipo}</ar:CbteTipo><ar:CbteNro>${cbteNro}</ar:CbteNro><ar:PtoVta>${ptoVta}</ar:PtoVta></ar:FeCompConsReq>`);
+      `<ar:FeCompConsReq><ar:CbteTipo>${cbteTipo}</ar:CbteTipo><ar:CbteNro>${cbteNro}</ar:CbteNro><ar:PtoVta>${ptoVta}</ar:PtoVta></ar:FeCompConsReq>`, {}, config);
   } catch (err) {
     // 602 = "no existen datos para los parámetros ingresados": el comprobante no se emitió.
     if (err.arcaCode === 602 || /no existen datos/i.test(err.message)) return null;
@@ -289,8 +299,8 @@ const CBTE_LETTER = { 1: 'A', 6: 'B', 11: 'C' };
  *    reservado. Se consulta primero en ARCA y, si ya tiene CAE, se adopta en vez
  *    de emitir de nuevo.
  */
-async function emitInvoice(p, hooks = {}) {
-  if (!isConfigured()) {
+async function emitInvoice(p, hooks = {}, config = DEFAULT_CONFIG) {
+  if (!isConfigured(config)) {
     throw new Error('ARCA no está configurado. Definí ARCA_CUIT, ARCA_CERT_PATH y ARCA_KEY_PATH en .env (ver COBRANZAS_SETUP.md).');
   }
   const cbteTipo = Number(p.cbteTipo);
@@ -301,7 +311,7 @@ async function emitInvoice(p, hooks = {}) {
   const impTotal = Math.round(Number(p.impTotal) * 100) / 100;
   if (!Number.isFinite(impTotal) || impTotal <= 0) throw new Error('Importe inválido.');
   const condIva = Number(p.condIvaReceptor || (docTipo === 80 ? 1 : 5));
-  const ptoVta = Number(p.ptoVta || PTO_VTA);
+  const ptoVta = Number(p.ptoVta || config.ptoVta);
 
   const hoy = new Date();
   const fechaCbte = hoy.toISOString().slice(0, 10).replace(/-/g, '');
@@ -360,7 +370,7 @@ async function emitInvoice(p, hooks = {}) {
     const qrPayload = {
       ver: 1,
       fecha,
-      cuit: Number(CUIT),
+      cuit: Number(config.cuit),
       ptoVta,
       tipoCmp: cbteTipo,
       nroCmp: cbteNro,
@@ -387,27 +397,27 @@ async function emitInvoice(p, hooks = {}) {
       cae: r.cae,
       caeVto: yyyymmddAIso(r.caeVto),
       qrUrl: 'https://www.afip.gob.ar/fe/qr/?p=' + Buffer.from(JSON.stringify(qrPayload)).toString('base64'),
-      production: PRODUCTION,
+      production: config.production,
     };
   };
 
   // Reintento de un borrador: si el número reservado la vez anterior ya tiene CAE,
   // la factura sí se emitió (se perdió la respuesta). La adoptamos, no emitimos otra.
   if (hooks.reconciliarCbteNro) {
-    const ya = await fetchVoucher(ptoVta, cbteTipo, Number(hooks.reconciliarCbteNro));
+    const ya = await fetchVoucher(ptoVta, cbteTipo, Number(hooks.reconciliarCbteNro), config);
     if (ya) return armarResultado(Number(hooks.reconciliarCbteNro), ya);
   }
 
   const MAX_INTENTOS = 3;
   for (let intento = 1; ; intento++) {
     // Se recalcula en cada vuelta: otro comprobante pudo haber avanzado la numeración.
-    const cbteNro = (await lastVoucher(ptoVta, cbteTipo)) + 1;
+    const cbteNro = (await lastVoucher(ptoVta, cbteTipo, config)) + 1;
     if (hooks.onNumeroReservado) await hooks.onNumeroReservado(cbteNro);
 
     let xml;
     try {
       // reintentos: 0 — reenviar esto a ciegas duplicaría la factura.
-      xml = await wsfeCall('FECAESolicitar', detalleXml(cbteNro), { reintentos: 0 });
+      xml = await wsfeCall('FECAESolicitar', detalleXml(cbteNro), { reintentos: 0 }, config);
     } catch (err) {
       if (!err.arcaRetryable) throw err;
 
@@ -415,7 +425,7 @@ async function emitInvoice(p, hooks = {}) {
       // Nunca reenviamos sin antes preguntar si ese número ya salió.
       let ya;
       try {
-        ya = await fetchVoucher(ptoVta, cbteTipo, cbteNro);
+        ya = await fetchVoucher(ptoVta, cbteTipo, cbteNro, config);
       } catch (e) {
         throw retryable(new Error(
           `No se pudo confirmar en ARCA si el comprobante ${ptoVta}-${cbteNro} llegó a emitirse (${e.message}). ` +
@@ -443,4 +453,15 @@ async function emitInvoice(p, hooks = {}) {
   }
 }
 
-module.exports = { isConfigured, status, emitInvoice, lastVoucher, fetchVoucher };
+function forAccount(id = 'default') {
+  const config = ACCOUNTS[id] || DEFAULT_CONFIG;
+  return {
+    isConfigured: () => isConfigured(config),
+    status: () => status(config),
+    emitInvoice: (p, hooks) => emitInvoice(p, hooks, config),
+    lastVoucher: (ptoVta, cbteTipo) => lastVoucher(ptoVta, cbteTipo, config),
+    fetchVoucher: (ptoVta, cbteTipo, cbteNro) => fetchVoucher(ptoVta, cbteTipo, cbteNro, config),
+  };
+}
+
+module.exports = { isConfigured, status, accountsStatus, forAccount, emitInvoice, lastVoucher, fetchVoucher };

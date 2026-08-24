@@ -143,6 +143,8 @@ async function ensureDatabaseMigrations() {
   await pool.query("ALTER TABLE clients ADD COLUMN IF NOT EXISTS destinatario TEXT NOT NULL DEFAULT ''");
   // Descripcion por defecto que se envia como detalle del comprobante (factura ARCA)
   await pool.query("ALTER TABLE clients ADD COLUMN IF NOT EXISTS descripcion_comprobante TEXT NOT NULL DEFAULT ''");
+  await pool.query("ALTER TABLE clients ADD COLUMN IF NOT EXISTS arca_emisor TEXT NOT NULL DEFAULT 'default'");
+  await pool.query("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS arca_emisor TEXT NOT NULL DEFAULT 'default'");
 
   // Crear usuario system-bot si no existe
   await pool.query(`
@@ -621,6 +623,14 @@ function requireAdmin(req, res, next) {
   });
 }
 
+function arcaAccountId(value) {
+  return value === 'comydes' ? 'comydes' : 'default';
+}
+
+function arcaForClient(client) {
+  return arca.forAccount(arcaAccountId(client && client.arca_emisor));
+}
+
 // ── DTOs y helpers para clients/movements ──
 function clientDTO(row, balance = null) {
   const saldo = balance != null ? Number(balance.saldo || 0) : 0;
@@ -641,6 +651,7 @@ function clientDTO(row, balance = null) {
     metodoEnvio: row.metodo_envio || '',
     destinatario: row.destinatario || '',
     descripcionComprobante: row.descripcion_comprobante || '',
+    arcaEmisor: arcaAccountId(row.arca_emisor),
     descripcion: row.descripcion || '',
     cardId: row.card_id || null,
     creadoPor: row.creado_por || null,
@@ -655,6 +666,7 @@ function movementDTO(row, saldoAcumulado = null) {
   return {
     id: row.id,
     clientId: row.client_id,
+    arcaEmisor: arcaAccountId(row.arca_emisor),
     fecha: row.fecha || '',
     medioPago: row.medio_pago || '',
     banco: row.banco || '',
@@ -1633,9 +1645,9 @@ app.post('/api/admin/clients', requireAdmin, async (req, res, next) => {
          id, nombre_fantasia, razon_social, cuit, direccion,
          tel_admin, tel_dueno, mail1, mail2, vence,
          estado_cliente, mensualidad, dia_vencimiento, metodo_envio, destinatario,
-         descripcion_comprobante, descripcion,
+         descripcion_comprobante, arca_emisor, descripcion,
          creado_por, creado_en
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
        RETURNING *`,
       [
         id,
@@ -1654,6 +1666,7 @@ app.post('/api/admin/clients', requireAdmin, async (req, res, next) => {
         metodoEnvio,
         String(b.destinatario || '').trim(),
         String(b.descripcionComprobante || '').trim().slice(0, 500),
+        arcaAccountId(b.arcaEmisor),
         String(b.descripcion || '').trim(),
         req.user.id,
         creadoEn,
@@ -1689,7 +1702,8 @@ app.patch('/api/admin/clients/:id', requireAdmin, async (req, res, next) => {
          metodo_envio    = $14,
          destinatario    = $15,
          descripcion_comprobante = $16,
-         descripcion     = $17,
+         arca_emisor     = $17,
+         descripcion     = $18,
          updated_at      = NOW()
        WHERE id = $1
        RETURNING *`,
@@ -1710,6 +1724,7 @@ app.patch('/api/admin/clients/:id', requireAdmin, async (req, res, next) => {
         metodoEnvio,
         String(b.destinatario || '').trim(),
         String(b.descripcionComprobante || '').trim().slice(0, 500),
+        arcaAccountId(b.arcaEmisor || existing.arca_emisor),
         String(b.descripcion || '').trim(),
       ]
     );
@@ -2972,6 +2987,7 @@ app.get('/api/admin/cobranzas', requireAdmin, async (_req, res, next) => {
     );
     res.json({
       arca: arca.status(),
+      arcaAccounts: arca.accountsStatus(),
       n8nConfigured: Boolean(process.env.N8N_WEBHOOK_URL),
       pendientes,
       invoices: invRows.map(invoiceDTO),
@@ -3028,8 +3044,8 @@ async function marcarErrorFactura(invoiceId, err) {
 }
 
 // Pide el CAE para un borrador ya persistido y lo finaliza.
-async function emitirBorrador(invoiceId, { client, userId, payload, reconciliarCbteNro }) {
-  const inv = await arca.emitInvoice(
+async function emitirBorrador(invoiceId, { client, userId, payload, reconciliarCbteNro, arcaAccount }) {
+  const inv = await arcaAccount.emitInvoice(
     {
       cbteTipo: payload.cbteTipo,
       concepto: payload.concepto,
@@ -3100,6 +3116,7 @@ app.post('/api/admin/cobranzas/:clientId/invoice', requireAdmin, async (req, res
   try {
     const client = await getClientById(req.params.clientId);
     if (!client) return res.status(404).json({ error: 'Cliente no encontrado.' });
+    const arcaAccount = arcaForClient(client);
     const b = req.body || {};
 
     const cuitCliente = String(b.docNro || client.cuit || '').replace(/\D/g, '');
@@ -3155,12 +3172,13 @@ app.post('/api/admin/cobranzas/:clientId/invoice', requireAdmin, async (req, res
          id, client_id, cbte_tipo, cbte_letra, pto_vta, cbte_nro, numero, fecha,
          doc_tipo, doc_nro, imp_total, imp_neto, imp_iva, detalle, cae, cae_vto,
          qr_url, production, creado_por, creado_en, items, estado, payload
-       ) VALUES ($1,$2,$3,'',$4,0,'',$5,$6,$7,$8,0,0,$9,'','','',$10,$11,$12,$13,'borrador',$14)`,
+       , arca_emisor
+       ) VALUES ($1,$2,$3,'',$4,0,'',$5,$6,$7,$8,0,0,$9,'','','',$10,$11,$12,$13,'borrador',$14,$15)`,
       [
         id, client.id, sinArca ? 0 : Number(b.cbteTipo) || 0,
-        Number(arca.status().ptoVta || 1), new Date().toISOString().slice(0, 10),
-        docTipo, docNroInv, impTotal, detalleFactura, arca.status().production,
-        req.user.id, creadoEn, JSON.stringify(items), JSON.stringify(payload),
+        Number(arcaAccount.status().ptoVta || 1), new Date().toISOString().slice(0, 10),
+        docTipo, docNroInv, impTotal, detalleFactura, arcaAccount.status().production,
+        req.user.id, creadoEn, JSON.stringify(items), JSON.stringify(payload), arcaAccount.status().id,
       ]
     );
 
@@ -3171,7 +3189,7 @@ app.post('/api/admin/cobranzas/:clientId/invoice', requireAdmin, async (req, res
         "SELECT COUNT(*)::int AS n FROM invoices WHERE cbte_tipo = 0 AND estado = 'emitida'"
       );
       const cbteNro = (seqRows[0]?.n || 0) + 1;
-      const ptoVta = Number(arca.status().ptoVta || 1);
+      const ptoVta = Number(arcaAccount.status().ptoVta || 1);
       invoiceOut = await finalizarFactura(id, {
         cbteTipo: 0,
         cbteLetra: 'X',
@@ -3191,7 +3209,7 @@ app.post('/api/admin/cobranzas/:clientId/invoice', requireAdmin, async (req, res
       }, { client, userId: req.user.id, detalle: detalleFactura, items, registrarMovimiento, sinArca: true });
     } else {
       try {
-        invoiceOut = await emitirBorrador(id, { client, userId: req.user.id, payload });
+        invoiceOut = await emitirBorrador(id, { client, userId: req.user.id, payload, arcaAccount });
       } catch (err) {
         console.error('[cobranzas] no se pudo emitir la factura', id, err);
         await marcarErrorFactura(id, err);
@@ -3216,6 +3234,7 @@ app.post('/api/admin/cobranzas/invoices/:id/retry', requireAdmin, async (req, re
     }
     const client = await getClientById(row.client_id);
     if (!client) return res.status(404).json({ error: 'Cliente no encontrado.' });
+    const arcaAccount = arca.forAccount(arcaAccountId(row.arca_emisor || client.arca_emisor));
 
     const b = req.body || {};
     const previo = row.payload && typeof row.payload === 'object' ? row.payload : {};
@@ -3270,6 +3289,7 @@ app.post('/api/admin/cobranzas/invoices/:id/retry', requireAdmin, async (req, re
         client,
         userId: req.user.id,
         payload,
+        arcaAccount,
         reconciliarCbteNro: Number(row.cbte_nro) > 0 ? Number(row.cbte_nro) : null,
       });
       const webhook = await avisarFacturaEmitida(client, invoiceOut);
@@ -3308,7 +3328,7 @@ app.get('/api/admin/cobranzas/invoices/:id/pdf', requireAdmin, async (req, res, 
     const client = await getClientById(inv.clientId);
     const dto = client ? clientDTO(client) : { razonSocial: '', nombreFantasia: '', direccion: '' };
 
-    const pdf = await buildInvoicePdf(inv, dto, arca.status().cuit || '');
+    const pdf = await buildInvoicePdf(inv, dto, arca.forAccount(arcaAccountId(rows[0].arca_emisor)).status().cuit || '');
     const fname = `${inv.cbteTipo === 0 ? 'Comprobante' : 'Factura'}_${inv.cbteLetra}_${inv.numero}.pdf`;
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="${fname}"`);

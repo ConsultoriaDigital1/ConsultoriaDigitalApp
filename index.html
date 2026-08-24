@@ -9426,6 +9426,13 @@
           </div>
         </div>
         <div class="form-group">
+          <label class="form-label">Cuenta emisora de ARCA</label>
+          <select id="nc-arca-emisor" class="form-select">
+            <option value="default">Consultoría Digital / Gonzalo Romero</option>
+            <option value="comydes">COMYDES</option>
+          </select>
+        </div>
+        <div class="form-group">
           <label class="form-label">Dirección</label>
           <input id="nc-direccion" class="form-input" type="text" />
         </div>
@@ -10420,8 +10427,9 @@
       if (!c) return;
       // No exigimos ARCA configurado: se puede emitir un comprobante "Sin ARCA"
       // (no fiscal) que sólo genera el PDF. Sólo se valida ARCA al emitir uno fiscal.
-      const arcaOk = Boolean(cobranzasData?.arca?.configured);
-      const prod = cobranzasData?.arca?.production;
+      const arcaState = cobranzasData?.arcaAccounts?.[c.arcaEmisor || 'default'] || cobranzasData?.arca;
+      const arcaOk = Boolean(arcaState?.configured);
+      const prod = arcaState?.production;
       cobranzaOverlayShell(`Facturar a ${c.nombreFantasia || c.razonSocial}`, `
       ${(arcaOk && !prod) ? `<div style="margin-bottom:0.8rem;padding:0.5rem 0.7rem;border-radius:var(--r-sm,6px);background:rgba(250,200,50,0.12);border:1px solid rgba(250,200,50,0.4);font-size:0.8rem">Modo <strong>homologación</strong>: la factura es de prueba, sin validez fiscal.</div>` : ''}
       ${arcaOk ? '' : `<div style="margin-bottom:0.8rem;padding:0.5rem 0.7rem;border-radius:var(--r-sm,6px);background:rgba(120,120,120,0.15);border:1px solid var(--border2,#444);font-size:0.8rem">ARCA no está configurado: sólo podés emitir comprobantes <strong>Sin ARCA</strong> (no fiscales).</div>`}
@@ -10990,6 +10998,7 @@
       $('nc-nombre').value = c ? (c.nombreFantasia || '') : '';
       $('nc-rs').value = c ? (c.razonSocial || '') : '';
       $('nc-cuit').value = c ? (c.cuit || '') : '';
+      $('nc-arca-emisor').value = c ? (c.arcaEmisor || 'default') : 'default';
       $('nc-direccion').value = c ? (c.direccion || '') : '';
       $('nc-tel-admin').value = c ? (c.telAdmin || '') : '';
       $('nc-tel-dueno').value = c ? (c.telDueno || '') : '';
@@ -11086,6 +11095,7 @@
         nombreFantasia: $('nc-nombre').value.trim(),
         razonSocial: $('nc-rs').value.trim(),
         cuit: $('nc-cuit').value.trim(),
+        arcaEmisor: $('nc-arca-emisor').value || 'default',
         direccion: $('nc-direccion').value.trim(),
         telAdmin: $('nc-tel-admin').value.trim(),
         telDueno: $('nc-tel-dueno').value.trim(),
@@ -13782,11 +13792,9 @@
       const avatarTitle = assignees.map(userFullName).join(', ');
       const shownAssignees = assignees.slice(0, 4);
       const extraAssignees = assignees.length - shownAssignees.length;
-      const checklist = checklistStats(c.checklist);
 
       const dailyDone = isDailyChecked(c);
       const hasAvatars = shownAssignees.length > 0;
-      const hasChecklist = checklist.total > 0;
 
       const avatarsHTML = hasAvatars ? `
     <span class="kcard-avatars">
@@ -13803,10 +13811,6 @@
                onclick="event.stopPropagation();toggleDailyCheck('${c.id}')"
                title="Marcar como hecho hoy${dailyDone ? ' (se reinicia 00:00 ART)' : ''}"></div>
           <div class="kcard-title">${esc(title)}</div>
-          ${hasChecklist ? `
-          <span class="kcard-checklist${checklist.done === checklist.total ? ' done' : ''}" title="Checklist ${checklist.done}/${checklist.total}">
-            <span class="kcard-checklist-icon"></span>${checklist.done}/${checklist.total}
-          </span>` : ''}
           ${avatarsHTML}
         </div>
       </div>

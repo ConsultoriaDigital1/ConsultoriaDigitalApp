@@ -161,6 +161,7 @@ CREATE TABLE IF NOT EXISTS clients (
   mail2           TEXT NOT NULL DEFAULT '',
   vence           TEXT NOT NULL DEFAULT '',
   card_id         TEXT REFERENCES cards(id) ON DELETE SET NULL,
+  arca_emisor     TEXT NOT NULL DEFAULT 'default',
   creado_por      TEXT REFERENCES users(id) ON DELETE SET NULL,
   creado_en       BIGINT NOT NULL,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -214,6 +215,7 @@ CREATE TABLE IF NOT EXISTS invoices (
   qr_url     TEXT NOT NULL DEFAULT '',
   production BOOLEAN NOT NULL DEFAULT FALSE,
   movement_id TEXT,
+  arca_emisor TEXT NOT NULL DEFAULT 'default',
   creado_por TEXT REFERENCES users(id) ON DELETE SET NULL,
   creado_en  BIGINT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
