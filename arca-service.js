@@ -121,7 +121,10 @@ function soapPost(url, action, body) {
           'Content-Type': 'text/xml; charset=utf-8',
           'Content-Length': payload.length,
           // WSAA exige el header SOAPAction presente aunque sea vacío ("no SOAPAction header!")
-          SOAPAction: action || '',
+          // WSAA requiere que SOAPAction esté presente incluso para LoginCms.
+          // Un header vacío puede omitirse en Node; `""` expresa explícitamente
+          // una acción SOAP vacía y evita que producción deje la conexión abierta.
+          SOAPAction: action || '""',
         },
       },
       (res) => {
