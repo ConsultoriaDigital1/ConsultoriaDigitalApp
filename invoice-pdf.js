@@ -37,6 +37,11 @@ function fmtFecha(iso) {
   return `${d}/${m}/${y}`;
 }
 
+function fmtCuit(cuit) {
+  const digits = String(cuit || '').replace(/\D/g, '');
+  return digits.length === 11 ? `${digits.slice(0, 2)}-${digits.slice(2, 10)}-${digits.slice(10)}` : (cuit || '');
+}
+
 // ── Íconos vectoriales (estilo lineal, viewBox 24×24) ──
 function circlePath(cx, cy, r) {
   return `M ${cx - r} ${cy} a ${r} ${r} 0 1 0 ${2 * r} 0 a ${r} ${r} 0 1 0 ${-2 * r} 0`;
@@ -87,6 +92,7 @@ function fieldRow(doc, icon, x, y, opts) {
  */
 async function buildInvoicePdf(inv, client, cuitEmisor, emisorData = {}) {
   const emisor = { ...DEFAULT_EMISOR, ...emisorData };
+  const cuitEnDatosEmisor = emisor.id === 'comydes';
   const logoBuffer = (() => {
     try { return emisor.logoPath && fs.existsSync(emisor.logoPath) ? fs.readFileSync(emisor.logoPath) : null; }
     catch (_e) { return null; }
@@ -152,6 +158,7 @@ async function buildInvoicePdf(inv, client, cuitEmisor, emisorData = {}) {
 
     let ey = nameY;
     const emisorFields = [
+      cuitEnDatosEmisor && cuitEmisor && ['card', 'CUIT:', fmtCuit(cuitEmisor)],
       emisor.domicilio && ['pin', 'Domicilio:', emisor.domicilio],
       ['file', 'Condición frente al IVA:', emisor.condIva],
       emisor.iibb && ['chart', 'Ingresos Brutos:', emisor.iibb],
@@ -182,7 +189,9 @@ async function buildInvoicePdf(inv, client, cuitEmisor, emisorData = {}) {
     ry += 18;
     fieldRow(doc, 'calendar', rx, ry, { label: 'Fecha de Emisión:', value: fmtFecha(inv.fecha), width: rw, size: 8.5 });
     ry += 18;
-    fieldRow(doc, 'user', rx, ry, { label: 'CUIT:', value: cuitEmisor, width: rw, size: 8.5 });
+    if (!cuitEnDatosEmisor) {
+      fieldRow(doc, 'user', rx, ry, { label: 'CUIT:', value: fmtCuit(cuitEmisor), width: rw, size: 8.5 });
+    }
 
     let y = Math.max(ey, ry + 24, headY + letterBox) + 18;
 

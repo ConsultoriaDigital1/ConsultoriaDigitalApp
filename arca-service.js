@@ -467,7 +467,7 @@ function forAccount(id = 'default') {
   return {
     isConfigured: () => isConfigured(config),
     status: () => status(config),
-    issuerProfile: () => ({ ...config.issuer }),
+    issuerProfile: () => ({ id: config.id, ...config.issuer }),
     emitInvoice: (p, hooks) => emitInvoice(p, hooks, config),
     lastVoucher: (ptoVta, cbteTipo) => lastVoucher(ptoVta, cbteTipo, config),
     fetchVoucher: (ptoVta, cbteTipo, cbteNro) => fetchVoucher(ptoVta, cbteTipo, cbteNro, config),
