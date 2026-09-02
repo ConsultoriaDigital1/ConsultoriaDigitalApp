@@ -3258,15 +3258,18 @@
 
     .clients-table .ct-actions {
       display: grid;
-      grid-template-columns: repeat(2, minmax(112px, 1fr));
+      grid-template-columns: repeat(2, minmax(145px, 1fr));
       gap: 0.4rem;
       justify-content: end;
       margin-left: auto;
-      max-width: 300px;
+      width: min(100%, 330px);
+      max-width: 330px;
     }
 
     .clients-table .ct-actions .btn {
       justify-content: center;
+      min-width: 0;
+      width: 100%;
       white-space: nowrap;
     }
 
@@ -3304,6 +3307,21 @@
       border-color: #f5cd47;
       transform: translateY(-1px);
       box-shadow: 0 4px 12px rgba(245, 205, 71, 0.25);
+    }
+
+    .btn-saldo {
+      background: rgba(139, 92, 246, 0.16);
+      color: #c4b5fd;
+      border: 1px solid rgba(139, 92, 246, 0.42);
+      transition: all 150ms ease;
+    }
+
+    .btn-saldo:hover {
+      background: #8b5cf6;
+      color: #fff;
+      border-color: #8b5cf6;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(139, 92, 246, 0.28);
     }
 
     .btn-pago {
@@ -9703,7 +9721,7 @@
               title="Descargar resumen"><i class="ico-ph" data-ico="download"></i> Descargar resumen</button>
             <button class="btn btn-lime btn-sm" id="cv-facturar-btn" onclick="if(currentClientId)openCobranzaInvoice(currentClientId)"
               style="margin-right:0.4rem" title="Emitir factura electrónica en ARCA"><i class="ico-ph" data-ico="receipt"></i> Facturar</button>
-            <button class="btn btn-factura btn-sm" onclick="if(currentClientId)openCobranzaInvoice(currentClientId,'saldo')"
+            <button class="btn btn-saldo btn-sm" onclick="if(currentClientId)openCobranzaInvoice(currentClientId,'saldo')"
               style="margin-right:0.4rem" title="Guardar una prefactura sin emitirla"><i class="ico-ph" data-ico="save"></i> Cargar saldo</button>
             <button class="btn btn-factura btn-sm" onclick="openMovementModalForCurrent('factura')"
               style="margin-right:0.4rem" title="Cargar una factura manualmente"><i class="ico-ph" data-ico="file"></i> Cargar factura</button>
@@ -11183,7 +11201,7 @@
       <td onclick="event.stopPropagation()">
         <div class="ct-actions">
           ${(c.pais || 'AR') === 'AR' ? `<button class="btn btn-lime btn-sm" onclick="openCobranzaInvoice('${c.id}')" title="Emitir factura electrónica en ARCA">${icon('receipt')} Facturar</button>` : ''}
-          <button class="btn btn-factura btn-sm" onclick="openCobranzaInvoice('${c.id}','saldo')" title="Guardar una prefactura sin emitirla">${icon('save')} Cargar saldo</button>
+          <button class="btn btn-saldo btn-sm" onclick="openCobranzaInvoice('${c.id}','saldo')" title="Guardar una prefactura sin emitirla">${icon('save')} Cargar saldo</button>
           <button class="btn btn-factura btn-sm" onclick="openMovementModal('${c.id}','factura')" title="Cargar una factura manualmente">${icon('file')} Cargar factura</button>
           <button class="btn btn-pago btn-sm" onclick="openMovementModal('${c.id}','pago')" title="Registrar un pago recibido">${icon('dollar')} Cargar pago</button>
         </div>
