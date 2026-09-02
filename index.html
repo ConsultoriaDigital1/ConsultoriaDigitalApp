@@ -2735,6 +2735,11 @@
       box-shadow: 0 0 0 1.5px rgba(74, 222, 128, 0.15);
     }
 
+    .metric-facturados.active {
+      border-color: rgba(168, 85, 247, 0.5);
+      box-shadow: 0 0 0 1.5px rgba(168, 85, 247, 0.15);
+    }
+
     .metric-pendientes.active {
       border-color: rgba(251, 146, 60, 0.5);
       box-shadow: 0 0 0 1.5px rgba(251, 146, 60, 0.15);
@@ -2767,6 +2772,10 @@
       background: linear-gradient(90deg, #4ade80, rgba(74, 222, 128, 0.1));
     }
 
+    .metric-facturados::before {
+      background: linear-gradient(90deg, #a855f7, rgba(168, 85, 247, 0.1));
+    }
+
     .metric-pendientes::before {
       background: linear-gradient(90deg, #fb923c, rgba(251, 146, 60, 0.1));
     }
@@ -2792,6 +2801,10 @@
 
     .metric-cobrados .admin-metric-icon {
       color: #4ade80;
+    }
+
+    .metric-facturados .admin-metric-icon {
+      color: #a855f7;
     }
 
     .metric-pendientes .admin-metric-icon {
@@ -2821,6 +2834,21 @@
       font-weight: 900;
       margin-top: 0.15rem;
       line-height: 1.1;
+    }
+
+    .admin-metric-link {
+      align-self: flex-start;
+      margin-top: 0.45rem;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: #93c5fd;
+      font: inherit;
+      font-size: 0.68rem;
+      font-weight: 700;
+      cursor: pointer;
+      text-decoration: underline;
+      text-underline-offset: 2px;
     }
 
     .admin-table-panel {
@@ -3019,10 +3047,10 @@
       }
     }
 
-    /* ─── ADMIN SUBNAV (4 botones) ─── */
+    /* ─── ADMIN SUBNAV ─── */
     .admin-subnav {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(5, 1fr);
       gap: 0.5rem;
       margin: 1rem 0 0.85rem;
       padding: 0.35rem;
@@ -3217,11 +3245,29 @@
       color: var(--success);
     }
 
+    .ct-money-link {
+      padding: 0;
+      border: 0;
+      background: transparent;
+      cursor: pointer;
+      font: inherit;
+      text-decoration: underline;
+      text-decoration-style: dotted;
+      text-underline-offset: 3px;
+    }
+
     .clients-table .ct-actions {
-      display: flex;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(112px, 1fr));
       gap: 0.4rem;
-      justify-content: flex-end;
-      flex-wrap: wrap;
+      justify-content: end;
+      margin-left: auto;
+      max-width: 300px;
+    }
+
+    .clients-table .ct-actions .btn {
+      justify-content: center;
+      white-space: nowrap;
     }
 
     /* Fila clickeable estilo "card" */
@@ -9463,11 +9509,11 @@
             <input id="nc-rs" class="form-input" type="text" />
           </div>
           <div class="form-group">
-            <label class="form-label">CUIT</label>
+            <label class="form-label" id="nc-tax-label">CUIT</label>
             <input id="nc-cuit" class="form-input" type="text" placeholder="30-12345678-9" maxlength="13" />
           </div>
         </div>
-        <div class="form-group">
+        <div class="form-group" id="nc-arca-group">
           <label class="form-label">Cuenta emisora de ARCA</label>
           <select id="nc-arca-emisor" class="form-select">
             <option value="default">Consultoría Digital / Gonzalo Romero</option>
@@ -9589,7 +9635,7 @@
               <div class="cf-value" id="cv-nf">—</div>
             </div>
             <div class="cf-row">
-              <label>CUIT</label>
+              <label id="cv-tax-label">CUIT</label>
               <div class="cf-value" id="cv-cuit">—</div>
             </div>
             <div class="cf-row" style="grid-column:1/-1">
@@ -9655,8 +9701,10 @@
           <div class="rc-toolbar">
             <button class="btn btn-ghost btn-sm" onclick="openResumenDatePicker()" style="margin-right:auto"
               title="Descargar resumen"><i class="ico-ph" data-ico="download"></i> Descargar resumen</button>
-            <button class="btn btn-lime btn-sm" onclick="if(currentClientId)openCobranzaInvoice(currentClientId)"
+            <button class="btn btn-lime btn-sm" id="cv-facturar-btn" onclick="if(currentClientId)openCobranzaInvoice(currentClientId)"
               style="margin-right:0.4rem" title="Emitir factura electrónica en ARCA"><i class="ico-ph" data-ico="receipt"></i> Facturar</button>
+            <button class="btn btn-factura btn-sm" onclick="if(currentClientId)openCobranzaInvoice(currentClientId,'saldo')"
+              style="margin-right:0.4rem" title="Guardar una prefactura sin emitirla"><i class="ico-ph" data-ico="save"></i> Cargar saldo</button>
             <button class="btn btn-factura btn-sm" onclick="openMovementModalForCurrent('factura')"
               style="margin-right:0.4rem" title="Cargar una factura manualmente"><i class="ico-ph" data-ico="file"></i> Cargar factura</button>
             <button class="btn btn-pago btn-sm" onclick="openMovementModalForCurrent('pago')"><i class="ico-ph"
@@ -9997,16 +10045,17 @@
     /* ═════════════════════════════════════════
        ADMIN — SUBNAV + CLIENTES
     ═════════════════════════════════════════ */
-    let adminSubTab = 'clientes';
+    let adminSubTab = 'clientes-arg';
     let clientsCache = [];
     let clientsTrashCache = [];
     let clientsView = 'active';  // 'active' | 'trash'
     let clientsFilter = 'todos';   // 'todos' | 'activos' | 'inactivos'
     let clientsSearchTerm = '';        // término del buscador de clientes
-    let clientsDashFilter = null;      // null | 'ingresos' | 'cobrados' | 'pendientes' | 'pendientes-total' | 'vencidos'
+    let clientsDashFilter = null;      // null | 'previstos' | 'facturados' | 'cobrados' | 'saldos' | 'pendientes-total' | 'vencidos'
     let clientsSort = { col: null, dir: null }; // col: 'debe' | 'vence' · dir: 'asc' | 'desc' | null (sin orden)
     let movementsCache = {};       // { [clientId]: [movements...] }
     let currentClientId = null;
+    let clientMovementsOnlySaldos = false;
     let editingClientId = null;     // id si el modal de cliente está editando; null = creando
     let returnToViewAfterEdit = false; // si true, al cerrar el modal Editar reabre el modal Ver
     let libretaUrl = '';
@@ -10025,10 +10074,23 @@
       cheque: 'Cheque', echeque: 'E-cheque', tarjeta: 'Tarjeta', canje: 'Canje',
     };
 
+    function isClientsAdminTab(tab = adminSubTab) {
+      return tab === 'clientes-arg' || tab === 'clientes-py';
+    }
+
+    function activeClientCountry() {
+      return adminSubTab === 'clientes-py' ? 'PY' : 'AR';
+    }
+
     function switchAdminSubTab(tab) {
       adminSubTab = tab;
       applyAdminSubTab();
-      if (tab === 'clientes') renderClientesSubTab();
+      if (isClientsAdminTab(tab)) {
+        clientsView = 'active';
+        clientsDashFilter = null;
+        renderClientesSubTab();
+        loadAdminDashboard();
+      }
       if (tab === 'libreta') applyLibretaUrl();
       if (tab === 'flujo') applyFlujoUrl();
       if (tab === 'cobranzas') renderCobranzasSubTab();
@@ -10039,11 +10101,12 @@
         btn.classList.toggle('active', btn.dataset.subtab === adminSubTab);
       });
       document.querySelectorAll('.admin-subpanel').forEach(p => {
-        p.classList.toggle('active', p.id === 'admin-sub-' + adminSubTab);
+        const activeId = isClientsAdminTab() ? 'admin-sub-clientes' : 'admin-sub-' + adminSubTab;
+        p.classList.toggle('active', p.id === activeId);
       });
       const dash = $('admin-dash-section');
       if (dash) {
-        const show = adminSubTab === 'clientes';
+        const show = isClientsAdminTab();
         dash.style.display = show ? '' : 'none';
         if (show) {
           const summary = $('admin-summary');
@@ -10058,7 +10121,7 @@
 
     async function loadAdminDashboard() {
       try {
-        const data = await api(`/api/admin/dashboard?year=${adminDashYear}&month=${adminDashMonth}`);
+        const data = await api(`/api/admin/dashboard?year=${adminDashYear}&month=${adminDashMonth}&pais=${activeClientCountry()}`);
         adminDashData = data;
         updateAdminDashUI(data);
       } catch (_e) { /* silencioso */ }
@@ -10069,13 +10132,12 @@
       if (lbl) lbl.textContent = adminMonthLabel(adminDashYear, adminDashMonth);
       const set = (id, val) => { const el = $(id); if (el) el.textContent = val; };
       if (!data) {
-        ['adash-ingresos', 'adash-cobrados', 'adash-pendientes', 'adash-pendientes-total'].forEach(id => set(id, '—'));
+        ['adash-previstos', 'adash-facturados', 'adash-cobrados', 'adash-pendientes-total'].forEach(id => set(id, '—'));
         return;
       }
-      set('adash-ingresos', formatMoney(data.ingresosTotales));
+      set('adash-previstos', formatMoney(data.ingresosPrevistos));
+      set('adash-facturados', formatMoney(data.ingresosFacturados));
       set('adash-cobrados', formatMoney(data.cobrados));
-      // Suma los saldos positivos de los mismos clientes que muestra el filtro mensual.
-      set('adash-pendientes', formatMoney(data.pendientesMes));
       // Pendiente de cobro total = suma de saldos pendientes (incluye canje, excluye saldos a favor).
       // Usa el cálculo único del backend para que coincida con la lista al filtrar por la tarjeta.
       set('adash-pendientes-total', formatMoney(data.pendientes));
@@ -10112,11 +10174,14 @@
       updateAdminDashUI(null);
       loadAdminDashboard();
       // Si está activo el filtro "este mes", recalcular la lista para el nuevo mes
-      if (clientsDashFilter === 'pendientes' && adminSubTab === 'clientes') renderClientsResults();
+      if (clientsDashFilter && isClientsAdminTab()) renderClientsResults();
     }
 
     function formatMoney(n) {
       const num = Number(n || 0);
+      if (activeClientCountry() === 'PY') {
+        return `Gs. ${new Intl.NumberFormat('es-PY', { maximumFractionDigits: 0 }).format(num)}`;
+      }
       const abs = Math.abs(num).toFixed(2);
       const [intPart, dec] = abs.split('.');
       const thousands = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
@@ -10144,11 +10209,12 @@
       if (!cont) return;
       const inTrash = clientsView === 'trash';
       const trashCount = (clientsTrashCache || []).length;
+      const country = activeClientCountry();
 
       cont.innerHTML = `
     <div class="admin-section-head" style="flex-wrap:wrap;gap:0.6rem;align-items:center">
       <div style="min-width:0">
-        <div class="admin-section-title">${inTrash ? 'Papelera de clientes' : 'Clientes'}</div>
+        <div class="admin-section-title">${inTrash ? 'Papelera de clientes' : 'Clientes'} ${country}</div>
         <div class="admin-section-sub" id="clients-sub"></div>
       </div>
       ${!inTrash ? `
@@ -10170,7 +10236,7 @@
         ${inTrash ? `
           <button class="btn btn-ghost btn-sm" onclick="switchClientsView('active')">${icon('back')} Volver a Clientes</button>
         ` : `
-          <button class="btn btn-lime btn-sm" onclick="openNewClientModal()">+ Nuevo cliente</button>
+          <button class="btn btn-lime btn-sm" onclick="openNewClientModal()">+ Nuevo cliente ${country}</button>
           <button class="btn btn-vencidos btn-sm ${clientsDashFilter === 'vencidos' ? 'active' : ''}" onclick="setDashFilter('vencidos')" title="Ver clientes con facturas vencidas">
             ${icon('warn')} Vencidos
           </button>
@@ -10459,7 +10525,43 @@
     // usuario corrige y reenvía dejaría un borrador huérfano acumulado.
     let cobBorradorId = null;
 
-    async function openCobranzaInvoice(clientId) {
+    function openCobranzaSaldo(c) {
+      const currency = (c.pais || 'AR') === 'PY' ? 'PYG' : 'ARS';
+      cobranzaOverlayShell(`Cargar saldo a ${c.nombreFantasia || c.razonSocial}`, `
+      <div style="margin-bottom:0.8rem;padding:0.55rem 0.7rem;border-radius:var(--r-sm,6px);background:rgba(245,205,71,0.10);border:1px solid rgba(245,205,71,0.35);font-size:0.8rem">
+        Se guardará como prefactura y aumentará el saldo adeudado, sin emitir ningún comprobante.
+      </div>
+      <div style="display:grid;gap:0.7rem">
+        <label style="display:grid;gap:0.25rem;font-size:0.8rem">Fecha
+          <input id="cob-saldo-fecha" type="date" value="${new Date().toISOString().slice(0, 10)}" class="clients-search-inp" style="width:100%">
+        </label>
+        <div style="display:grid;gap:0.35rem">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:0.8rem;font-weight:600">Ítems de la prefactura</span>
+            <button type="button" class="btn btn-subtle btn-sm" onclick="addCobItem()">${icon('plus')} Agregar ítem</button>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 240px 36px;gap:0.5rem;font-size:0.72rem;color:var(--muted,#8a8a8a)">
+            <span>Descripción</span><span>Importe (${currency})</span><span></span>
+          </div>
+          <div id="cob-items" style="display:grid;gap:0.5rem"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.7rem;padding-top:0.2rem;border-top:1px solid var(--border2,#333)">
+          <label style="display:grid;gap:0.25rem;font-size:0.8rem">Importe sin IVA (${currency})
+            <input id="cob-neto" type="text" inputmode="decimal" class="clients-search-inp" style="width:100%" oninput="recalcCobFromSummary('neto')" onblur="fmtCobMoneyField(this)">
+          </label>
+          <label style="display:grid;gap:0.25rem;font-size:0.8rem">IVA 21% (${currency})
+            <input id="cob-iva" type="text" inputmode="decimal" class="clients-search-inp" style="width:100%" oninput="recalcCobFromSummary('iva')" onblur="fmtCobMoneyField(this)">
+          </label>
+          <label style="display:grid;gap:0.25rem;font-size:0.8rem">Importe total (${currency})
+            <input id="cob-importe" type="text" inputmode="decimal" class="clients-search-inp" style="width:100%" oninput="recalcCobFromSummary('total')" onblur="fmtCobMoneyField(this)">
+          </label>
+        </div>
+        <button class="btn btn-factura" id="cob-submit" onclick="submitCobranzaSaldo('${c.id}')">${icon('save')} Guardar saldo</button>
+      </div>`, 960);
+      addCobItem(c.descripcionComprobante || 'Servicios de consultoría digital', '');
+    }
+
+    async function openCobranzaInvoice(clientId, mode = 'factura') {
       cobBorradorId = null;
       // Puede invocarse desde Cobranzas o desde Clientes/Resumen de cuenta:
       // aseguramos tener el estado de ARCA y buscamos el cliente en ambos caches.
@@ -10467,6 +10569,14 @@
       const c = (cobranzasData?.pendientes || []).find((x) => x.id === clientId)
         || (clientsCache || []).find((x) => x.id === clientId);
       if (!c) return;
+      if (mode === 'saldo') {
+        openCobranzaSaldo(c);
+        return;
+      }
+      if ((c.pais || 'AR') === 'PY') {
+        toast('La facturación ARCA sólo está disponible para clientes ARG.', 'error');
+        return;
+      }
       // No exigimos ARCA configurado: se puede emitir un comprobante "Sin ARCA"
       // (no fiscal) que sólo genera el PDF. Sólo se valida ARCA al emitir uno fiscal.
       const arcaState = cobranzasData?.arcaAccounts?.[c.arcaEmisor || 'default'] || cobranzasData?.arca;
@@ -10677,6 +10787,49 @@
       if (items.length === 1) items[0].value = fmtCobMoney(total);
     }
 
+    async function submitCobranzaSaldo(clientId) {
+      const btn = $('cob-submit');
+      const items = [];
+      document.querySelectorAll('#cob-items .cob-item').forEach((row) => {
+        const detalle = String(row.querySelector('.cob-item-detalle').value || '').trim();
+        const importe = cobRound2(parseCobMoney(row.querySelector('.cob-item-importe').value));
+        if (importe > 0) items.push({ detalle: detalle || 'Ítem', importe });
+      });
+      const totalField = cobRound2(parseCobMoney($('cob-importe').value));
+      const total = totalField > 0 ? totalField : cobRound2(items.reduce((sum, item) => sum + item.importe, 0));
+      if (!items.length || total <= 0) {
+        toast('Agregá al menos un ítem con importe.', 'error');
+        return;
+      }
+      btn.disabled = true;
+      btn.textContent = 'Guardando…';
+      try {
+        await api('/api/admin/clients/' + encodeURIComponent(clientId) + '/movements', {
+          method: 'POST',
+          body: JSON.stringify({
+            fecha: $('cob-saldo-fecha').value,
+            medioPago: '',
+            banco: '',
+            detalle: items.map(item => item.detalle).join(' + ').slice(0, 500),
+            montoFactura: total,
+            debe: total,
+            haber: 0,
+            tipo: 'saldo',
+            items,
+            archivos: [],
+          }),
+        });
+        closeCobranzaOverlay();
+        await loadMovementsForClient(clientId);
+        loadAdminDashboard();
+        toast('Saldo guardado como prefactura.', 'success');
+      } catch (err) {
+        btn.disabled = false;
+        btn.innerHTML = `${icon('save')} Guardar saldo`;
+        toast(err.message || 'No se pudo guardar el saldo.', 'error');
+      }
+    }
+
     async function submitCobranzaInvoice(clientId) {
       const btn = $('cob-submit');
       const docNro = String($('cob-doc').value || '').replace(/\D/g, '');
@@ -10806,7 +10959,8 @@
       const box = $('clients-results');
       if (!box) return;
       const inTrash = clientsView === 'trash';
-      const source = inTrash ? clientsTrashCache : clientsCache;
+      const country = activeClientCountry();
+      const source = (inTrash ? clientsTrashCache : clientsCache).filter(c => (c.pais || 'AR') === country);
       const all = (source || []).slice().sort((a, b) =>
         clientDisplayName(a).localeCompare(clientDisplayName(b), 'es')
       );
@@ -10828,11 +10982,17 @@
             const movs = movementsCache[c.id] || [];
             return movs.some(m => Number(m.haber || 0) > 0 && (m.fecha || '').startsWith(monthPrefix));
           }
-          if (clientsDashFilter === 'pendientes') {
-            // Clientes con saldo > 0 que emitieron al menos una factura en el mes.
-            if (saldo <= 0) return false;
+          if (clientsDashFilter === 'previstos') {
             const movs = movementsCache[c.id] || [];
             return movs.some(m => Number(m.montoFactura || 0) > 0 && (m.fecha || '').startsWith(monthPrefix));
+          }
+          if (clientsDashFilter === 'facturados') {
+            const movs = movementsCache[c.id] || [];
+            return movs.some(m => m.tipo === 'factura' && Number(m.montoFactura || 0) > 0 && (m.fecha || '').startsWith(monthPrefix));
+          }
+          if (clientsDashFilter === 'saldos') {
+            const movs = movementsCache[c.id] || [];
+            return saldo > 0 && movs.some(m => m.tipo === 'saldo' && Number(m.montoFactura || 0) > 0);
           }
           if (clientsDashFilter === 'pendientes-total') return saldo > 0;
           if (clientsDashFilter === 'vencidos') return saldo > 0 && c.vence && c.vence < todayStr;
@@ -10905,8 +11065,8 @@
           <tr>
             <th class="th-sort" onclick="toggleClientsSort('cliente')" title="Ordenar por nombre">Cliente ${sortArrow('cliente')}</th>
             <th>RS</th>
-            <th>CUIT</th>
-            <th class="th-sort" onclick="toggleClientsSort('debe')" title="Ordenar por deuda">Debe ${sortArrow('debe')}</th>
+            <th>${country === 'PY' ? 'RUC' : 'CUIT'}</th>
+            <th class="th-sort" onclick="toggleClientsSort('debe')" title="Ordenar por deuda">Saldo adeudado ${sortArrow('debe')}</th>
             <th class="th-sort" onclick="toggleClientsSort('vence')" title="Ordenar por vencimiento">Vence ${sortArrow('vence')}</th>
             <th>Estado</th>
             <th>${inTrash ? 'Eliminado' : 'Acciones'}</th>
@@ -10980,15 +11140,12 @@
         el.classList.toggle('active', clientsDashFilter === 'vencidos');
       });
       // Al activar un filtro, cambiar al tab de clientes si no estamos ahí
-      if (clientsDashFilter !== null && adminSubTab !== 'clientes') {
-        switchAdminSubTab('clientes');
+      if (clientsDashFilter !== null && !isClientsAdminTab()) {
+        switchAdminSubTab('clientes-arg');
       } else {
         renderClientsResults();
       }
-      // "Pendiente de cobro este mes" y "Cobrados" necesitan los movimientos de
-      // cada cliente para saber quién tuvo factura emitida / pago efectuado en el
-      // mes seleccionado.
-      if (clientsDashFilter === 'pendientes' || clientsDashFilter === 'cobrados') {
+      if (['previstos', 'facturados', 'cobrados', 'saldos'].includes(clientsDashFilter)) {
         const activeKey = clientsDashFilter;
         ensureAllMovementsLoaded().then(() => {
           if (clientsDashFilter === activeKey) renderClientsResults();
@@ -11016,7 +11173,7 @@
       </td>
       <td>${c.razonSocial ? esc(c.razonSocial) : '<span class="ct-sub">—</span>'}</td>
       <td>${c.cuit ? esc(c.cuit) : '<span class="ct-sub">—</span>'}</td>
-      <td><span class="ct-money ${moneyCls}">${formatMoney(saldo)}</span></td>
+      <td onclick="event.stopPropagation()"><button class="ct-money ct-money-link ${moneyCls}" onclick="openClientSaldos('${c.id}')" title="Ver prefacturas y movimientos de saldo">${formatMoney(saldo)}</button></td>
       <td><span class="ct-vence">${formatDate(c.vence)}</span></td>
       <td>
         <span class="ct-chip ${estadoCli}" onclick="event.stopPropagation();toggleClientEstado('${c.id}')" title="Cambiar estado" style="cursor:pointer">
@@ -11025,7 +11182,8 @@
       </td>
       <td onclick="event.stopPropagation()">
         <div class="ct-actions">
-          <button class="btn btn-lime btn-sm" onclick="openCobranzaInvoice('${c.id}')" title="Emitir factura electrónica en ARCA">${icon('receipt')} Facturar</button>
+          ${(c.pais || 'AR') === 'AR' ? `<button class="btn btn-lime btn-sm" onclick="openCobranzaInvoice('${c.id}')" title="Emitir factura electrónica en ARCA">${icon('receipt')} Facturar</button>` : ''}
+          <button class="btn btn-factura btn-sm" onclick="openCobranzaInvoice('${c.id}','saldo')" title="Guardar una prefactura sin emitirla">${icon('save')} Cargar saldo</button>
           <button class="btn btn-factura btn-sm" onclick="openMovementModal('${c.id}','factura')" title="Cargar una factura manualmente">${icon('file')} Cargar factura</button>
           <button class="btn btn-pago btn-sm" onclick="openMovementModal('${c.id}','pago')" title="Registrar un pago recibido">${icon('dollar')} Cargar pago</button>
         </div>
@@ -11065,7 +11223,21 @@
     }
 
     /* ── Nuevo / Editar cliente (mismo modal, dos modos) ── */
+    function syncClientCountryUI(country) {
+      const isPy = country === 'PY';
+      const taxLabel = $('nc-tax-label');
+      const taxInput = $('nc-cuit');
+      const arcaGroup = $('nc-arca-group');
+      if (taxLabel) taxLabel.textContent = isPy ? 'RUC' : 'CUIT';
+      if (taxInput) {
+        taxInput.placeholder = isPy ? '80012345-6' : '30-12345678-9';
+        taxInput.maxLength = isPy ? 16 : 13;
+      }
+      if (arcaGroup) arcaGroup.style.display = isPy ? 'none' : '';
+    }
+
     function fillClientForm(c) {
+      syncClientCountryUI(c ? (c.pais || 'AR') : activeClientCountry());
       $('nc-nombre').value = c ? (c.nombreFantasia || '') : '';
       $('nc-rs').value = c ? (c.razonSocial || '') : '';
       $('nc-cuit').value = c ? (c.cuit || '') : '';
@@ -11180,6 +11352,9 @@
         destinatario: $('nc-destinatario').value.trim(),
         descripcionComprobante: $('nc-descripcion-comprobante').value.trim(),
         descripcion: $('nc-descripcion').value.trim(),
+        pais: editingClientId
+          ? ((clientsCache.find(c => c.id === editingClientId) || {}).pais || activeClientCountry())
+          : activeClientCountry(),
       };
       if (!body.nombreFantasia) {
         showErr('nc-err', 'El nombre fantasía es obligatorio.');
@@ -11225,7 +11400,7 @@
         ]);
         clientsCache = activeData.clients || [];
         clientsTrashCache = trashData.clients || [];
-        if (activeTeam === 'admin' && adminSubTab === 'clientes') renderClientesSubTab();
+        if (activeTeam === 'admin' && isClientsAdminTab()) renderClientesSubTab();
       } catch (_err) { /* ignore */ }
     }
 
@@ -11261,10 +11436,11 @@
     }
 
     /* ── Ver Cliente ── */
-    function openClientModal(clientId) {
+    function openClientModal(clientId, onlySaldos = false) {
       const c = clientsCache.find(x => x.id === clientId);
       if (!c) { toast('Cliente no encontrado.', 'error'); return; }
       currentClientId = clientId;
+      clientMovementsOnlySaldos = onlySaldos;
       renderClientModal(c);
       // resetear estado colapsable
       const datos = $('cv-datos');
@@ -11274,6 +11450,11 @@
       document.querySelectorAll('#client-overlay .client-section-head').forEach((h) => {
         h.classList.remove('open');
       });
+      if (onlySaldos && resumen) {
+        resumen.classList.remove('collapsed');
+        const head = resumen.previousElementSibling;
+        if (head) head.classList.add('open');
+      }
       openOverlay('client-overlay');
       // pre-cargamos movimientos en background
       loadMovementsForClient(clientId).catch(() => { });
@@ -11281,7 +11462,9 @@
     function closeClientModal() {
       closeOverlay('client-overlay');
       currentClientId = null;
+      clientMovementsOnlySaldos = false;
     }
+    function openClientSaldos(clientId) { openClientModal(clientId, true); }
     function clientBg(e) { if (e.target.id === 'client-overlay') closeClientModal(); }
 
     function toggleClientSection(bodyId) {
@@ -11312,6 +11495,10 @@
       };
       fld('cv-nf', c.nombreFantasia);
       fld('cv-cuit', c.cuit);
+      const taxLabel = $('cv-tax-label');
+      if (taxLabel) taxLabel.textContent = (c.pais || 'AR') === 'PY' ? 'RUC' : 'CUIT';
+      const facturarBtn = $('cv-facturar-btn');
+      if (facturarBtn) facturarBtn.style.display = (c.pais || 'AR') === 'PY' ? 'none' : '';
       fld('cv-direccion', c.direccion);
       fld('cv-tel-admin', c.telAdmin);
       fld('cv-tel-dueno', c.telDueno);
@@ -11356,8 +11543,9 @@
       const wrap = $('cv-movements-wrap');
       if (!wrap) return;
       const clientId = currentClientId;
+      if (clientMovementsOnlySaldos) movements = (movements || []).filter(m => m.tipo === 'saldo');
       if (!movements || movements.length === 0) {
-        wrap.innerHTML = '<div class="rc-empty">Sin movimientos cargados.</div>';
+        wrap.innerHTML = `<div class="rc-empty">${clientMovementsOnlySaldos ? 'Sin prefacturas o saldos cargados.' : 'Sin movimientos cargados.'}</div>`;
         return;
       }
       const ordered = movements.slice().sort((a, b) => {
@@ -11369,6 +11557,7 @@
         // Saldo acumulado = factura - haber
         saldo += Number(m.montoFactura || 0) - Number(m.haber || 0);
         const impago = saldo > 0;
+        const estadoMovimiento = m.tipo === 'saldo' ? 'Saldo cargado' : (m.tipo === 'pago' ? 'Pago efectuado' : 'Factura emitida');
         return `
       <tr>
         <td>${formatDate(m.fecha)}</td>
@@ -11376,7 +11565,7 @@
         <td class="num rc-debe">${m.debe ? formatMoney(m.debe) : '—'}</td>
         <td class="num rc-haber">${m.haber ? formatMoney(m.haber) : '—'}</td>
         <td class="num rc-saldo">${formatMoney(saldo)}</td>
-        <td><span class="ct-chip ${impago ? 'impago' : 'pagado'}">${impago ? 'Factura emitida' : 'Pago efectuado'}</span></td>
+        <td><span class="ct-chip ${m.tipo === 'pago' ? 'pagado' : 'impago'}">${estadoMovimiento}</span></td>
         <td class="rc-actions">
           ${m.invoiceId ? `<a class="btn btn-ghost btn-sm rc-pdf-btn" title="Abrir factura ${esc((m.invoiceLetra || '') + ' ' + (m.invoiceNumero || ''))} en PDF"
             href="/api/admin/cobranzas/invoices/${esc(m.invoiceId)}/pdf" target="_blank" rel="noopener"
@@ -11406,6 +11595,7 @@
       }).join('');
 
       wrap.innerHTML = `
+    ${clientMovementsOnlySaldos ? '<div class="admin-muted" style="margin-bottom:0.55rem">Prefacturas guardadas sin emitir</div>' : ''}
     <table class="rc-table">
       <thead>
         <tr>
@@ -11509,7 +11699,7 @@
             }
           }
         }
-        if (activeTeam === 'admin' && adminSubTab === 'clientes') renderClientesSubTab();
+        if (activeTeam === 'admin' && isClientsAdminTab()) renderClientesSubTab();
       } catch (err) {
         const wrap = $('cv-movements-wrap');
         if (wrap) wrap.innerHTML = `<div class="rc-empty">Error: ${esc(err.message || 'no se pudo cargar')}</div>`;
@@ -11535,7 +11725,7 @@
     }
 
     /* ── Factura / Pago ── */
-    let movementMode = 'factura'; // 'factura' | 'pago'
+    let movementMode = 'factura'; // 'factura' | 'saldo' | 'pago'
     let editingMovId = null;      // id del movimiento que se está editando, null = crear
     let mvFilesState = []; // { id, name, type, size, data (base64) }
 
@@ -11671,7 +11861,7 @@
         saldo += Number(m.montoFactura || 0) - Number(m.haber || 0);
         totalFacturado += Number(m.montoFactura || 0);
         totalPagado += Number(m.haber || 0);
-        const impago = m.haber > 0 ? false : true;
+        const estadoMovimiento = m.tipo === 'saldo' ? 'Saldo cargado' : (m.tipo === 'pago' ? 'Pago efectuado' : 'Factura emitida');
         const extras = [
           m.medioPago ? (MEDIO_PAGO_LABEL[m.medioPago] || m.medioPago) : '',
           m.banco || '',
@@ -11686,13 +11876,16 @@
       <td>${m.debe > 0 ? fmtResumen(m.debe) : '—'}</td>
       <td>${m.haber > 0 ? fmtResumen(m.haber) : '—'}</td>
       <td style="font-weight:700;color:${saldo > 0 ? '#e53e3e' : '#276749'}">${fmtResumen(saldo)}</td>
-      <td>${impago ? 'Factura emitida' : 'Pago efectuado'}</td>
+      <td>${estadoMovimiento}</td>
       <td style="color:#666;font-size:0.82em">${extras}${archivosStr ? '<br><em>Adj: ' + archivosStr + '</em>' : ''}</td>
     </tr>`;
       }).join('');
 
       function fmtResumen(n) {
         const num = Number(n || 0);
+        if ((c.pais || 'AR') === 'PY') {
+          return `Gs. ${new Intl.NumberFormat('es-PY', { maximumFractionDigits: 0 }).format(num)}`;
+        }
         const abs = Math.abs(num).toFixed(2);
         const [ip, dec] = abs.split('.');
         return `${num < 0 ? '-' : ''}$ ${ip.replace(/\B(?=(\d{3})+(?!\d))/g, '.')},${dec}`;
@@ -11776,7 +11969,7 @@
   <div class="info-grid">
     <div class="info-row"><span class="info-label">Nombre / Fantasía</span><span class="info-val">${c.nombreFantasia || '—'}</span></div>
     <div class="info-row"><span class="info-label">Razón social</span><span class="info-val">${c.razonSocial || '—'}</span></div>
-    <div class="info-row"><span class="info-label">CUIT</span><span class="info-val">${c.cuit || '—'}</span></div>
+    <div class="info-row"><span class="info-label">${(c.pais || 'AR') === 'PY' ? 'RUC' : 'CUIT'}</span><span class="info-val">${c.cuit || '—'}</span></div>
     <div class="info-row"><span class="info-label">Dirección</span><span class="info-val">${c.direccion || '—'}</span></div>
     <div class="info-row"><span class="info-label">Tel. administración</span><span class="info-val">${c.telAdmin || '—'}</span></div>
     <div class="info-row"><span class="info-label">Tel. dueño</span><span class="info-val">${c.telDueno || '—'}</span></div>
@@ -11869,17 +12062,17 @@
 
       const c = clientsCache.find(x => x.id === currentClientId);
       editingMovId = movId;
-      movementMode = m.haber > 0 ? 'pago' : 'factura';
+      movementMode = m.tipo === 'saldo' ? 'saldo' : (m.haber > 0 ? 'pago' : 'factura');
 
-      $('mv-title').textContent = movementMode === 'pago' ? 'Editar pago' : 'Editar factura';
-      $('mv-submit-btn').textContent = movementMode === 'pago' ? 'Guardar pago' : 'Guardar factura';
+      $('mv-title').textContent = movementMode === 'pago' ? 'Editar pago' : (movementMode === 'saldo' ? 'Editar saldo' : 'Editar factura');
+      $('mv-submit-btn').textContent = movementMode === 'pago' ? 'Guardar pago' : (movementMode === 'saldo' ? 'Guardar saldo' : 'Guardar factura');
       $('mv-submit-btn').className = 'btn btn-sm ' + (movementMode === 'pago' ? 'btn-pago' : 'btn-factura');
 
       $('mv-cliente-info').innerHTML =
-        (movementMode === 'pago' ? 'Editar pago de ' : 'Editar factura de ') +
+        (movementMode === 'pago' ? 'Editar pago de ' : (movementMode === 'saldo' ? 'Editar saldo de ' : 'Editar factura de ')) +
         `<strong style="color:var(--text-hi)">${c ? esc(clientDisplayName(c)) : ''}</strong>`;
 
-      document.querySelectorAll('.mv-only-factura').forEach(el => el.style.display = movementMode === 'factura' ? '' : 'none');
+      document.querySelectorAll('.mv-only-factura').forEach(el => el.style.display = movementMode !== 'pago' ? '' : 'none');
       document.querySelectorAll('.mv-only-pago').forEach(el => el.style.display = movementMode === 'pago' ? '' : 'none');
 
       $('mv-fecha').value = m.fecha || '';
@@ -11901,7 +12094,7 @@
       if (!$('mv-fecha').value) { showErr('mv-err', 'La fecha es obligatoria.'); return; }
 
       let body;
-      if (movementMode === 'factura') {
+      if (movementMode !== 'pago') {
         const monto = Number($('mv-monto').value || 0);
         if (monto <= 0) { showErr('mv-err', 'Ingresá el monto de la factura.'); return; }
         body = {
@@ -11912,6 +12105,7 @@
           montoFactura: monto,
           debe: monto,   // por consistencia con el modelo viejo
           haber: 0,
+          tipo: movementMode,
         };
       } else {
         const haber = Number($('mv-haber').value || 0);
@@ -13905,8 +14099,11 @@
     function renderAdminTable(board, cards, _users) {
       board.innerHTML = `
     <nav class="admin-subnav" role="tablist">
-      <button class="admin-subnav-btn" data-subtab="clientes"  onclick="switchAdminSubTab('clientes')">
-        <span class="as-ico"><i class="ico-ph" data-ico="users"></i></span> Clientes
+      <button class="admin-subnav-btn" data-subtab="clientes-arg" onclick="switchAdminSubTab('clientes-arg')">
+        <span class="as-ico"><i class="ico-ph" data-ico="users"></i></span> Clientes ARG
+      </button>
+      <button class="admin-subnav-btn" data-subtab="clientes-py" onclick="switchAdminSubTab('clientes-py')">
+        <span class="as-ico"><i class="ico-ph" data-ico="users"></i></span> Clientes PY
       </button>
       <button class="admin-subnav-btn" data-subtab="libreta"   onclick="switchAdminSubTab('libreta')">
         <span class="as-ico"><i class="ico-ph" data-ico="book"></i></span> Libreta
@@ -13931,25 +14128,26 @@
       </button>
     </div>
     <div class="admin-summary" id="admin-summary">
-      <div class="admin-metric metric-ingresos" style="--mi:0" data-dash-filter="ingresos" onclick="setDashFilter('ingresos')">
+      <div class="admin-metric metric-ingresos" style="--mi:0" data-dash-filter="previstos" onclick="setDashFilter('previstos')">
         <div class="admin-metric-icon">${icon('dollar')}</div>
-        <div class="admin-metric-label">Ingresos totales del mes</div>
-        <div class="admin-metric-value" id="adash-ingresos">—</div>
+        <div class="admin-metric-label">Ingresos previstos del mes</div>
+        <div class="admin-metric-value" id="adash-previstos">—</div>
       </div>
-      <div class="admin-metric metric-cobrados" style="--mi:1" data-dash-filter="cobrados" onclick="setDashFilter('cobrados')">
+      <div class="admin-metric metric-facturados" style="--mi:1" data-dash-filter="facturados" onclick="setDashFilter('facturados')">
+        <div class="admin-metric-icon">${icon('receipt')}</div>
+        <div class="admin-metric-label">Ingresos facturados</div>
+        <div class="admin-metric-value" id="adash-facturados">—</div>
+      </div>
+      <div class="admin-metric metric-cobrados" style="--mi:2" data-dash-filter="cobrados" onclick="setDashFilter('cobrados')">
         <div class="admin-metric-icon">${icon('check')}</div>
-        <div class="admin-metric-label">Cobrados</div>
+        <div class="admin-metric-label">Cobrado</div>
         <div class="admin-metric-value" id="adash-cobrados">—</div>
-      </div>
-      <div class="admin-metric metric-pendientes" style="--mi:2" data-dash-filter="pendientes" onclick="setDashFilter('pendientes')">
-        <div class="admin-metric-icon">${icon('zap')}</div>
-        <div class="admin-metric-label">Pendiente de cobro este mes</div>
-        <div class="admin-metric-value" id="adash-pendientes">—</div>
       </div>
       <div class="admin-metric metric-pendientes-total" style="--mi:3" data-dash-filter="pendientes-total" onclick="setDashFilter('pendientes-total')">
         <div class="admin-metric-icon">${icon('zap')}</div>
         <div class="admin-metric-label">Pendiente de cobro total</div>
         <div class="admin-metric-value" id="adash-pendientes-total">—</div>
+        <button class="admin-metric-link" onclick="event.stopPropagation();setDashFilter('saldos')">Ver saldos adeudados</button>
       </div>
     </div>
     </div>

@@ -42,6 +42,9 @@ async function ensureDatabaseMigrations() {
   await pool.query("ALTER TABLE cards ADD COLUMN IF NOT EXISTS pauta_url TEXT NOT NULL DEFAULT ''");
   await pool.query("ALTER TABLE cards ADD COLUMN IF NOT EXISTS attachments JSONB NOT NULL DEFAULT '[]'::jsonb");
   await pool.query("ALTER TABLE client_movements ADD COLUMN IF NOT EXISTS archivos JSONB NOT NULL DEFAULT '[]'::jsonb");
+  await pool.query("ALTER TABLE client_movements ADD COLUMN IF NOT EXISTS tipo TEXT NOT NULL DEFAULT 'factura'");
+  await pool.query("UPDATE client_movements SET tipo = 'pago' WHERE haber > 0 AND tipo = 'factura'");
+  await pool.query("ALTER TABLE client_movements ADD COLUMN IF NOT EXISTS items JSONB NOT NULL DEFAULT '[]'::jsonb");
   await pool.query("ALTER TABLE calendar_events ADD COLUMN IF NOT EXISTS cliente_id TEXT NOT NULL DEFAULT ''");
   await pool.query("CREATE INDEX IF NOT EXISTS idx_calendar_events_cliente ON calendar_events(cliente_id)");
   await pool.query(`
@@ -144,6 +147,8 @@ async function ensureDatabaseMigrations() {
   // Descripcion por defecto que se envia como detalle del comprobante (factura ARCA)
   await pool.query("ALTER TABLE clients ADD COLUMN IF NOT EXISTS descripcion_comprobante TEXT NOT NULL DEFAULT ''");
   await pool.query("ALTER TABLE clients ADD COLUMN IF NOT EXISTS arca_emisor TEXT NOT NULL DEFAULT 'default'");
+  await pool.query("ALTER TABLE clients ADD COLUMN IF NOT EXISTS pais TEXT NOT NULL DEFAULT 'AR'");
+  await pool.query("CREATE INDEX IF NOT EXISTS idx_clients_pais ON clients(pais)");
   await pool.query("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS arca_emisor TEXT NOT NULL DEFAULT 'default'");
 
   // Crear usuario system-bot si no existe
@@ -652,6 +657,7 @@ function clientDTO(row, balance = null) {
     destinatario: row.destinatario || '',
     descripcionComprobante: row.descripcion_comprobante || '',
     arcaEmisor: arcaAccountId(row.arca_emisor),
+    pais: row.pais === 'PY' ? 'PY' : 'AR',
     descripcion: row.descripcion || '',
     cardId: row.card_id || null,
     creadoPor: row.creado_por || null,
@@ -671,12 +677,14 @@ function movementDTO(row, saldoAcumulado = null) {
     banco: row.banco || '',
     detalle: row.detalle || '',
     montoFactura: Number(row.monto_factura || 0),
+    tipo: ['saldo', 'pago'].includes(row.tipo) ? row.tipo : 'factura',
     debe: Number(row.debe || 0),
     haber: Number(row.haber || 0),
     creadoPor: row.creado_por || null,
     creadoEn: Number(row.creado_en) || 0,
     saldoAcumulado: saldoAcumulado != null ? Number(saldoAcumulado) : null,
     archivos: Array.isArray(row.archivos) ? row.archivos : [],
+    items: Array.isArray(row.items) ? row.items : [],
   };
 }
 
@@ -1637,6 +1645,7 @@ app.post('/api/admin/clients', requireAdmin, async (req, res, next) => {
     const mensualidad = ['activo', 'pasivo'].includes(b.mensualidad) ? b.mensualidad : 'pasivo';
     const diaVencimiento = cleanDiaVencimiento(b.diaVencimiento);
     const metodoEnvio = ['whatsapp', 'mail'].includes(b.metodoEnvio) ? b.metodoEnvio : '';
+    const pais = b.pais === 'PY' ? 'PY' : 'AR';
     const id = mkId();
     const creadoEn = Date.now();
     const { rows } = await pool.query(
@@ -1644,9 +1653,9 @@ app.post('/api/admin/clients', requireAdmin, async (req, res, next) => {
          id, nombre_fantasia, razon_social, cuit, direccion,
          tel_admin, tel_dueno, mail1, mail2, vence,
          estado_cliente, mensualidad, dia_vencimiento, metodo_envio, destinatario,
-         descripcion_comprobante, arca_emisor, descripcion,
+         descripcion_comprobante, arca_emisor, descripcion, pais,
          creado_por, creado_en
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
        RETURNING *`,
       [
         id,
@@ -1667,6 +1676,7 @@ app.post('/api/admin/clients', requireAdmin, async (req, res, next) => {
         String(b.descripcionComprobante || '').trim().slice(0, 500),
         arcaAccountId(b.arcaEmisor),
         String(b.descripcion || '').trim(),
+        pais,
         req.user.id,
         creadoEn,
       ]
@@ -1684,6 +1694,7 @@ app.patch('/api/admin/clients/:id', requireAdmin, async (req, res, next) => {
     const mensualidad = ['activo', 'pasivo'].includes(b.mensualidad) ? b.mensualidad : (existing.mensualidad || 'pasivo');
     const diaVencimiento = cleanDiaVencimiento(b.diaVencimiento);
     const metodoEnvio = ['whatsapp', 'mail'].includes(b.metodoEnvio) ? b.metodoEnvio : '';
+    const pais = b.pais === 'PY' ? 'PY' : (existing.pais === 'PY' ? 'PY' : 'AR');
     const { rows } = await pool.query(
       `UPDATE clients SET
          nombre_fantasia = $2,
@@ -1703,6 +1714,7 @@ app.patch('/api/admin/clients/:id', requireAdmin, async (req, res, next) => {
          descripcion_comprobante = $16,
          arca_emisor     = $17,
          descripcion     = $18,
+         pais            = $19,
          updated_at      = NOW()
        WHERE id = $1
        RETURNING *`,
@@ -1725,6 +1737,7 @@ app.patch('/api/admin/clients/:id', requireAdmin, async (req, res, next) => {
         String(b.descripcionComprobante || '').trim().slice(0, 500),
         arcaAccountId(b.arcaEmisor || existing.arca_emisor),
         String(b.descripcion || '').trim(),
+        pais,
       ]
     );
     const balances = await clientBalances();
@@ -1772,17 +1785,21 @@ app.get('/api/admin/dashboard', requireAdmin, async (req, res, next) => {
 
     const monthStr = String(month).padStart(2, '0');
     const prefix = `${year}-${monthStr}`;
+    const pais = req.query.pais === 'PY' ? 'PY' : 'AR';
 
     const [ingresosRes, pendientesRes] = await Promise.all([
       pool.query(
         `SELECT
-           COALESCE(SUM(monto_factura) FILTER (WHERE COALESCE(cm.medio_pago,'') != 'canje'), 0) AS ingresos_totales,
+           COALESCE(SUM(monto_factura) FILTER (WHERE cm.tipo = 'factura' AND COALESCE(cm.medio_pago,'') != 'canje'), 0) AS ingresos_facturados,
+           COALESCE(SUM(monto_factura) FILTER (WHERE cm.tipo IN ('factura','saldo') AND COALESCE(cm.medio_pago,'') != 'canje'), 0) AS ingresos_previstos,
+           COALESCE(SUM(monto_factura) FILTER (WHERE cm.tipo = 'saldo' AND COALESCE(cm.medio_pago,'') != 'canje'), 0) AS saldos_cargados,
            COALESCE(SUM(haber)         FILTER (WHERE COALESCE(cm.medio_pago,'') != 'canje'), 0) AS cobrados
          FROM client_movements cm
          JOIN clients c ON c.id = cm.client_id
          WHERE c.deleted_at IS NULL
+           AND c.pais = $2
            AND cm.fecha LIKE $1`,
-        [prefix + '%']
+        [prefix + '%', pais]
       ),
       pool.query(
         `WITH balances AS (
@@ -1810,14 +1827,17 @@ app.get('/api/admin/dashboard', requireAdmin, async (req, res, next) => {
          FROM balances bal
          JOIN clients c ON c.id = bal.client_id
          LEFT JOIN clientes_facturados_mes mes ON mes.client_id = bal.client_id
-         WHERE c.deleted_at IS NULL`,
-        [now.toISOString().slice(0, 10), prefix + '%']
+         WHERE c.deleted_at IS NULL
+           AND c.pais = $3`,
+        [now.toISOString().slice(0, 10), prefix + '%', pais]
       ),
     ]);
 
     res.json({
-      year, month,
-      ingresosTotales: Number(ingresosRes.rows[0].ingresos_totales),
+      year, month, pais,
+      ingresosPrevistos: Number(ingresosRes.rows[0].ingresos_previstos),
+      ingresosFacturados: Number(ingresosRes.rows[0].ingresos_facturados),
+      saldosCargados: Number(ingresosRes.rows[0].saldos_cargados),
       cobrados: Number(ingresosRes.rows[0].cobrados),
       pendientesMes: Number(pendientesRes.rows[0].pendientes_mes),
       pendientes: Number(pendientesRes.rows[0].pendientes),
@@ -1890,20 +1910,29 @@ app.post('/api/admin/clients/:id/movements', requireAdmin, async (req, res, next
     }
 
     const archivos = cleanArchivosMovementWithData(b.archivos || []);
+    const tipo = b.tipo === 'saldo' ? 'saldo' : (haber > 0 ? 'pago' : 'factura');
+    const items = Array.isArray(b.items)
+      ? b.items.slice(0, 50).map((item) => ({
+        detalle: String(item && item.detalle || '').trim().slice(0, 500),
+        importe: cleanMoney(item && item.importe),
+      })).filter((item) => item.importe > 0)
+      : [];
 
     const id = mkId();
     const creadoEn = Date.now();
     await pool.query(
       `INSERT INTO client_movements (
          id, client_id, fecha, medio_pago, banco, detalle,
-         monto_factura, debe, haber, creado_por, creado_en, archivos
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb)`,
+         monto_factura, debe, haber, creado_por, creado_en, archivos, tipo, items
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13,$14::jsonb)`,
       [
         id, req.params.id, fecha, medioPago,
         String(b.banco || '').trim(),
         String(b.detalle || '').trim(),
         monto, debe, haber, req.user.id, creadoEn,
         JSON.stringify(archivos),
+        tipo,
+        JSON.stringify(items),
       ]
     );
     res.status(201).json({ ok: true, id });
@@ -1927,17 +1956,27 @@ app.patch('/api/admin/clients/:id/movements/:movId', requireAdmin, async (req, r
     const monto = cleanMoney(b.montoFactura);
     if (debe === 0 && haber === 0) return res.status(400).json({ error: 'Ingresa al menos un monto en Debe o Haber.' });
     const archivos = cleanArchivosMovementWithData(b.archivos || []);
+    const tipo = b.tipo === 'saldo' ? 'saldo' : (haber > 0 ? 'pago' : 'factura');
+    const items = Array.isArray(b.items)
+      ? b.items.slice(0, 50).map((item) => ({
+        detalle: String(item && item.detalle || '').trim().slice(0, 500),
+        importe: cleanMoney(item && item.importe),
+      })).filter((item) => item.importe > 0)
+      : [];
     await pool.query(
       `UPDATE client_movements SET
          fecha=$1, medio_pago=$2, banco=$3, detalle=$4,
-         monto_factura=$5, debe=$6, haber=$7, archivos=$8::jsonb
-       WHERE id=$9 AND client_id=$10`,
+         monto_factura=$5, debe=$6, haber=$7, archivos=$8::jsonb,
+         tipo=$9, items=$10::jsonb
+       WHERE id=$11 AND client_id=$12`,
       [
         fecha, medioPago,
         String(b.banco || '').trim(),
         String(b.detalle || '').trim(),
         monto, debe, haber,
         JSON.stringify(archivos),
+        tipo,
+        JSON.stringify(items),
         req.params.movId, req.params.id,
       ]
     );
@@ -2974,7 +3013,7 @@ function invoiceDTO(row) {
 app.get('/api/admin/cobranzas', requireAdmin, async (_req, res, next) => {
   try {
     const clients = await listClients();
-    const pendientes = clients.filter((c) => Number(c.saldo || 0) > 0);
+    const pendientes = clients.filter((c) => c.pais === 'AR' && Number(c.saldo || 0) > 0);
     const { rows: invRows } = await pool.query(
       "SELECT * FROM invoices WHERE estado = 'emitida' ORDER BY creado_en DESC LIMIT 50"
     );

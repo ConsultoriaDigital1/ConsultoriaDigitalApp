@@ -162,6 +162,7 @@ CREATE TABLE IF NOT EXISTS clients (
   vence           TEXT NOT NULL DEFAULT '',
   card_id         TEXT REFERENCES cards(id) ON DELETE SET NULL,
   arca_emisor     TEXT NOT NULL DEFAULT 'default',
+  pais            TEXT NOT NULL DEFAULT 'AR',
   creado_por      TEXT REFERENCES users(id) ON DELETE SET NULL,
   creado_en       BIGINT NOT NULL,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -169,6 +170,8 @@ CREATE TABLE IF NOT EXISTS clients (
 );
 
 CREATE INDEX IF NOT EXISTS idx_clients_cuit ON clients(cuit);
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS pais TEXT NOT NULL DEFAULT 'AR';
+CREATE INDEX IF NOT EXISTS idx_clients_pais ON clients(pais);
 
 -- Soft-delete: papelera de clientes
 ALTER TABLE clients ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
@@ -190,10 +193,15 @@ CREATE TABLE IF NOT EXISTS client_movements (
   haber         NUMERIC(14,2) NOT NULL DEFAULT 0,
   creado_por    TEXT REFERENCES users(id) ON DELETE SET NULL,
   creado_en     BIGINT NOT NULL,
+  tipo          TEXT NOT NULL DEFAULT 'factura',
+  items         JSONB NOT NULL DEFAULT '[]'::jsonb,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_client_movements_client ON client_movements(client_id, fecha, creado_en);
+ALTER TABLE client_movements ADD COLUMN IF NOT EXISTS tipo TEXT NOT NULL DEFAULT 'factura';
+ALTER TABLE client_movements ADD COLUMN IF NOT EXISTS items JSONB NOT NULL DEFAULT '[]'::jsonb;
+UPDATE client_movements SET tipo = 'pago' WHERE haber > 0 AND tipo = 'factura';
 
 -- COBRANZAS: facturas emitidas via ARCA (ex AFIP)
 ALTER TABLE clients ADD COLUMN IF NOT EXISTS ultimo_aviso BIGINT NOT NULL DEFAULT 0;
