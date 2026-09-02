@@ -2,7 +2,7 @@
 
 ## 0. Auto-deploy con GitHub Actions
 
-Cada push a `main` ejecuta `.github/workflows/deploy.yml`: chequea sintaxis y luego entra por SSH al VPS para hacer `git pull`, `npm ci` y `pm2 restart`.
+Cada push a `main` ejecuta `.github/workflows/deploy.yml`: chequea sintaxis y luego entra por SSH al VPS para hacer `git pull`, `pnpm install` y `pm2 restart`.
 
 Para activarlo, en GitHub → Settings del repo:
 
@@ -37,9 +37,10 @@ git clone URL_DEL_REPO /var/www/consultoria-digital
 cd /var/www/consultoria-digital
 cp .env.example .env
 nano .env
-npm ci
-npm run db:schema
-npm run db:seed
+corepack enable
+pnpm install --frozen-lockfile
+pnpm run db:schema
+pnpm run db:seed
 ```
 
 Usuarios iniciales:
@@ -53,7 +54,7 @@ Cambia esas contrasenas al entrar.
 ## 3. Levantar Node con PM2
 
 ```bash
-sudo npm i -g pm2
+pnpm add -g pm2
 pm2 start server.js --name consultoria-digital
 pm2 save
 pm2 startup
