@@ -7976,6 +7976,39 @@
       transform: translateY(-1px);
     }
 
+    .agenda-sync-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      border: 1px solid rgba(87, 157, 255, 0.35);
+      border-radius: 8px;
+      background: rgba(87, 157, 255, 0.1);
+      color: #9dc4ff;
+      padding: 0.3rem 0.5rem;
+      font-size: 0.6rem;
+      font-weight: 800;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 150ms ease, border-color 150ms ease, transform 150ms ease;
+    }
+
+    .agenda-sync-btn:hover:not(:disabled) {
+      background: rgba(87, 157, 255, 0.2);
+      border-color: rgba(87, 157, 255, 0.65);
+      transform: translateY(-1px);
+    }
+
+    .agenda-sync-btn:disabled {
+      opacity: 0.6;
+      cursor: default;
+    }
+
+    .agenda-sync-btn.is-pending {
+      border-color: rgba(217, 119, 6, 0.5);
+      background: rgba(217, 119, 6, 0.14);
+      color: #f0b45f;
+    }
+
     .agenda-count {
       min-width: 22px;
       padding: 0.16rem 0.42rem;
@@ -12945,6 +12978,9 @@
         <div class="agenda-title">Calendario de eventos</div>
       </div>
       <div style="display:flex;align-items:center;gap:0.35rem">
+        <button class="agenda-sync-btn" id="agenda-sync-btn" type="button" style="display:none"
+          onclick="syncAgendaToGoogle()" title="Sincronizar la agenda con Google Calendar">${icon('refresh')}<span
+            id="agenda-sync-label">Google</span></button>
         <button class="agenda-add-event" type="button" onclick="openEventModal()" title="Agregar evento">+ Evento</button>
         <span class="agenda-count" id="agenda-count">0</span>
       </div>
@@ -13285,6 +13321,7 @@
       const items = agendaItems();
       const count = $('agenda-count');
       if (count) count.textContent = items.length;
+      refreshAgendaSyncBtn();
       if (!items.length) {
         list.innerHTML = '<div class="agenda-empty">No hay vencimientos ni eventos próximos.<br>Agregá uno desde una tarjeta o desde Calendario.</div>';
         return;
@@ -16438,6 +16475,88 @@
       }
     }
 
+    // Equipos visibles en la agenda de Clientes que pueden empujar eventos a Google.
+    function agendaSyncTeams() {
+      const valid = ['marketing', 'desarrollo', 'admin'];
+      const teams = activeTeam === 'all'
+        ? allowedTeams().filter(t => valid.includes(t))
+        : (valid.includes(activeTeam) && canViewTeam(activeTeam) ? [activeTeam] : []);
+      return teams.filter(isGcalSyncable);
+    }
+
+    // Muestra el boton de la agenda y cuenta los cambios que faltan llevar a Google.
+    async function refreshAgendaSyncBtn(force = false) {
+      const btn = $('agenda-sync-btn');
+      const label = $('agenda-sync-label');
+      if (!btn || !label) return;
+      const teams = agendaSyncTeams();
+      btn.style.display = teams.length ? '' : 'none';
+      if (!teams.length) return;
+      // El tablero se redibuja seguido: no consultamos el estado mas de una vez cada 20s,
+      // salvo que se pida forzado o que cambien los equipos en pantalla.
+      const propios = getEvents().filter(ev => teams.includes(ev.equipo));
+      const key = [
+        teams.join(','),
+        propios.length,
+        propios.filter(ev => ev.syncState !== 'sincronizado').length,
+      ].join('|');
+      if (!force && key === agendaSyncCheckedKey && Date.now() - agendaSyncCheckedAt < 20000) return;
+      agendaSyncCheckedKey = key;
+      agendaSyncCheckedAt = Date.now();
+      const token = ++agendaSyncStatusToken;
+      try {
+        // Sin 'month': la agenda mira todos los eventos, no un mes puntual.
+        const results = await Promise.all(teams.map(t => api(`/api/gcal/${t}/sync-status`)));
+        if (token !== agendaSyncStatusToken) return;
+        const pend = results.reduce((sum, r) => sum + (r.pendientes || 0), 0);
+        label.textContent = pend ? `Google (${pend})` : 'Google al día';
+        btn.classList.toggle('is-pending', pend > 0);
+        btn.title = pend
+          ? `${pend} cambio(s) de la agenda sin llevar a Google Calendar`
+          : 'Google Calendar refleja los eventos de la agenda';
+      } catch (_err) {
+        if (token !== agendaSyncStatusToken) return;
+        label.textContent = 'Google';
+        btn.classList.remove('is-pending');
+      }
+    }
+
+    // Empuja a Google todos los eventos de los equipos que se ven en la agenda.
+    async function syncAgendaToGoogle() {
+      const teams = agendaSyncTeams();
+      if (!teams.length) return;
+      const btn = $('agenda-sync-btn');
+      const label = $('agenda-sync-label');
+      btn.disabled = true;
+      label.textContent = 'Sincronizando...';
+      const total = { creados: 0, actualizados: 0, eliminados: 0, errores: [] };
+      try {
+        for (const team of teams) {
+          const r = await api(`/api/gcal/${team}/sync`, { method: 'POST', body: JSON.stringify({}) });
+          if (Array.isArray(r.events)) eventsCache = r.events;
+          total.creados += r.creados || 0;
+          total.actualizados += r.actualizados || 0;
+          total.eliminados += r.eliminados || 0;
+          if (r.errores && r.errores.length) total.errores.push(...r.errores);
+        }
+        const hechos = total.creados + total.actualizados + total.eliminados;
+        if (total.errores.length) {
+          toast(`Google Calendar: ${total.errores.length} evento(s) con error. ${total.errores[0]}`, 'error');
+        } else if (!hechos) {
+          toast('Google Calendar ya estaba al día', 'success');
+        } else {
+          toast(`Google Calendar actualizado: ${total.creados} nuevos, ${total.actualizados} editados, ${total.eliminados} borrados`, 'success');
+        }
+        renderClientesAgenda();
+        renderCalendar();
+      } catch (err) {
+        toast(err.message, 'error');
+      } finally {
+        btn.disabled = false;
+        refreshAgendaSyncBtn(true);
+      }
+    }
+
     // Punto ambar en los eventos que todavia no viajaron a Google Calendar.
     function eventSyncDot(ev) {
       if (!ev || !isGcalSyncable(ev.equipo) || ev.syncState === 'sincronizado') return '';
@@ -17038,6 +17157,9 @@
     let calTeam = null;
     let calGoogleView = false;
     let calSyncStatusToken = 0; // descarta respuestas viejas al navegar rapido
+    let agendaSyncStatusToken = 0; // idem para el boton de la agenda en Clientes
+    let agendaSyncCheckedAt = 0;
+    let agendaSyncCheckedKey = '';
 
     function renderEvColorPicker(selected) {
       evColorSelected = selected || 'blue';
