@@ -1241,6 +1241,9 @@ app.get('/api/bootstrap', requireAuth, async (req, res, next) => {
       cardsTrash: await trashedCards(req.user),
       calendars,
       calendarsSync: calendarsSyncMap(calendars),
+      // Para poder decir en pantalla POR QUE no se puede sincronizar.
+      gcalConfigured: gcal.isConfigured(),
+      gcalServiceAccount: isAdmin ? gcal.serviceAccountEmail() : '',
       events: await visibleEvents(req.user),
       notes: await visibleNotes(req.user),
       teams: allowedTeams(req.user),
