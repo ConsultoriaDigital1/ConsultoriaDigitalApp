@@ -8710,6 +8710,12 @@
               <div class="cbar-sub" id="cal-sub"></div>
             </div>
             <div style="margin-left:auto;display:flex;gap:0.4rem;flex-wrap:wrap;justify-content:flex-end">
+              <button id="cal-sync-btn" class="btn btn-ghost btn-sm" style="display:none"
+                onclick="syncCalendarToGoogle()"
+                title="Llevar los eventos de este mes a Google Calendar"><i class="ico-ph" data-ico="refresh"></i>
+                <span id="cal-sync-label">Sincronizar Google</span></button>
+              <button id="cal-google-view-btn" class="btn btn-ghost btn-sm" onclick="toggleGoogleCalendarView()"
+                title="Ver el Google Calendar embebido (solo lectura)"><i class="ico-ph" data-ico="eye"></i> Ver Google</button>
               <button id="cal-gcal-btn" class="btn btn-ghost btn-sm" onclick="openGcalConfigModal()"
                 title="Configurar Google Calendar"><i class="ico-ph" data-ico="settings"></i> Google Cal</button>
               <button id="cal-add-event-btn" class="btn btn-primary btn-sm" onclick="openEventModal()">+ Evento</button>
@@ -9406,12 +9412,14 @@
           <label class="form-label">Color</label>
           <div id="ev-color-picker" class="ev-color-picker"></div>
         </div>
+        <div id="ev-sync-chip" style="display:none;margin-top:0.2rem;font-size:0.72rem;color:var(--muted)"></div>
         <div id="ev-err" class="form-error" style="display:none"></div>
       </div>
       <div class="modal-foot">
         <button id="ev-delete-btn" class="btn btn-ghost btn-sm" style="color:#ff5c5c;margin-right:auto;display:none"
           onclick="confirmDeleteEvent()">Eliminar evento</button>
-        <button class="btn btn-ghost btn-sm" type="button" disabled title="Disponible próximamente">
+        <button id="ev-gcal-btn" class="btn btn-ghost btn-sm" type="button" style="display:none"
+          onclick="sendEventToGoogle()" title="Copiar este evento a Google Calendar">
           Agendar en Google
         </button>
         <button class="btn btn-ghost btn-sm" onclick="closeEventModal()">Cancelar</button>
@@ -9928,6 +9936,7 @@
       hand: '<path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2"/><path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/>',
       zap: '<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>',
       calendar: '<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>',
+      refresh: '<path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/>',
       arrowLeft: '<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>',
       arrowRight: '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
       check: '<path d="M20 6 9 17l-4-4"/>',
@@ -9983,7 +9992,7 @@
     let cardsView = 'active';  // 'active' | 'trash'
     let ventasView = 'active'; // 'active' | 'trash'
     let calendarsCache = {};
-    let calendarsEditableCache = {};
+    let calendarsSyncCache = {};
     let eventsCache = [];
     let notesCache = { personal: null, teams: {} };
     let noteSaveTimers = {};
@@ -9999,8 +10008,9 @@
       return calendarsCache[team] || '';
     }
 
-    function isGcalEditable(team = currentCalendarTeam()) {
-      return !!calendarsEditableCache[team];
+    // El equipo puede empujar sus eventos a Google (service account + calendario configurado).
+    function isGcalSyncable(team = currentCalendarTeam()) {
+      return !!calendarsSyncCache[team];
     }
 
     async function saveGoogleCalendar(team, url) {
@@ -10009,7 +10019,7 @@
         body: JSON.stringify({ googleCalendarUrl: url }),
       });
       calendarsCache[data.calendar.equipo] = data.calendar.googleCalendarUrl || '';
-      calendarsEditableCache[data.calendar.equipo] = !!data.calendar.editable;
+      calendarsSyncCache[data.calendar.equipo] = !!data.calendar.syncEnabled;
     }
 
     async function api(path, options = {}) {
@@ -10035,7 +10045,7 @@
       cardsCache = data.cards || [];
       cardsTrashCache = data.cardsTrash || [];
       calendarsCache = data.calendars || {};
-      calendarsEditableCache = data.calendarsEditable || {};
+      calendarsSyncCache = data.calendarsSync || {};
       eventsCache = data.events || [];
       notesCache = data.notes || { personal: null, teams: {} };
       if (!notesCache.teams) notesCache.teams = {};
@@ -13296,7 +13306,6 @@
 
     function openAgendaEvent(id) {
       if (!getEvents().some(event => event.id === id)) return;
-      calMode = 'local';
       openEditEvent(id);
     }
 
@@ -16308,10 +16317,18 @@
       return dateFromInput(card.vence) || (card.creadoEn ? new Date(card.creadoEn) : null);
     }
 
-    function renderAllGoogleCalendars() {
-      const teams = allowedTeams();
+    // Equipos que tienen calendario propio en la app ('ventas' no maneja eventos).
+    function calendarTeams() {
+      const valid = ['marketing', 'desarrollo', 'admin'];
+      if (activeTeam === 'all' && isAdmin()) return allowedTeams().filter(t => valid.includes(t));
+      const team = currentCalendarTeam();
+      return valid.includes(team) ? [team] : ['marketing'];
+    }
+
+    // Vista secundaria: el Google Calendar embebido, solo lectura.
+    function renderGoogleCalendarFrames(teams) {
       setGoogleCalendarMode(true);
-      $('cal-sub').textContent = 'Todos los calendarios';
+      $('cal-sub').textContent = 'Google Calendar (solo lectura)';
       $('google-cal-panel').innerHTML = teams.map(team => {
         const url = getGoogleCalendar(team);
         return `<div class="google-cal-team">
@@ -16330,64 +16347,101 @@
       }).join('');
     }
 
-    function renderCalendar() {
-      if (activeTeam === 'all' && isAdmin()) {
-        renderAllGoogleCalendars();
-        return;
-      }
-      const team = currentCalendarTeam();
-      const googleUrl = getGoogleCalendar(team);
-
-      // Google Calendar editable: grilla nativa respaldada por la API de Google.
-      if (googleUrl && isGcalEditable(team)) {
-        renderGoogleEditableCalendar(team);
-        return;
-      }
-
-      // Google Calendar de solo lectura (sin service account en el servidor): iframe.
-      if (googleUrl) {
-        calMode = 'local';
-        setGoogleCalendarMode(true);
-        $('cal-sub').textContent = (TEAMS[team] || team) + ' - Google Calendar';
-        $('google-cal-panel').innerHTML =
-          `<iframe class="google-cal-frame" src="${esc(googleUrl)}" loading="lazy"></iframe>`;
-        return;
-      }
-
-      // Calendario interno (eventos en la base de datos de la app).
-      calMode = 'local';
-      calTeam = team;
-      setGoogleCalendarMode(false);
-      $('google-cal-panel').innerHTML = '';
-      $('cal-sub').textContent = (TEAMS[team] || team) + ' - ' + MONTHS[calMonth] + ' ' + calYear;
-      renderCalendarGrid(team, getEvents().filter(e => e.equipo === team));
+    function toggleGoogleCalendarView() {
+      calGoogleView = !calGoogleView;
+      renderCalendar();
     }
 
-    async function renderGoogleEditableCalendar(team) {
-      calMode = 'google';
-      calTeam = team;
+    // El calendario de la app es siempre el principal; Google es un espejo opcional.
+    function renderCalendar() {
+      const teams = calendarTeams();
+      calTeam = teams.length === 1 ? teams[0] : '';
+      refreshCalendarToolbar(teams);
+
+      if (calGoogleView) { renderGoogleCalendarFrames(teams); return; }
+
       setGoogleCalendarMode(false);
       $('google-cal-panel').innerHTML = '';
-      $('cal-sub').textContent = (TEAMS[team] || team) + ' - Google Calendar · ' + MONTHS[calMonth] + ' ' + calYear;
-      // Render inmediato con lo que haya en cache (evita parpadeo al cambiar de mes).
-      renderCalendarGrid(team, gcalEventsCache.filter(e => e.equipo === team));
+      const label = calTeam ? (TEAMS[calTeam] || calTeam) : 'Todos los equipos';
+      $('cal-sub').textContent = label + ' - ' + MONTHS[calMonth] + ' ' + calYear;
+      renderCalendarGrid(teams, getEvents().filter(e => teams.includes(e.equipo)));
+    }
 
-      const monthStr = `${calYear}-${String(calMonth + 1).padStart(2, '0')}`;
-      const token = ++gcalFetchToken;
-      try {
-        const data = await api(`/api/gcal/${team}/events?month=${monthStr}`);
-        if (token !== gcalFetchToken) return; // hubo otra navegacion: descartar
-        gcalEventsCache = data.events || [];
-        renderCalendarGrid(team, gcalEventsCache);
-      } catch (err) {
-        if (token !== gcalFetchToken) return;
-        setGoogleCalendarMode(true);
-        $('google-cal-panel').innerHTML =
-          `<div class="google-cal-empty" style="flex-direction:column;gap:0.5rem">
-        <span>No se pudieron cargar los eventos de Google Calendar.</span>
-        <span style="font-size:0.78rem;color:var(--muted)">${esc(err.message)}</span>
-      </div>`;
+    function refreshCalendarToolbar(teams) {
+      const viewBtn = $('cal-google-view-btn');
+      if (viewBtn) {
+        const anyCalendar = teams.some(t => getGoogleCalendar(t));
+        viewBtn.style.display = anyCalendar ? '' : 'none';
+        viewBtn.innerHTML = calGoogleView
+          ? `${icon('calendar')} Ver agenda`
+          : `${icon('eye')} Ver Google`;
       }
+      const syncBtn = $('cal-sync-btn');
+      if (!syncBtn) return;
+      const canSync = !calGoogleView && calTeam && isGcalSyncable(calTeam);
+      syncBtn.style.display = canSync ? '' : 'none';
+      if (canSync) refreshCalSyncBadge(calTeam);
+    }
+
+    // Consulta cuantos cambios del mes en vista faltan llevar a Google.
+    async function refreshCalSyncBadge(team) {
+      const btn = $('cal-sync-btn');
+      const label = $('cal-sync-label');
+      const token = ++calSyncStatusToken;
+      try {
+        const status = await api(`/api/gcal/${team}/sync-status?month=${calMonthStr()}`);
+        if (token !== calSyncStatusToken) return;
+        const pend = status.pendientes || 0;
+        label.textContent = pend ? `Sincronizar Google (${pend})` : 'Google al día';
+        btn.classList.toggle('btn-primary', pend > 0);
+        btn.classList.toggle('btn-ghost', pend === 0);
+        btn.title = pend
+          ? `${status.nuevos} nuevos, ${status.desactualizados} editados, ${status.aEliminar} borrados sin llevar a Google`
+          : 'Google Calendar refleja todos los eventos de este mes';
+      } catch (_err) {
+        if (token !== calSyncStatusToken) return;
+        label.textContent = 'Sincronizar Google';
+      }
+    }
+
+    function calMonthStr() {
+      return `${calYear}-${String(calMonth + 1).padStart(2, '0')}`;
+    }
+
+    // Empuja los eventos del mes en vista al Google Calendar del equipo.
+    async function syncCalendarToGoogle() {
+      const team = calTeam;
+      if (!team || !isGcalSyncable(team)) return;
+      const btn = $('cal-sync-btn');
+      btn.disabled = true;
+      $('cal-sync-label').textContent = 'Sincronizando...';
+      try {
+        const r = await api(`/api/gcal/${team}/sync`, {
+          method: 'POST',
+          body: JSON.stringify({ month: calMonthStr() }),
+        });
+        if (Array.isArray(r.events)) eventsCache = r.events;
+        const hechos = (r.creados || 0) + (r.actualizados || 0) + (r.eliminados || 0);
+        if (r.errores && r.errores.length) {
+          toast(`Google Calendar: ${r.errores.length} evento(s) con error. ${r.errores[0]}`, 'error');
+        } else if (!hechos) {
+          toast('Google Calendar ya estaba al día', 'success');
+        } else {
+          toast(`Google Calendar actualizado: ${r.creados} nuevos, ${r.actualizados} editados, ${r.eliminados} borrados`, 'success');
+        }
+        renderCalendar();
+        renderClientesAgenda();
+      } catch (err) {
+        toast(err.message, 'error');
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    // Punto ambar en los eventos que todavia no viajaron a Google Calendar.
+    function eventSyncDot(ev) {
+      if (!ev || !isGcalSyncable(ev.equipo) || ev.syncState === 'sincronizado') return '';
+      return '<span style="margin-left:auto;font-size:0.5rem;line-height:1;color:#d97706;flex:none" title="Sin llevar a Google Calendar">&#9679;</span>';
     }
 
     function eventClientLabel(event) {
@@ -16404,11 +16458,11 @@
       return date ? date.getTime() : Number.POSITIVE_INFINITY;
     }
 
-    function renderCalendarGrid(team, events) {
+    function renderCalendarGrid(teams, events) {
       $('cal-header').innerHTML = DAYS.map(d => `<div class="cal-lbl">${d}</div>`).join('');
 
       const itemsByDay = {};
-      getCards().filter(c => c.equipo === team).forEach(c => {
+      getCards().filter(c => teams.includes(c.equipo)).forEach(c => {
         const d = calendarCardDate(c);
         if (!d) return;
         if (d.getFullYear() === calYear && d.getMonth() === calMonth) {
@@ -16442,7 +16496,7 @@
         html += `<div class="cal-day cal-day-add${isToday ? ' today' : ''}" onclick="openEventModal('${isoDate}')" title="Agregar evento">
       <div class="cal-daynum">${d}</div>
       ${shown.map(item => item.type === 'event'
-          ? `<div class="cal-event evt" style="border-left-color:${EVT_COLORS[item.data.color] || '#579dff'};color:${EVT_COLORS[item.data.color] || '#579dff'}" onclick="event.stopPropagation();openEditEvent('${item.data.id}')"><span class="cal-event-time">${esc(item.data.horaInicio || '')}</span><span class="cal-event-label">${esc(item.data.titulo)}${esc(eventClientLabel(item.data))}</span></div>`
+          ? `<div class="cal-event evt" style="border-left-color:${EVT_COLORS[item.data.color] || '#579dff'};color:${EVT_COLORS[item.data.color] || '#579dff'}" onclick="event.stopPropagation();openEditEvent('${item.data.id}')"><span class="cal-event-time">${esc(item.data.horaInicio || '')}</span><span class="cal-event-label">${esc(item.data.titulo)}${esc(eventClientLabel(item.data))}</span>${eventSyncDot(item.data)}</div>`
           : `<div class="cal-event" style="border-left:2px solid #f4a340" onclick="event.stopPropagation();openCard('${item.data.id}')"><span class="cal-event-time">${esc(item.data.venceHora || '')}</span><span class="cal-event-label">${esc(item.data.nf || item.data.rs || '—')}</span></div>`
         ).join('')}
       ${extra ? `<div class="cal-event" style="background:var(--surface3)">+${extra} más</div>` : ''}
@@ -16979,12 +17033,11 @@
     let eventModalMode = 'create';
     let evColorSelected = 'blue';
 
-    /* Estado de la vista de calendario.
-       calMode: 'local' (eventos en la DB de la app) | 'google' (Google Calendar editable). */
-    let calMode = 'local';
+    /* Estado de la vista de calendario. El calendario de la app es el principal:
+       calGoogleView solo alterna la vista embebida (solo lectura) de Google. */
     let calTeam = null;
-    let gcalEventsCache = [];   // eventos del Google Calendar del mes/equipo en vista
-    let gcalFetchToken = 0;    // descarta respuestas viejas al navegar rapido
+    let calGoogleView = false;
+    let calSyncStatusToken = 0; // descarta respuestas viejas al navegar rapido
 
     function renderEvColorPicker(selected) {
       evColorSelected = selected || 'blue';
@@ -17036,6 +17089,7 @@
       syncTeamSelect('ev-equipo');
       populateEventClientSelect('');
       renderEvColorPicker('blue');
+      refreshEventSyncUI(null);
       $('event-modal-title').textContent = 'Nuevo evento';
       $('ev-delete-btn').style.display = 'none';
       hideErr('ev-err');
@@ -17043,8 +17097,63 @@
       $('ev-titulo').focus();
     }
 
+    const EV_SYNC_LABEL = {
+      nuevo: 'Todavía no está en Google Calendar.',
+      desactualizado: 'Se editó en la app: la copia en Google Calendar quedó vieja.',
+      sincronizado: 'Sincronizado con Google Calendar.',
+    };
+
+    function refreshEventSyncUI(ev) {
+      const chip = $('ev-sync-chip');
+      const btn = $('ev-gcal-btn');
+      if (!chip || !btn) return;
+      if (!ev || !isGcalSyncable(ev.equipo)) {
+        chip.style.display = 'none';
+        btn.style.display = 'none';
+        return;
+      }
+      const state = ev.syncState || 'nuevo';
+      chip.style.display = '';
+      chip.textContent = EV_SYNC_LABEL[state] || '';
+      chip.style.color = state === 'sincronizado' ? 'var(--muted)' : '#d97706';
+      btn.style.display = '';
+      btn.textContent = state === 'sincronizado' ? 'Reenviar a Google' : 'Agendar en Google';
+    }
+
+    // Envia un solo evento a Google, sin esperar a la sincronizacion del mes.
+    async function sendEventToGoogle() {
+      const id = $('ev-id').value;
+      const ev = getEvents().find(e => e.id === id);
+      if (!ev) return;
+      if (!isGcalSyncable(ev.equipo)) {
+        showErr('ev-err', 'Este equipo no tiene Google Calendar configurado.');
+        return;
+      }
+      const btn = $('ev-gcal-btn');
+      btn.disabled = true;
+      try {
+        const r = await api(`/api/gcal/${ev.equipo}/sync`, {
+          method: 'POST',
+          body: JSON.stringify({ eventId: id, forzar: true }),
+        });
+        if (Array.isArray(r.events)) eventsCache = r.events;
+        renderCalendar();
+        renderClientesAgenda();
+        if (r.errores && r.errores.length) {
+          showErr('ev-err', r.errores[0]);
+        } else {
+          toast('Evento agendado en Google Calendar', 'success');
+          closeEventModal();
+        }
+      } catch (err) {
+        showErr('ev-err', err.message);
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
     function openEditEvent(id) {
-      const ev = (calMode === 'google' ? gcalEventsCache : getEvents()).find(e => e.id === id);
+      const ev = getEvents().find(e => e.id === id);
       if (!ev) return;
       eventModalMode = 'edit';
       $('ev-id').value = ev.id;
@@ -17057,6 +17166,7 @@
       syncTeamSelect('ev-equipo');
       populateEventClientSelect(ev.clienteId || '');
       renderEvColorPicker(ev.color || 'blue');
+      refreshEventSyncUI(ev);
       $('event-modal-title').textContent = 'Editar evento';
       $('ev-delete-btn').style.display = '';
       hideErr('ev-err');
@@ -17081,22 +17191,6 @@
       try {
         const body = { titulo, descripcion, fecha, horaInicio, horaFin, equipo, clienteId, color: evColorSelected };
 
-        if (calMode === 'google') {
-          // El evento vive en Google Calendar; se rutea por el equipo en vista (calTeam).
-          const team = calTeam || equipo;
-          if (eventModalMode === 'edit') {
-            const id = $('ev-id').value;
-            await api(`/api/gcal/${team}/events/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(body) });
-          } else {
-            await api(`/api/gcal/${team}/events`, { method: 'POST', body: JSON.stringify(body) });
-          }
-          closeEventModal();
-          toast(eventModalMode === 'edit' ? 'Evento actualizado' : 'Evento creado', 'success');
-          renderCalendar(); // refresca desde Google
-          renderClientesAgenda();
-          return;
-        }
-
         if (eventModalMode === 'edit') {
           const id = $('ev-id').value;
           const data = await api(`/api/events/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
@@ -17117,19 +17211,10 @@
 
     async function confirmDeleteEvent() {
       const id = $('ev-id').value;
-      const ev = (calMode === 'google' ? gcalEventsCache : getEvents()).find(e => e.id === id);
+      const ev = getEvents().find(e => e.id === id);
       if (!ev) return;
       if (!confirm(`¿Eliminar el evento "${ev.titulo}"?`)) return;
       try {
-        if (calMode === 'google') {
-          const team = calTeam || ev.equipo;
-          await api(`/api/gcal/${team}/events/${encodeURIComponent(id)}`, { method: 'DELETE' });
-          closeEventModal();
-          toast('Evento eliminado', 'success');
-          renderCalendar(); // refresca desde Google
-          renderClientesAgenda();
-          return;
-        }
         await api(`/api/events/${id}`, { method: 'DELETE' });
         eventsCache = eventsCache.filter(e => e.id !== id);
         renderCalendar();

@@ -47,6 +47,20 @@ async function ensureDatabaseMigrations() {
   await pool.query("ALTER TABLE client_movements ADD COLUMN IF NOT EXISTS items JSONB NOT NULL DEFAULT '[]'::jsonb");
   await pool.query("ALTER TABLE calendar_events ADD COLUMN IF NOT EXISTS cliente_id TEXT NOT NULL DEFAULT ''");
   await pool.query("CREATE INDEX IF NOT EXISTS idx_calendar_events_cliente ON calendar_events(cliente_id)");
+  await pool.query("ALTER TABLE calendar_events ADD COLUMN IF NOT EXISTS gcal_event_id TEXT NOT NULL DEFAULT ''");
+  await pool.query("ALTER TABLE calendar_events ADD COLUMN IF NOT EXISTS gcal_calendar_id TEXT NOT NULL DEFAULT ''");
+  await pool.query("ALTER TABLE calendar_events ADD COLUMN IF NOT EXISTS gcal_hash TEXT NOT NULL DEFAULT ''");
+  await pool.query("ALTER TABLE calendar_events ADD COLUMN IF NOT EXISTS gcal_sincronizado_en BIGINT");
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS calendar_gcal_tombstones (
+      gcal_event_id TEXT NOT NULL,
+      gcal_calendar_id TEXT NOT NULL,
+      equipo TEXT NOT NULL CHECK (equipo IN ('marketing', 'desarrollo', 'admin')),
+      creado_en BIGINT NOT NULL,
+      PRIMARY KEY (gcal_calendar_id, gcal_event_id)
+    )
+  `);
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_calendar_gcal_tombstones_equipo ON calendar_gcal_tombstones(equipo)');
   await pool.query(`
     CREATE TABLE IF NOT EXISTS app_notes (
       id TEXT PRIMARY KEY,
@@ -888,9 +902,9 @@ async function visibleCalendars(user) {
   return Object.fromEntries(teams.map((team) => [team, fromDb[team] || calendarUrlFromEnv(team)]));
 }
 
-// Mapa { equipo: bool } indicando si el calendario del equipo es editable (hay
+// Mapa { equipo: bool } indicando si el equipo puede sincronizar con Google (hay
 // service account configurada Y se pudo derivar el ID del calendario).
-function calendarsEditableMap(calendars) {
+function calendarsSyncMap(calendars) {
   const configured = gcal.isConfigured();
   return Object.fromEntries(
     Object.entries(calendars).map(([team, url]) => [team, configured && !!calendarIdFromUrl(url)])
@@ -924,11 +938,7 @@ async function visibleEvents(user) {
     'SELECT * FROM calendar_events WHERE equipo = ANY($1) ORDER BY fecha, hora_inicio',
     [teams]
   );
-  return rows.map(r => ({
-    id: r.id, titulo: r.titulo, descripcion: r.descripcion,
-    fecha: r.fecha, horaInicio: r.hora_inicio, horaFin: r.hora_fin,
-    equipo: r.equipo, clienteId: r.cliente_id || '', color: r.color, creadoPor: r.creado_por, creadoEn: r.creado_en,
-  }));
+  return rows.map(eventDTO);
 }
 
 function cleanUsername(value) {
@@ -1230,7 +1240,7 @@ app.get('/api/bootstrap', requireAuth, async (req, res, next) => {
       cards: await visibleCards(req.user),
       cardsTrash: await trashedCards(req.user),
       calendars,
-      calendarsEditable: calendarsEditableMap(calendars),
+      calendarsSync: calendarsSyncMap(calendars),
       events: await visibleEvents(req.user),
       notes: await visibleNotes(req.user),
       teams: allowedTeams(req.user),
@@ -2111,11 +2121,29 @@ app.delete('/api/users/:id', requireAuth, async (req, res, next) => {
   }
 });
 
+// Huella del contenido que se copia a Google. Si cambia, el evento quedo desactualizado.
+function eventGcalHash(r) {
+  const parts = [
+    r.titulo || '', r.descripcion || '', r.fecha || '',
+    r.hora_inicio || '', r.hora_fin || '', r.color || '',
+  ].join('|');
+  return crypto.createHash('sha1').update(parts).digest('hex');
+}
+
+// 'nuevo' = nunca se envio | 'desactualizado' = cambio despues de enviarse | 'sincronizado'.
+function eventSyncState(r) {
+  if (!r.gcal_event_id) return 'nuevo';
+  return eventGcalHash(r) === r.gcal_hash ? 'sincronizado' : 'desactualizado';
+}
+
 function eventDTO(r) {
   return {
     id: r.id, titulo: r.titulo, descripcion: r.descripcion,
     fecha: r.fecha, horaInicio: r.hora_inicio, horaFin: r.hora_fin,
     equipo: r.equipo, clienteId: r.cliente_id || '', color: r.color, creadoPor: r.creado_por, creadoEn: r.creado_en,
+    gcalEventId: r.gcal_event_id || '',
+    syncState: eventSyncState(r),
+    gcalSincronizadoEn: r.gcal_sincronizado_en ? Number(r.gcal_sincronizado_en) : null,
   };
 }
 
@@ -2155,8 +2183,14 @@ app.patch('/api/events/:id', requireAuth, async (req, res, next) => {
     const color = String(req.body.color || ex[0].color).trim();
     if (!titulo || !fecha) return res.status(400).json({ error: 'Titulo y fecha son requeridos.' });
     if (!canAccessTeam(req.user, equipo)) return res.status(403).json({ error: 'Sin acceso a ese equipo.' });
+    // Si el evento cambia de equipo, su copia en el Google Calendar viejo ya no corresponde:
+    // se marca para borrar y el evento vuelve a estado "nuevo" para el calendario del equipo nuevo.
+    const movedTeam = equipo !== ex[0].equipo && !!ex[0].gcal_event_id;
+    if (movedTeam) await queueGcalTombstone(ex[0]);
     const { rows } = await pool.query(
-      `UPDATE calendar_events SET titulo=$2,descripcion=$3,fecha=$4,hora_inicio=$5,hora_fin=$6,equipo=$7,cliente_id=$8,color=$9 WHERE id=$1 RETURNING *`,
+      `UPDATE calendar_events SET titulo=$2,descripcion=$3,fecha=$4,hora_inicio=$5,hora_fin=$6,equipo=$7,cliente_id=$8,color=$9
+       ${movedTeam ? ", gcal_event_id='', gcal_calendar_id='', gcal_hash='', gcal_sincronizado_en=NULL" : ''}
+       WHERE id=$1 RETURNING *`,
       [req.params.id, titulo, descripcion, fecha, horaInicio, horaFin, equipo, clienteId, color]
     );
     res.json({ event: eventDTO(rows[0]) });
@@ -2165,26 +2199,26 @@ app.patch('/api/events/:id', requireAuth, async (req, res, next) => {
 
 app.delete('/api/events/:id', requireAuth, async (req, res, next) => {
   try {
-    const { rows } = await pool.query('SELECT creado_por FROM calendar_events WHERE id=$1', [req.params.id]);
+    const { rows } = await pool.query('SELECT * FROM calendar_events WHERE id=$1', [req.params.id]);
     if (!rows.length) return res.status(404).json({ error: 'Evento no encontrado.' });
     if (rows[0].creado_por !== req.user.id && !isAdmin(req.user)) return res.status(403).json({ error: 'Sin permiso para eliminar este evento.' });
+    await queueGcalTombstone(rows[0]);
     await pool.query('DELETE FROM calendar_events WHERE id=$1', [req.params.id]);
     res.json({ ok: true });
   } catch (err) { next(err); }
 });
 
 /* ─────────────────────────────────────────
-   GOOGLE CALENDAR (eventos editables via service account)
+   GOOGLE CALENDAR (espejo del calendario de la app via service account)
+
+   El calendario principal es el de la app (tabla calendar_events). Google es una
+   copia que se actualiza a pedido: la sincronizacion siempre va app -> Google.
 ───────────────────────────────────────── */
 
-// Colores de la app <-> colorId de Google Calendar.
+// Colores de la app -> colorId de Google Calendar.
 const COLOR_TO_GCAL = {
   blue: '7', purple: '3', green: '10', red: '11',
   orange: '6', pink: '4', teal: '2', yellow: '5',
-};
-const GCAL_TO_COLOR = {
-  1: 'purple', 2: 'teal', 3: 'purple', 4: 'pink', 5: 'yellow', 6: 'orange',
-  7: 'blue', 8: 'blue', 9: 'blue', 10: 'green', 11: 'red',
 };
 
 function hhmm(value) {
@@ -2232,45 +2266,15 @@ function buildGcalResource(body) {
   return resource;
 }
 
-// Convierte un evento de Google al DTO que entiende el front.
-function gcalEventToDTO(ev, team) {
-  const startDT = ev.start && ev.start.dateTime;
-  const endDT = ev.end && ev.end.dateTime;
-  let fecha = '';
-  let horaInicio = '';
-  let horaFin = '';
-  if (startDT) {
-    fecha = startDT.slice(0, 10);
-    horaInicio = startDT.slice(11, 16);
-    if (endDT) horaFin = endDT.slice(11, 16);
-  } else {
-    fecha = (ev.start && ev.start.date) || '';
-  }
-  return {
-    id: ev.id,
-    titulo: ev.summary || '(sin titulo)',
-    descripcion: ev.description || '',
-    fecha,
-    horaInicio,
-    horaFin,
-    equipo: team,
-    color: GCAL_TO_COLOR[Number(ev.colorId)] || 'blue',
-    htmlLink: ev.htmlLink || '',
-    source: 'google',
-  };
-}
-
-// Rango [timeMin, timeMax) para un mes 'YYYY-MM' (con un dia de colchon por zona horaria).
-function monthRange(monthStr) {
-  const m = /^(\d{4})-(\d{1,2})$/.exec(String(monthStr || ''));
-  const now = new Date();
-  const year = m ? Number(m[1]) : now.getFullYear();
-  const month = m ? Number(m[2]) - 1 : now.getMonth();
-  const start = new Date(Date.UTC(year, month, 1));
-  start.setUTCDate(start.getUTCDate() - 1);
-  const end = new Date(Date.UTC(year, month + 1, 1));
-  end.setUTCDate(end.getUTCDate() + 1);
-  return { timeMin: start.toISOString(), timeMax: end.toISOString() };
+// Registra que una copia en Google quedo huerfana (evento borrado o movido de equipo)
+// para que la proxima sincronizacion la elimine del calendario.
+async function queueGcalTombstone(row) {
+  if (!row || !row.gcal_event_id || !row.gcal_calendar_id) return;
+  await pool.query(
+    `INSERT INTO calendar_gcal_tombstones (gcal_event_id, gcal_calendar_id, equipo, creado_en)
+     VALUES ($1,$2,$3,$4) ON CONFLICT (gcal_calendar_id, gcal_event_id) DO NOTHING`,
+    [row.gcal_event_id, row.gcal_calendar_id, row.equipo, Date.now()]
+  );
 }
 
 // Middleware comun: valida equipo, acceso, config y resuelve el calendarId.
@@ -2284,46 +2288,110 @@ async function gcalContext(req, res) {
   return { equipo, calendarId };
 }
 
-app.get('/api/gcal/:team/events', requireAuth, async (req, res, next) => {
+// Eventos locales del equipo, opcionalmente acotados a un mes 'YYYY-MM' o a un id.
+async function teamEventsForSync(equipo, { month, eventId } = {}) {
+  const params = [equipo];
+  let sql = 'SELECT * FROM calendar_events WHERE equipo = $1';
+  if (eventId) {
+    params.push(eventId);
+    sql += ` AND id = $${params.length}`;
+  } else if (/^\d{4}-\d{2}$/.test(String(month || ''))) {
+    params.push(`${month}-%`);
+    sql += ` AND fecha LIKE $${params.length}`;
+  }
+  const { rows } = await pool.query(`${sql} ORDER BY fecha, hora_inicio`, params);
+  return rows;
+}
+
+async function pendingTombstones(equipo, calendarId) {
+  const { rows } = await pool.query(
+    'SELECT * FROM calendar_gcal_tombstones WHERE equipo = $1 AND gcal_calendar_id = $2',
+    [equipo, calendarId]
+  );
+  return rows;
+}
+
+// Cuantos cambios locales faltan llevar a Google (para el badge del boton).
+app.get('/api/gcal/:team/sync-status', requireAuth, async (req, res, next) => {
   try {
     const ctx = await gcalContext(req, res);
     if (!ctx) return;
-    const { timeMin, timeMax } = monthRange(req.query.month);
-    const items = await gcal.listEvents(ctx.calendarId, timeMin, timeMax);
-    res.json({ events: items.map((ev) => gcalEventToDTO(ev, ctx.equipo)) });
+    const rows = await teamEventsForSync(ctx.equipo, { month: req.query.month });
+    const nuevos = rows.filter((r) => eventSyncState(r) === 'nuevo').length;
+    const desactualizados = rows.filter((r) => eventSyncState(r) === 'desactualizado').length;
+    const aEliminar = (await pendingTombstones(ctx.equipo, ctx.calendarId)).length;
+    res.json({
+      equipo: ctx.equipo,
+      nuevos,
+      desactualizados,
+      aEliminar,
+      pendientes: nuevos + desactualizados + aEliminar,
+      total: rows.length,
+    });
   } catch (err) { next(err); }
 });
 
-app.post('/api/gcal/:team/events', requireAuth, async (req, res, next) => {
+// Empuja los eventos de la app al Google Calendar del equipo. La app es la fuente
+// de verdad: crea los que faltan, actualiza los que cambiaron y borra los eliminados.
+app.post('/api/gcal/:team/sync', requireAuth, async (req, res, next) => {
   try {
     const ctx = await gcalContext(req, res);
     if (!ctx) return;
-    if (!String(req.body.titulo || '').trim() || !isoDate(req.body.fecha)) {
-      return res.status(400).json({ error: 'Titulo y fecha son requeridos.' });
+    const rows = await teamEventsForSync(ctx.equipo, {
+      month: req.body.month,
+      eventId: String(req.body.eventId || '').trim(),
+    });
+    const forzar = req.body.forzar === true;
+
+    const report = { creados: 0, actualizados: 0, eliminados: 0, sinCambios: 0, errores: [] };
+
+    for (const row of rows) {
+      const estado = eventSyncState(row);
+      const mismoCalendario = row.gcal_calendar_id === ctx.calendarId;
+      if (estado === 'sincronizado' && mismoCalendario && !forzar) { report.sinCambios++; continue; }
+      const resource = buildGcalResource(eventDTO(row));
+      try {
+        let eventId = mismoCalendario ? row.gcal_event_id : '';
+        if (eventId) {
+          try {
+            await gcal.updateEvent(ctx.calendarId, eventId, resource);
+            report.actualizados++;
+          } catch (err) {
+            if (err.status !== 404) throw err;
+            // El evento fue borrado a mano en Google: lo recreamos.
+            eventId = (await gcal.createEvent(ctx.calendarId, resource)).id;
+            report.creados++;
+          }
+        } else {
+          if (row.gcal_event_id) await queueGcalTombstone(row); // copia vieja en otro calendario
+          eventId = (await gcal.createEvent(ctx.calendarId, resource)).id;
+          report.creados++;
+        }
+        await pool.query(
+          `UPDATE calendar_events
+           SET gcal_event_id=$2, gcal_calendar_id=$3, gcal_hash=$4, gcal_sincronizado_en=$5
+           WHERE id=$1`,
+          [row.id, eventId, ctx.calendarId, eventGcalHash(row), Date.now()]
+        );
+      } catch (err) {
+        report.errores.push(`${row.titulo}: ${err.message}`);
+      }
     }
-    const ev = await gcal.createEvent(ctx.calendarId, buildGcalResource(req.body));
-    res.status(201).json({ event: gcalEventToDTO(ev, ctx.equipo) });
-  } catch (err) { next(err); }
-});
 
-app.patch('/api/gcal/:team/events/:eventId', requireAuth, async (req, res, next) => {
-  try {
-    const ctx = await gcalContext(req, res);
-    if (!ctx) return;
-    if (!String(req.body.titulo || '').trim() || !isoDate(req.body.fecha)) {
-      return res.status(400).json({ error: 'Titulo y fecha son requeridos.' });
+    for (const tomb of await pendingTombstones(ctx.equipo, ctx.calendarId)) {
+      try {
+        await gcal.deleteEvent(ctx.calendarId, tomb.gcal_event_id);
+        await pool.query(
+          'DELETE FROM calendar_gcal_tombstones WHERE gcal_calendar_id=$1 AND gcal_event_id=$2',
+          [tomb.gcal_calendar_id, tomb.gcal_event_id]
+        );
+        report.eliminados++;
+      } catch (err) {
+        report.errores.push(`Evento eliminado: ${err.message}`);
+      }
     }
-    const ev = await gcal.updateEvent(ctx.calendarId, req.params.eventId, buildGcalResource(req.body));
-    res.json({ event: gcalEventToDTO(ev, ctx.equipo) });
-  } catch (err) { next(err); }
-});
 
-app.delete('/api/gcal/:team/events/:eventId', requireAuth, async (req, res, next) => {
-  try {
-    const ctx = await gcalContext(req, res);
-    if (!ctx) return;
-    await gcal.deleteEvent(ctx.calendarId, req.params.eventId);
-    res.json({ ok: true });
+    res.json({ ...report, events: await visibleEvents(req.user) });
   } catch (err) { next(err); }
 });
 
@@ -2867,7 +2935,7 @@ app.put('/api/calendars/:team', requireAuth, async (req, res, next) => {
       calendar: {
         equipo: rows[0].equipo,
         googleCalendarUrl: rows[0].google_calendar_url,
-        editable: gcal.isConfigured() && !!calendarIdFromUrl(rows[0].google_calendar_url),
+        syncEnabled: gcal.isConfigured() && !!calendarIdFromUrl(rows[0].google_calendar_url),
       },
     });
   } catch (err) {

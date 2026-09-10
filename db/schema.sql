@@ -130,6 +130,23 @@ CREATE INDEX IF NOT EXISTS idx_calendar_events_fecha  ON calendar_events(fecha);
 ALTER TABLE calendar_events ADD COLUMN IF NOT EXISTS cliente_id TEXT NOT NULL DEFAULT '';
 CREATE INDEX IF NOT EXISTS idx_calendar_events_cliente ON calendar_events(cliente_id);
 
+-- Espejo en Google Calendar: la app es la fuente de verdad, estas columnas guardan
+-- adonde se copio cada evento y con que contenido, para saber que quedo desactualizado.
+ALTER TABLE calendar_events ADD COLUMN IF NOT EXISTS gcal_event_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE calendar_events ADD COLUMN IF NOT EXISTS gcal_calendar_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE calendar_events ADD COLUMN IF NOT EXISTS gcal_hash TEXT NOT NULL DEFAULT '';
+ALTER TABLE calendar_events ADD COLUMN IF NOT EXISTS gcal_sincronizado_en BIGINT;
+
+-- Eventos borrados en la app que todavia hay que borrar en Google.
+CREATE TABLE IF NOT EXISTS calendar_gcal_tombstones (
+  gcal_event_id TEXT NOT NULL,
+  gcal_calendar_id TEXT NOT NULL,
+  equipo TEXT NOT NULL CHECK (equipo IN ('marketing', 'desarrollo', 'admin')),
+  creado_en BIGINT NOT NULL,
+  PRIMARY KEY (gcal_calendar_id, gcal_event_id)
+);
+CREATE INDEX IF NOT EXISTS idx_calendar_gcal_tombstones_equipo ON calendar_gcal_tombstones(equipo);
+
 -- ──────────────────────────────────────────────
 -- NOTAS
 -- ──────────────────────────────────────────────

@@ -1,20 +1,20 @@
-# Google Calendar editable — Guía paso a paso
+# Sincronizar el calendario de la app con Google Calendar — Guía paso a paso
 
-Esta guía deja el calendario de Google **editable** dentro de la app: crear, editar
-y borrar eventos desde la grilla del calendario, y que esos cambios aparezcan en el
-**Google Calendar de verdad**.
+El calendario **principal es el de la app**. Los eventos se crean, editan y borran
+ahí. Google Calendar es una **copia** que se actualiza cuando vos apretás
+**Sincronizar Google**, para verlos también en el celular o compartirlos.
 
 ## ¿Cómo funciona?
 
-La app usa una **Service Account** (una "cuenta de robot" de Google). El servidor
-escribe en el Google Calendar de cada equipo usando esa cuenta, sin que cada usuario
-tenga que loguearse con Google. Para que funcione, hay que **compartir** cada
-calendario del equipo con el email de la service account y darle permiso de
-**"Hacer cambios en los eventos"**.
+La app usa una **Service Account** (una "cuenta de robot" de Google). Cuando
+sincronizás, el servidor escribe en el Google Calendar del equipo usando esa cuenta,
+sin que cada usuario tenga que loguearse con Google. Para que funcione hay que
+**compartir** el calendario del equipo con el email de la service account y darle
+permiso de **"Hacer cambios en los eventos"**.
 
-> Importante: el `<iframe>` embebido de Google es de **solo lectura** (limitación de
-> Google). Por eso, cuando hay service account configurada, la app reemplaza el iframe
-> por una **grilla propia editable** que lee y escribe vía la API de Google Calendar.
+> La sincronización va **siempre en un solo sentido: app → Google**. Lo que edites
+> directamente en Google Calendar no vuelve a la app, y la próxima sincronización
+> lo pisa con lo que dice la app.
 
 ---
 
@@ -77,7 +77,7 @@ Por defecto: `America/Argentina/Buenos_Aires`.
 
 ## Parte 3 — Conectar cada calendario de equipo
 
-Repetí esto para **cada equipo** que quiera calendario editable (marketing, desarrollo, admin).
+Repetí esto para **cada equipo** que quiera espejo en Google (marketing, desarrollo, admin).
 
 ### 7. Compartir el calendario con la service account
 1. Entrá a https://calendar.google.com/ con la cuenta dueña del calendario.
@@ -97,34 +97,44 @@ Repetí esto para **cada equipo** que quiera calendario editable (marketing, des
 2. Botón **Google Cal** (arriba a la derecha) → se abre "Configurar Google Calendar".
 3. Pegá el **ID de calendario** (o la URL de inserción) → **Guardar**.
 4. Listo: si la service account está bien configurada y tiene permiso de edición,
-   el calendario se vuelve **editable** automáticamente.
+   aparece el botón **Sincronizar Google** en la pestaña CALENDARIO.
 
 ---
 
 ## Parte 4 — Usarlo
 
-- **Crear evento:** clic en el número de un día → completás título, fecha, hora
-  (opcional), color → **Guardar**. Aparece al instante y en Google Calendar.
+En la pestaña **CALENDARIO**:
+
+- **Crear evento:** clic en el número de un día → título, fecha, hora, color →
+  **Guardar**. Queda en la app al instante.
 - **Editar / borrar:** clic en un evento → modificás o **Eliminar**.
-- Si dejás la hora vacía, se crea como **evento de día completo**.
+- **Llevarlo a Google:** botón **Sincronizar Google** arriba a la derecha. Empuja
+  todos los cambios del mes que estás viendo: crea los eventos nuevos, actualiza los
+  editados y borra en Google los que borraste en la app.
+- **Un evento suelto:** abrí el evento y usá **Agendar en Google**.
+- **Ver Google:** botón **Ver Google**, muestra el calendario embebido de Google en
+  modo solo lectura. Volvés con **Ver agenda**.
 
----
+## Cómo saber qué falta sincronizar
 
-## Cómo saber si quedó editable
-
-- Si **no** hay service account configurada, o el calendario no tiene un ID válido,
-  la app muestra el **iframe de solo lectura** de siempre (no se rompe nada).
-- Si **sí** está todo bien, el subtítulo del calendario dice
-  **"… - Google Calendar · <mes>"** y podés crear eventos haciendo clic en los días.
+- El botón muestra cuántos cambios hay pendientes, por ejemplo
+  **Sincronizar Google (3)**. Si no hay nada pendiente dice **Google al día**.
+- Los eventos que todavía no viajaron a Google llevan un **punto ámbar** en la grilla.
+- Al abrir un evento, un texto abajo del formulario dice si está sincronizado, si
+  nunca se envió o si quedó desactualizado.
+- Si el equipo no tiene service account o calendario configurado, el botón no
+  aparece y la app funciona igual, solo que sin espejo en Google.
 
 ## Problemas comunes
 
 | Síntoma | Causa probable | Solución |
 |---|---|---|
-| "Google Calendar no esta configurado en el servidor." | Falta `GOOGLE_SERVICE_ACCOUNT_FILE`/`_JSON` o el server no se reinició | Revisá `.env` y reiniciá |
-| "No se pudieron cargar los eventos…" + 404 | El calendario no está compartido con la service account, o el ID es incorrecto | Repetí pasos 7 y 8 |
-| Crea pero no aparece en Google | Permiso de solo "Ver" en vez de "Hacer cambios" | Cambiá el permiso en el paso 7 |
+| No aparece el botón "Sincronizar Google" | Falta `GOOGLE_SERVICE_ACCOUNT_FILE`/`_JSON`, o el equipo no tiene calendario configurado | Revisá `.env`, reiniciá, y configurá el calendario (pasos 7 a 9) |
+| "Google Calendar no esta configurado en el servidor." | El server no ve la service account | Revisá `.env` y reiniciá |
+| La sincronización avisa errores + 404 | El calendario no está compartido con la service account, o el ID es incorrecto | Repetí pasos 7 y 8 |
+| Sincroniza pero no aparece en Google | Permiso de solo "Ver" en vez de "Hacer cambios" | Cambiá el permiso en el paso 7 |
 | Las horas salen corridas | Zona horaria distinta | Ajustá `GOOGLE_CALENDAR_CTZ` |
+| Edité en Google y se perdió | Google es solo espejo | Editá siempre en la app |
 
 ## Seguridad
 
