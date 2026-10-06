@@ -1975,7 +1975,8 @@ app.patch('/api/admin/clients/:id/movements/:movId', requireAdmin, async (req, r
         detalle: String(item && item.detalle || '').trim().slice(0, 500),
         importe: cleanMoney(item && item.importe),
       })).filter((item) => item.importe > 0)
-      : [];
+      // El modal de edición no manda ítems: se conservan los que ya tenía.
+      : (Array.isArray(ex[0].items) ? ex[0].items : []);
     await pool.query(
       `UPDATE client_movements SET
          fecha=$1, medio_pago=$2, banco=$3, detalle=$4,
@@ -1992,6 +1993,24 @@ app.patch('/api/admin/clients/:id/movements/:movId', requireAdmin, async (req, r
         JSON.stringify(items),
         req.params.movId, req.params.id,
       ]
+    );
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
+// Pasa un saldo cargado (prefactura) a factura sin emitir comprobante en ARCA:
+// es el "Facturar" de los clientes de Paraguay. El monto y los ítems quedan igual.
+app.post('/api/admin/clients/:id/movements/:movId/facturar', requireAdmin, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT tipo FROM client_movements WHERE id = $1 AND client_id = $2',
+      [req.params.movId, req.params.id]
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'Movimiento no encontrado.' });
+    if (rows[0].tipo !== 'saldo') return res.status(409).json({ error: 'Ese saldo ya fue facturado.' });
+    await pool.query(
+      "UPDATE client_movements SET tipo = 'factura', fecha = $3 WHERE id = $1 AND client_id = $2",
+      [req.params.movId, req.params.id, new Date().toISOString().slice(0, 10)]
     );
     res.json({ ok: true });
   } catch (err) { next(err); }
@@ -3110,23 +3129,34 @@ app.get('/api/admin/cobranzas', requireAdmin, async (_req, res, next) => {
 // en la cuenta del cliente. El movimiento se crea acá y no antes, para que una
 // factura que nunca se emitió no le infle el saldo al cliente.
 async function finalizarFactura(invoiceId, inv, opts) {
-  const { client, userId, detalle, items, registrarMovimiento, sinArca } = opts;
+  const { client, userId, detalle, items, registrarMovimiento, sinArca, saldoMovementId } = opts;
   let movementId = null;
   if (registrarMovimiento) {
-    movementId = mkId();
-    await pool.query(
-      `INSERT INTO client_movements (
-         id, client_id, fecha, medio_pago, banco, detalle,
-         monto_factura, debe, haber, creado_por, creado_en, archivos
-       ) VALUES ($1,$2,$3,'','',$4,$5,$6,0,$7,$8,'[]'::jsonb)`,
-      [
-        movementId, client.id, inv.fecha,
-        sinArca
-          ? `Comprobante ${inv.cbteLetra} ${inv.numero} (sin ARCA)`
-          : `Factura ${inv.cbteLetra} ${inv.numero} — CAE ${inv.cae}`,
-        inv.impTotal, inv.impTotal, userId, Date.now(),
-      ]
-    );
+    const detalleMov = sinArca
+      ? `Comprobante ${inv.cbteLetra} ${inv.numero} (sin ARCA)`
+      : `Factura ${inv.cbteLetra} ${inv.numero} — CAE ${inv.cae}`;
+    // Si se factura un saldo ya cargado, ese mismo movimiento pasa a ser la
+    // factura: crear uno nuevo le duplicaría la deuda al cliente.
+    if (saldoMovementId) {
+      const { rows: conv } = await pool.query(
+        `UPDATE client_movements SET
+           tipo = 'factura', fecha = $3, detalle = $4, monto_factura = $5, debe = $5, haber = 0,
+           items = $6::jsonb
+         WHERE id = $1 AND client_id = $2 AND tipo = 'saldo' RETURNING id`,
+        [saldoMovementId, client.id, inv.fecha, detalleMov, inv.impTotal, JSON.stringify(items || [])]
+      );
+      if (conv[0]) movementId = conv[0].id;
+    }
+    if (!movementId) {
+      movementId = mkId();
+      await pool.query(
+        `INSERT INTO client_movements (
+           id, client_id, fecha, medio_pago, banco, detalle,
+           monto_factura, debe, haber, creado_por, creado_en, archivos
+         ) VALUES ($1,$2,$3,'','',$4,$5,$6,0,$7,$8,'[]'::jsonb)`,
+        [movementId, client.id, inv.fecha, detalleMov, inv.impTotal, inv.impTotal, userId, Date.now()]
+      );
+    }
   }
   const { rows } = await pool.query(
     `UPDATE invoices SET
@@ -3179,6 +3209,7 @@ async function emitirBorrador(invoiceId, { client, userId, payload, reconciliarC
     items: payload.items || [],
     registrarMovimiento: payload.registrarMovimiento !== false,
     sinArca: false,
+    saldoMovementId: payload.saldoMovementId || null,
   });
 }
 
@@ -3259,10 +3290,22 @@ app.post('/api/admin/cobranzas/:clientId/invoice', requireAdmin, async (req, res
       ? items.map((it) => it.detalle).join(' + ')
       : String(b.detalle || '').trim()).slice(0, 500);
 
+    // Facturar un saldo cargado: se valida que siga pendiente para no facturarlo dos veces.
+    const saldoMovementId = b.saldoMovementId ? String(b.saldoMovementId) : null;
+    if (saldoMovementId) {
+      const { rows: movRows } = await pool.query(
+        'SELECT tipo FROM client_movements WHERE id = $1 AND client_id = $2',
+        [saldoMovementId, client.id]
+      );
+      if (!movRows[0]) return res.status(404).json({ error: 'El saldo ya no existe.' });
+      if (movRows[0].tipo !== 'saldo') return res.status(409).json({ error: 'Ese saldo ya fue facturado.' });
+    }
+
     const id = mkId();
     const creadoEn = Date.now();
     const registrarMovimiento = b.registrarMovimiento !== false;
     const payload = {
+      saldoMovementId,
       cbteTipo: Number(b.cbteTipo),
       concepto: Number(b.concepto),
       docTipo,
@@ -3316,7 +3359,7 @@ app.post('/api/admin/cobranzas/:clientId/invoice', requireAdmin, async (req, res
         caeVto: '',
         qrUrl: '',
         production: false,
-      }, { client, userId: req.user.id, detalle: detalleFactura, items, registrarMovimiento, sinArca: true });
+      }, { client, userId: req.user.id, detalle: detalleFactura, items, registrarMovimiento, sinArca: true, saldoMovementId });
     } else {
       try {
         invoiceOut = await emitirBorrador(id, { client, userId: req.user.id, payload, arcaAccount });

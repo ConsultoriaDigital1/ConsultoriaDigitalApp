@@ -4068,7 +4068,7 @@
 
     /* Modal Cliente — ancho */
     .client-modal-wide {
-      max-width: min(1100px, 95vw) !important;
+      max-width: min(1320px, 95vw) !important;
       width: 100%;
     }
 
@@ -4229,6 +4229,164 @@
     .rc-table .rc-saldo {
       color: var(--text-hi);
       font-weight: 800;
+    }
+
+    /* Filas por tipo de movimiento: mismo color que su botón en la barra del resumen */
+    .rc-k-facturado { --rc-c: #e7ff4f; --rc-rgb: 231, 255, 79; }
+    .rc-k-factura { --rc-c: #f5cd47; --rc-rgb: 245, 205, 71; }
+    .rc-k-saldo { --rc-c: #c4b5fd; --rc-rgb: 139, 92, 246; }
+    .rc-k-pago { --rc-c: #4bce97; --rc-rgb: 75, 206, 151; }
+
+    .rc-table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: var(--r-sm);
+    }
+
+    .rc-table-wrap .rc-table th:first-child { border-top-left-radius: var(--r-sm); }
+    .rc-table-wrap .rc-table th:last-child { border-top-right-radius: var(--r-sm); }
+    .rc-table-wrap .rc-table tr:last-child td { border-bottom: 0; }
+
+    .rc-table td {
+      vertical-align: middle;
+    }
+
+    .rc-table tr.rc-row td {
+      background: rgba(var(--rc-rgb), 0.045);
+      transition: background 120ms ease;
+    }
+
+    .rc-table tr.rc-row:hover td {
+      background: rgba(var(--rc-rgb), 0.1);
+    }
+
+    .rc-table tr.rc-row td:first-child {
+      box-shadow: inset 3px 0 0 var(--rc-c);
+    }
+
+    .rc-table .rc-fecha {
+      white-space: nowrap;
+      color: var(--text-hi);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .rc-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.2rem 0.55rem;
+      border-radius: 999px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      white-space: nowrap;
+      color: var(--rc-c);
+      background: rgba(var(--rc-rgb), 0.14);
+      border: 1px solid rgba(var(--rc-rgb), 0.35);
+    }
+
+    .rc-badge svg {
+      width: 0.85rem;
+      height: 0.85rem;
+    }
+
+    /* El concepto se queda con el espacio libre y se recorta con "…": así fecha,
+       importes y acciones nunca se salen del modal. */
+    .rc-table .rc-concepto {
+      width: 100%;
+      max-width: 0;
+      min-width: 14rem;
+    }
+
+    .rc-table tr.rc-row td {
+      padding: 0.55rem 0.5rem;
+    }
+
+    .rc-table tr.rc-row td:first-child {
+      padding-left: 0.75rem;
+    }
+
+    .rc-table td.rc-actions .btn {
+      padding: 0.22rem 0.42rem;
+    }
+
+    .rc-table tr.rc-row td:not(.rc-concepto) {
+      white-space: nowrap;
+    }
+
+    .rc-concepto-head {
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      min-width: 0;
+    }
+
+    /* Mismo ancho para todos los badges: los conceptos quedan alineados */
+    .rc-concepto-head .rc-badge {
+      flex-shrink: 0;
+      min-width: 7.6rem;
+    }
+
+    .rc-concepto-main {
+      min-width: 0;
+      color: var(--text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .rc-concepto-meta {
+      margin-top: 0.15rem;
+      color: var(--muted);
+      font-size: 0.72rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .rc-table .rc-nil {
+      color: var(--muted);
+      font-weight: 400;
+    }
+
+    .rc-table .rc-debe,
+    .rc-table .rc-haber,
+    .rc-table .rc-saldo {
+      font-variant-numeric: tabular-nums;
+    }
+
+    .rc-table .rc-saldo.debt { color: var(--danger); }
+    .rc-table .rc-saldo.ok { color: var(--success); }
+
+    .rc-table td.rc-actions .rc-facturar-btn {
+      padding: 0.22rem 0.55rem;
+      margin-right: 0.15rem;
+    }
+
+    .rc-legend {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.4rem 0.9rem;
+      margin-bottom: 0.55rem;
+      font-size: 0.72rem;
+      color: var(--muted);
+    }
+
+    .rc-legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .rc-dot {
+      width: 0.55rem;
+      height: 0.55rem;
+      border-radius: 50%;
+      background: var(--rc-c);
+    }
+
+    .rc-legend-order {
+      margin-left: auto;
     }
 
     .rc-empty {
@@ -10830,7 +10988,12 @@
     let cobBorradorId = null;
 
     function openCobranzaSaldo(c) {
-      const currency = (c.pais || 'AR') === 'PY' ? 'PYG' : 'ARS';
+      const esPY = (c.pais || 'AR') === 'PY';
+      const currency = esPY ? 'PYG' : 'ARS';
+      // Paraguay: IVA 10% y guaraníes sin decimales. Argentina: IVA 21%.
+      cobIvaRate = esPY ? 0.10 : 0.21;
+      cobDecimals = esPY ? 0 : 2;
+      const ivaPct = Math.round(cobIvaRate * 100);
       cobranzaOverlayShell(`Cargar saldo a ${c.nombreFantasia || c.razonSocial}`, `
       <div style="margin-bottom:0.8rem;padding:0.55rem 0.7rem;border-radius:var(--r-sm,6px);background:rgba(245,205,71,0.10);border:1px solid rgba(245,205,71,0.35);font-size:0.8rem">
         Se guardará como prefactura y aumentará el saldo adeudado, sin emitir ningún comprobante.
@@ -10853,7 +11016,7 @@
           <label style="display:grid;gap:0.25rem;font-size:0.8rem">Importe sin IVA (${currency})
             <input id="cob-neto" type="text" inputmode="decimal" class="clients-search-inp" style="width:100%" oninput="recalcCobFromSummary('neto')" onblur="fmtCobMoneyField(this)">
           </label>
-          <label style="display:grid;gap:0.25rem;font-size:0.8rem">IVA 21% (${currency})
+          <label style="display:grid;gap:0.25rem;font-size:0.8rem">IVA ${ivaPct}% (${currency})
             <input id="cob-iva" type="text" inputmode="decimal" class="clients-search-inp" style="width:100%" oninput="recalcCobFromSummary('iva')" onblur="fmtCobMoneyField(this)">
           </label>
           <label style="display:grid;gap:0.25rem;font-size:0.8rem">Importe total (${currency})
@@ -10881,6 +11044,9 @@
         toast('La facturación ARCA sólo está disponible para clientes ARG.', 'error');
         return;
       }
+      // Factura ARCA: IVA 21% en pesos.
+      cobIvaRate = 0.21;
+      cobDecimals = 2;
       // No exigimos ARCA configurado: se puede emitir un comprobante "Sin ARCA"
       // (no fiscal) que sólo genera el PDF. Sólo se valida ARCA al emitir uno fiscal.
       const arcaState = cobranzasData?.arcaAccounts?.[c.arcaEmisor || 'default'] || cobranzasData?.arca;
@@ -10994,6 +11160,9 @@
 
     // ── Helpers de importes (formato es-AR: punto para miles, coma para decimales) ──
     const cobRound2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+    // Alícuota y decimales del popup abierto: ARS 21% con centavos, PYG 10% sin decimales.
+    let cobIvaRate = 0.21;
+    let cobDecimals = 2;
     // Parsea un texto como "121.000,50" o "121000.5" a número.
     function parseCobMoney(str) {
       let s = String(str == null ? '' : str).trim().replace(/[^\d.,-]/g, '');
@@ -11009,7 +11178,7 @@
     }
     // Formatea un número como "121.000,00".
     function fmtCobMoney(n) {
-      return new Intl.NumberFormat('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(n) || 0);
+      return new Intl.NumberFormat('es-AR', { minimumFractionDigits: cobDecimals, maximumFractionDigits: cobDecimals }).format(Number(n) || 0);
     }
     // Reformatea el contenido de un input de importe (al perder el foco).
     function fmtCobMoneyField(inp) {
@@ -11057,14 +11226,14 @@
         total += parseCobMoney(inp.value);
       });
       total = cobRound2(total);
-      const neto = cobRound2(total / 1.21);
+      const neto = cobRound2(total / (1 + cobIvaRate));
       totalInp.value = fmtCobMoney(total);
       netoInp.value = fmtCobMoney(neto);
       ivaInp.value = fmtCobMoney(cobRound2(total - neto));
     }
 
     // Al editar cualquiera de los tres campos (sin IVA / IVA / total), recalcula los
-    // otros dos (IVA 21%). Si hay un único ítem, se sincroniza su importe con el total
+    // otros dos (según cobIvaRate). Si hay un único ítem, se sincroniza su importe con el total
     // para que el detalle del PDF coincida. Con varios ítems, prevalece el total tipeado.
     function recalcCobFromSummary(source) {
       const netoInp = $('cob-neto'), ivaInp = $('cob-iva'), totalInp = $('cob-importe');
@@ -11072,15 +11241,15 @@
       let neto, iva, total;
       if (source === 'neto') {
         neto = cobRound2(parseCobMoney(netoInp.value));
-        iva = cobRound2(neto * 0.21);
+        iva = cobRound2(neto * cobIvaRate);
         total = cobRound2(neto + iva);
       } else if (source === 'iva') {
         iva = cobRound2(parseCobMoney(ivaInp.value));
-        neto = cobRound2(iva / 0.21);
+        neto = cobRound2(iva / cobIvaRate);
         total = cobRound2(neto + iva);
       } else {
         total = cobRound2(parseCobMoney(totalInp.value));
-        neto = cobRound2(total / 1.21);
+        neto = cobRound2(total / (1 + cobIvaRate));
         iva = cobRound2(total - neto);
       }
       // No reformateamos el campo que se está tipeando (para no mover el cursor).
@@ -11843,34 +12012,83 @@
       if (wrap) wrap.innerHTML = '<div class="rc-empty">Cargando movimientos...</div>';
     }
 
-    function renderClientMovements(movements) {
-      const wrap = $('cv-movements-wrap');
-      if (!wrap) return;
-      const clientId = currentClientId;
-      if (clientMovementsOnlySaldos) movements = (movements || []).filter(m => m.tipo === 'saldo');
-      if (!movements || movements.length === 0) {
-        wrap.innerHTML = `<div class="rc-empty">${clientMovementsOnlySaldos ? 'Sin prefacturas o saldos cargados.' : 'Sin movimientos cargados.'}</div>`;
-        return;
-      }
-      const ordered = movements.slice().sort((a, b) => {
+    // Tipo visual de un movimiento: cada uno usa el color de su botón en la barra
+    // del resumen (Facturar = lima, Cargar saldo = violeta, Cargar factura = ámbar,
+    // Cargar pago = verde).
+    const MOV_KINDS = {
+      facturado: { label: 'Facturado', icon: 'receipt' },
+      factura: { label: 'Factura cargada', icon: 'file' },
+      saldo: { label: 'Saldo cargado', icon: 'save' },
+      pago: { label: 'Pago', icon: 'dollar' },
+    };
+    function movementKind(m) {
+      if (m.tipo === 'pago') return 'pago';
+      if (m.tipo === 'saldo') return 'saldo';
+      return m.invoiceId ? 'facturado' : 'factura';
+    }
+
+    // Más nuevo primero. El saldo acumulado se calcula en orden cronológico y
+    // después se invierte la lista, así cada fila muestra el saldo a esa fecha.
+    function movementsNewestFirst(movements) {
+      const ordered = (movements || []).slice().sort((a, b) => {
         if (a.fecha !== b.fecha) return a.fecha < b.fecha ? -1 : 1;
         return (a.creadoEn || 0) - (b.creadoEn || 0);
       });
       let saldo = 0;
-      const rows = ordered.map(m => {
-        // Saldo acumulado = factura - haber
+      const rows = ordered.map((m) => {
         saldo += Number(m.montoFactura || 0) - Number(m.haber || 0);
-        const impago = saldo > 0;
-        const estadoMovimiento = m.tipo === 'saldo' ? 'Saldo cargado' : (m.tipo === 'pago' ? 'Pago efectuado' : 'Factura emitida');
+        return { m, saldo };
+      });
+      return { rows: rows.reverse(), saldo };
+    }
+
+    function renderClientMovements(movements) {
+      const wrap = $('cv-movements-wrap');
+      if (!wrap) return;
+      const clientId = currentClientId;
+      const client = (clientsCache || []).find((x) => x.id === clientId);
+      const esPY = client && client.pais === 'PY';
+      // El saldo final se calcula con todos los movimientos aunque se filtren los saldos.
+      const { rows: allRows, saldo } = movementsNewestFirst(movements);
+      const list = clientMovementsOnlySaldos ? allRows.filter(({ m }) => m.tipo === 'saldo') : allRows;
+      if (!list.length) {
+        wrap.innerHTML = `<div class="rc-empty">${clientMovementsOnlySaldos ? 'Sin prefacturas o saldos cargados.' : 'Sin movimientos cargados.'}</div>`;
+        return;
+      }
+      const rows = list.map(({ m, saldo: saldoFila }) => {
+        const kind = movementKind(m);
+        const k = MOV_KINDS[kind];
+        const debe = Number(m.montoFactura || 0);
+        const haber = Number(m.haber || 0);
+        const concepto = m.detalle || (kind === 'pago' ? 'Pago recibido' : k.label);
+        const meta = [
+          m.medioPago ? esc(MEDIO_PAGO_LABEL[m.medioPago] || m.medioPago) : '',
+          m.banco ? esc(m.banco) : '',
+          (kind === 'saldo' && (m.items || []).length > 1) ? `${m.items.length} ítems` : '',
+        ].filter(Boolean).join(' · ');
         return `
-      <tr>
-        <td>${formatDate(m.fecha)}</td>
-        <td>${formatMoney(m.montoFactura)}</td>
-        <td class="num rc-debe">${m.debe ? formatMoney(m.debe) : '—'}</td>
-        <td class="num rc-haber">${m.haber ? formatMoney(m.haber) : '—'}</td>
-        <td class="num rc-saldo">${formatMoney(saldo)}</td>
-        <td><span class="ct-chip ${m.tipo === 'pago' ? 'pagado' : 'impago'}">${estadoMovimiento}</span></td>
+      <tr class="rc-row rc-k-${kind}">
+        <td class="rc-fecha">${formatDate(m.fecha)}</td>
+        <td class="rc-concepto">
+          <div class="rc-concepto-head">
+            <span class="rc-badge">${icon(k.icon)} ${k.label}</span>
+            <span class="rc-concepto-main" title="${esc(concepto)}">${esc(concepto)}</span>
+          </div>
+          ${meta ? `<div class="rc-concepto-meta">${meta}</div>` : ''}
+          ${(m.archivos && m.archivos.length) ? `
+            <div class="rc-archivos">
+              ${m.archivos.map(f => `
+                <button class="rc-archivo-link" onclick="openMovArchivo('${m.id}','${f.id}')" title="${esc(f.name)}">
+                  ${icon('file')} ${esc(f.name)}
+                </button>`).join('')}
+            </div>` : ''}
+        </td>
+        <td class="num rc-debe">${debe ? formatMoney(debe) : '<span class="rc-nil">—</span>'}</td>
+        <td class="num rc-haber">${haber ? formatMoney(haber) : '<span class="rc-nil">—</span>'}</td>
+        <td class="num rc-saldo ${saldoFila > 0 ? 'debt' : 'ok'}">${formatMoney(saldoFila)}</td>
         <td class="rc-actions">
+          ${kind === 'saldo' ? `<button class="btn btn-lime btn-sm rc-facturar-btn" title="${esPY ? 'Pasar este saldo a factura' : 'Emitir la factura de este saldo con sus ítems'}"
+            onclick="facturarSaldo('${m.id}', this)">${icon('receipt')} Facturar</button>` : ''}
           ${m.invoiceId ? `<a class="btn btn-ghost btn-sm rc-pdf-btn" title="Abrir factura ${esc((m.invoiceLetra || '') + ' ' + (m.invoiceNumero || ''))} en PDF"
             href="/api/admin/cobranzas/invoices/${esc(m.invoiceId)}/pdf" target="_blank" rel="noopener"
             onclick="event.stopPropagation()">${icon('file')}</a>` : ''}
@@ -11879,45 +12097,122 @@
           <button class="btn btn-danger btn-sm rc-del-btn" title="Eliminar movimiento"
             onclick="startMovDelete('${clientId}','${m.id}', this)">${icon('trash')}</button>
         </td>
-      </tr>
-      ${(m.detalle || m.medioPago || m.banco || (m.archivos && m.archivos.length)) ? `
-        <tr>
-          <td colspan="7" style="color:var(--muted);font-size:0.74rem;padding-top:0;padding-bottom:0.6rem">
-            ${m.medioPago ? `<strong>${esc(MEDIO_PAGO_LABEL[m.medioPago] || m.medioPago)}</strong>` : ''}
-            ${m.banco ? ` · ${esc(m.banco)}` : ''}
-            ${m.detalle ? ` · ${esc(m.detalle)}` : ''}
-            ${(m.archivos && m.archivos.length) ? `
-              <div class="rc-archivos">
-                ${m.archivos.map(f => `
-                  <button class="rc-archivo-link" onclick="openMovArchivo('${m.id}','${f.id}')" title="${esc(f.name)}">
-                    ${icon('file')} ${esc(f.name)}
-                  </button>`).join('')}
-              </div>` : ''}
-          </td>
-        </tr>` : ''}
-    `;
+      </tr>`;
       }).join('');
 
       wrap.innerHTML = `
     ${clientMovementsOnlySaldos ? '<div class="admin-muted" style="margin-bottom:0.55rem">Prefacturas guardadas sin emitir</div>' : ''}
-    <table class="rc-table">
-      <thead>
-        <tr>
-          <th>Fecha</th>
-          <th>Monto factura</th>
-          <th class="num">Debe</th>
-          <th class="num">Haber</th>
-          <th class="num">Saldo</th>
-          <th>Estado</th>
-          <th class="rc-actions"></th>
-        </tr>
-      </thead>
-      <tbody>${rows}</tbody>
-    </table>
+    <div class="rc-legend">
+      ${Object.entries(MOV_KINDS).map(([key, k]) => `<span class="rc-legend-item rc-k-${key}"><span class="rc-dot"></span>${k.label}</span>`).join('')}
+      <span class="rc-legend-order">Más recientes primero</span>
+    </div>
+    <div class="rc-table-wrap">
+      <table class="rc-table">
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>Movimiento</th>
+            <th class="num">Debe</th>
+            <th class="num">Haber</th>
+            <th class="num">Saldo</th>
+            <th class="rc-actions"></th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
     <div class="rc-totals">
       Saldo final: <span class="rc-saldo-final" style="color:${saldo > 0 ? 'var(--danger)' : 'var(--success)'}">${formatMoney(saldo)}</span>
     </div>
   `;
+    }
+
+    // Factura un saldo cargado con un solo botón, usando sus ítems e importe.
+    // Clientes ARG: emite en ARCA (o comprobante interno si la cuenta no está
+    // configurada) y el saldo pasa a ser esa factura. Clientes PY: el saldo pasa
+    // a factura cargada, porque no hay facturación electrónica de Paraguay.
+    const saldoBorradores = {}; // movimiento de saldo -> borrador que falló, para reintentarlo
+    async function facturarSaldo(movId, btn) {
+      const clientId = currentClientId;
+      const m = (movementsCache[clientId] || []).find((x) => x.id === movId);
+      const c = (clientsCache || []).find((x) => x.id === clientId);
+      if (!m || !c || m.tipo !== 'saldo') return;
+      const total = cobRound2(m.montoFactura);
+      const nombre = clientDisplayName(c);
+      const resetBtn = () => { if (btn && btn.isConnected) { btn.disabled = false; btn.innerHTML = `${icon('receipt')} Facturar`; } };
+
+      if (c.pais === 'PY') {
+        if (!confirm(`¿Pasar a factura el saldo de ${formatMoney(total)} de ${nombre}?`)) return;
+        btn.disabled = true;
+        btn.textContent = 'Facturando…';
+        try {
+          await api(`/api/admin/clients/${encodeURIComponent(clientId)}/movements/${encodeURIComponent(movId)}/facturar`, { method: 'POST' });
+          await loadMovementsForClient(clientId);
+          loadAdminDashboard();
+          toast('Saldo facturado.', 'success');
+        } catch (err) {
+          resetBtn();
+          toast(err.message || 'No se pudo facturar el saldo.', 'error');
+        }
+        return;
+      }
+
+      if (!cobranzasData) { try { await loadCobranzas(); } catch (_e) { /* sin estado de ARCA: comprobante interno */ } }
+      const emisor = c.arcaEmisor || 'default';
+      const arcaState = cobranzasData?.arcaAccounts?.[emisor] || cobranzasData?.arca;
+      const arcaOk = Boolean(arcaState?.configured);
+      const docNro = String(c.cuit || '').replace(/\D/g, '');
+      const conCuit = docNro.length === 11;
+      // Mismos valores por defecto que el popup de Facturar: con CUIT, A a responsable
+      // inscripto; sin CUIT, B a consumidor final.
+      const cbteTipo = arcaOk ? (conCuit ? 1 : 6) : 0;
+      // Los ítems del saldo van a la factura si suman el total; si el saldo se editó
+      // después, se factura el total en un solo ítem con su descripción.
+      const items = (m.items || []).filter((it) => Number(it.importe) > 0);
+      const sumaItems = cobRound2(items.reduce((s, it) => s + Number(it.importe), 0));
+      const itemsFactura = items.length && sumaItems === total
+        ? items.map((it) => ({ detalle: it.detalle || 'Ítem', importe: cobRound2(it.importe) }))
+        : [{ detalle: m.detalle || c.descripcionComprobante || 'Servicios de consultoría digital', importe: total }];
+      const tipoTxt = cbteTipo === 0
+        ? 'un comprobante interno (sin ARCA)'
+        : `Factura ${cbteTipo === 1 ? 'A' : 'B'}${arcaState?.production ? '' : ' (homologación)'}`;
+      const detalleTxt = itemsFactura.map((it) => `• ${it.detalle}: ${formatMoney(it.importe)}`).join('\n');
+      if (!confirm(`¿Emitir ${tipoTxt} a ${nombre} por ${formatMoney(total)}?\n\n${detalleTxt}`)) return;
+
+      const body = {
+        impTotal: total,
+        items: itemsFactura,
+        sinArca: cbteTipo === 0,
+        cbteTipo,
+        concepto: 2,
+        docTipo: conCuit ? 80 : 99,
+        docNro: conCuit ? docNro : '0',
+        condIvaReceptor: conCuit ? 1 : 5,
+        arcaEmisor: emisor,
+        detalle: itemsFactura.map((it) => it.detalle).join(' + ').slice(0, 500),
+        registrarMovimiento: true,
+        saldoMovementId: movId,
+      };
+      btn.disabled = true;
+      btn.textContent = 'Emitiendo…';
+      try {
+        // Si un intento anterior dejó un borrador, se reintenta ése en vez de crear otro.
+        const borrador = saldoBorradores[movId];
+        const data = borrador
+          ? await api(`/api/admin/cobranzas/invoices/${encodeURIComponent(borrador)}/retry`, { method: 'POST', body: JSON.stringify(body) })
+          : await api(`/api/admin/cobranzas/${encodeURIComponent(clientId)}/invoice`, { method: 'POST', body: JSON.stringify(body) });
+        delete saldoBorradores[movId];
+        const inv = data.invoice;
+        toast(cbteTipo === 0 ? `Comprobante ${inv.numero} generado` : `Factura ${inv.numero} emitida (CAE ${inv.cae})`, 'success');
+        await loadMovementsForClient(clientId);
+        loadCobranzas();
+        loadAdminDashboard();
+      } catch (err) {
+        resetBtn();
+        if (err.data && err.data.invoiceId) saldoBorradores[movId] = err.data.invoiceId;
+        toast(err.message || 'No se pudo emitir la factura.', 'error');
+        loadCobranzas();
+      }
     }
 
     // Inicia el borrado de un movimiento con espera de 5s (cuenta regresiva en el boton de confirmar).
@@ -12157,15 +12452,19 @@
       if (desde) movements = movements.filter(m => m.fecha >= desde);
       if (hasta) movements = movements.filter(m => m.fecha <= hasta);
 
-      let saldo = 0;
       let totalFacturado = 0;
       let totalPagado = 0;
-
-      const filas = movements.map(m => {
-        saldo += Number(m.montoFactura || 0) - Number(m.haber || 0);
+      movements.forEach(m => {
         totalFacturado += Number(m.montoFactura || 0);
         totalPagado += Number(m.haber || 0);
-        const estadoMovimiento = m.tipo === 'saldo' ? 'Saldo cargado' : (m.tipo === 'pago' ? 'Pago efectuado' : 'Factura emitida');
+      });
+      // Mismo orden y colores que en pantalla: más nuevo arriba.
+      const { rows: filasOrdenadas, saldo } = movementsNewestFirst(movements);
+      const PRINT_COLORS = { facturado: '#5f7a00', factura: '#b7791f', saldo: '#6d28d9', pago: '#276749' };
+
+      const filas = filasOrdenadas.map(({ m, saldo }) => {
+        const kind = movementKind(m);
+        const estadoMovimiento = MOV_KINDS[kind].label;
         const extras = [
           m.medioPago ? (MEDIO_PAGO_LABEL[m.medioPago] || m.medioPago) : '',
           m.banco || '',
@@ -12175,12 +12474,12 @@
           ? (m.archivos || []).map(f => f.name).join(', ')
           : '';
         return `<tr>
-      <td>${m.fecha ? m.fecha.split('-').reverse().join('/') : '—'}</td>
+      <td style="border-left:3px solid ${PRINT_COLORS[kind]}">${m.fecha ? m.fecha.split('-').reverse().join('/') : '—'}</td>
       <td>${m.montoFactura > 0 ? fmtResumen(m.montoFactura) : '—'}</td>
       <td>${m.debe > 0 ? fmtResumen(m.debe) : '—'}</td>
       <td>${m.haber > 0 ? fmtResumen(m.haber) : '—'}</td>
       <td style="font-weight:700;color:${saldo > 0 ? '#e53e3e' : '#276749'}">${fmtResumen(saldo)}</td>
-      <td>${estadoMovimiento}</td>
+      <td style="color:${PRINT_COLORS[kind]};font-weight:700;white-space:nowrap">${estadoMovimiento}</td>
       <td style="color:#666;font-size:0.82em">${extras}${archivosStr ? '<br><em>Adj: ' + archivosStr + '</em>' : ''}</td>
     </tr>`;
       }).join('');
@@ -12370,7 +12669,7 @@
 
       $('mv-title').textContent = movementMode === 'pago' ? 'Editar pago' : (movementMode === 'saldo' ? 'Editar saldo' : 'Editar factura');
       $('mv-submit-btn').textContent = movementMode === 'pago' ? 'Guardar pago' : (movementMode === 'saldo' ? 'Guardar saldo' : 'Guardar factura');
-      $('mv-submit-btn').className = 'btn btn-sm ' + (movementMode === 'pago' ? 'btn-pago' : 'btn-factura');
+      $('mv-submit-btn').className = 'btn btn-sm ' + (movementMode === 'pago' ? 'btn-pago' : (movementMode === 'saldo' ? 'btn-saldo' : 'btn-factura'));
 
       $('mv-cliente-info').innerHTML =
         (movementMode === 'pago' ? 'Editar pago de ' : (movementMode === 'saldo' ? 'Editar saldo de ' : 'Editar factura de ')) +
