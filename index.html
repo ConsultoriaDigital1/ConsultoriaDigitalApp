@@ -4362,6 +4362,96 @@
       margin-right: 0.15rem;
     }
 
+    .rc-caret {
+      display: inline-block;
+      width: 0;
+      height: 0;
+      margin-left: 0.1rem;
+      border-left: 4px solid transparent;
+      border-right: 4px solid transparent;
+      border-top: 5px solid currentColor;
+      transition: transform 150ms ease;
+    }
+
+    .rc-facturar-btn.open .rc-caret {
+      transform: rotate(180deg);
+    }
+
+    /* Desplegable de "Facturar" en las filas de saldo: Factura A / B / X */
+    .rc-fact-menu {
+      position: fixed;
+      z-index: 10000;
+      min-width: 16rem;
+      padding: 0.35rem;
+      display: grid;
+      gap: 0.2rem;
+      background: var(--surface);
+      border: 1px solid var(--border2);
+      border-radius: var(--r-sm);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+    }
+
+    .rc-fact-menu-note {
+      padding: 0.3rem 0.5rem 0.4rem;
+      font-size: 0.7rem;
+      color: #f5cd47;
+    }
+
+    .rc-fact-opt {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      width: 100%;
+      padding: 0.45rem 0.5rem;
+      border: 0;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--text);
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .rc-fact-opt:hover:not([disabled]),
+    .rc-fact-opt:focus-visible {
+      background: var(--surface2);
+      outline: none;
+    }
+
+    .rc-fact-opt[disabled] {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    .rc-fact-letra {
+      flex-shrink: 0;
+      display: grid;
+      place-items: center;
+      width: 1.9rem;
+      height: 1.9rem;
+      border-radius: 6px;
+      font-weight: 800;
+      color: #1d2125;
+      background: var(--lime);
+    }
+
+    .rc-fact-x .rc-fact-letra {
+      color: var(--text-hi);
+      background: var(--surface2);
+      border: 1px solid var(--border2);
+    }
+
+    .rc-fact-txt {
+      display: grid;
+      gap: 0.05rem;
+      font-size: 0.82rem;
+    }
+
+    .rc-fact-txt small {
+      color: var(--muted);
+      font-size: 0.7rem;
+    }
+
     .rc-legend {
       display: flex;
       flex-wrap: wrap;
@@ -12055,6 +12145,8 @@
         wrap.innerHTML = `<div class="rc-empty">${clientMovementsOnlySaldos ? 'Sin prefacturas o saldos cargados.' : 'Sin movimientos cargados.'}</div>`;
         return;
       }
+      // ARG despliega A / B / X; PY no tiene ARCA y factura directo.
+      const facturarLabel = `${icon('receipt')} Facturar${esPY ? '' : ' <span class="rc-caret"></span>'}`;
       const rows = list.map(({ m, saldo: saldoFila }) => {
         const kind = movementKind(m);
         const k = MOV_KINDS[kind];
@@ -12087,8 +12179,9 @@
         <td class="num rc-haber">${haber ? formatMoney(haber) : '<span class="rc-nil">—</span>'}</td>
         <td class="num rc-saldo ${saldoFila > 0 ? 'debt' : 'ok'}">${formatMoney(saldoFila)}</td>
         <td class="rc-actions">
-          ${kind === 'saldo' ? `<button class="btn btn-lime btn-sm rc-facturar-btn" title="${esPY ? 'Pasar este saldo a factura' : 'Emitir la factura de este saldo con sus ítems'}"
-            onclick="facturarSaldo('${m.id}', this)">${icon('receipt')} Facturar</button>` : ''}
+          ${kind === 'saldo' ? `<button class="btn btn-lime btn-sm rc-facturar-btn" data-label="${esc(facturarLabel)}"
+            title="${esPY ? 'Pasar este saldo a factura' : 'Elegir Factura A, Factura B o Comprobante X'}"
+            ${esPY ? '' : 'aria-haspopup="menu"'} onclick="facturarSaldo('${m.id}', this)">${facturarLabel}</button>` : ''}
           ${m.invoiceId ? `<a class="btn btn-ghost btn-sm rc-pdf-btn" title="Abrir factura ${esc((m.invoiceLetra || '') + ' ' + (m.invoiceNumero || ''))} en PDF"
             href="/api/admin/cobranzas/invoices/${esc(m.invoiceId)}/pdf" target="_blank" rel="noopener"
             onclick="event.stopPropagation()">${icon('file')}</a>` : ''}
@@ -12127,19 +12220,103 @@
   `;
     }
 
-    // Factura un saldo cargado con un solo botón, usando sus ítems e importe.
-    // Clientes ARG: emite en ARCA (o comprobante interno si la cuenta no está
-    // configurada) y el saldo pasa a ser esa factura. Clientes PY: el saldo pasa
-    // a factura cargada, porque no hay facturación electrónica de Paraguay.
-    const saldoBorradores = {}; // movimiento de saldo -> borrador que falló, para reintentarlo
+    // Factura un saldo cargado usando sus ítems e importe.
+    // Clientes ARG: el botón despliega Factura A, Factura B o Comprobante X (sin
+    // validez fiscal, no pasa por ARCA); el saldo pasa a ser ese comprobante.
+    // Clientes PY: el saldo pasa a factura cargada, porque no hay facturación
+    // electrónica de Paraguay.
+    const saldoBorradores = {}; // movimiento de saldo -> borrador ARCA que falló, para reintentarlo
+    let facturarMenuTarget = null; // { movId, btn } del desplegable abierto
+
+    function pickFacturaSaldo(cbteTipo) {
+      const target = facturarMenuTarget;
+      closeFacturarMenu();
+      if (target) emitirFacturaSaldo(target.movId, cbteTipo, target.btn);
+    }
+
+    function closeFacturarMenu() {
+      const menu = document.getElementById('rc-fact-menu');
+      facturarMenuTarget = null;
+      if (!menu) return;
+      menu.remove();
+      document.removeEventListener('mousedown', onFacturarMenuOutside, true);
+      document.removeEventListener('keydown', onFacturarMenuKey, true);
+      window.removeEventListener('resize', closeFacturarMenu);
+      document.removeEventListener('scroll', closeFacturarMenu, true);
+      document.querySelectorAll('.rc-facturar-btn.open').forEach((b) => b.classList.remove('open'));
+    }
+    function onFacturarMenuOutside(e) {
+      if (!e.target.closest('#rc-fact-menu, .rc-facturar-btn')) closeFacturarMenu();
+    }
+    function onFacturarMenuKey(e) {
+      if (e.key === 'Escape') { e.stopPropagation(); closeFacturarMenu(); }
+    }
+
     async function facturarSaldo(movId, btn) {
+      const c = (clientsCache || []).find((x) => x.id === currentClientId);
+      if (c && c.pais === 'PY') return emitirFacturaSaldo(movId, null, btn);
+      const yaAbierto = btn.classList.contains('open');
+      closeFacturarMenu();
+      if (yaAbierto || !c) return;
+
+      if (!cobranzasData) { try { await loadCobranzas(); } catch (_e) { /* sin estado de ARCA: sólo X */ } }
+      const arcaState = cobranzasData?.arcaAccounts?.[c.arcaEmisor || 'default'] || cobranzasData?.arca;
+      const arcaOk = Boolean(arcaState?.configured);
+      const conCuit = String(c.cuit || '').replace(/\D/g, '').length === 11;
+      const sinArcaTxt = 'ARCA no está configurado para este emisor';
+      const opts = [
+        { tipo: 1, letra: 'A', titulo: 'Factura A', sub: 'Responsable inscripto',
+          off: !arcaOk ? sinArcaTxt : (!conCuit ? 'El cliente no tiene CUIT cargado' : '') },
+        { tipo: 6, letra: 'B', titulo: 'Factura B', sub: 'Consumidor final / monotributo / exento',
+          off: !arcaOk ? sinArcaTxt : '' },
+        { tipo: 0, letra: 'X', titulo: 'Comprobante X', sub: 'Sin validez fiscal, no pasa por ARCA', off: '' },
+      ];
+
+      const menu = document.createElement('div');
+      menu.id = 'rc-fact-menu';
+      menu.className = 'rc-fact-menu';
+      menu.setAttribute('role', 'menu');
+      menu.innerHTML = `
+        ${arcaOk && !arcaState?.production ? '<div class="rc-fact-menu-note">ARCA en homologación: A y B salen de prueba</div>' : ''}
+        ${opts.map((o) => `
+          <button type="button" role="menuitem" class="rc-fact-opt rc-fact-${o.letra.toLowerCase()}" ${o.off ? `disabled title="${esc(o.off)}"` : ''}
+            onclick="pickFacturaSaldo(${o.tipo})">
+            <span class="rc-fact-letra">${o.letra}</span>
+            <span class="rc-fact-txt"><strong>${o.titulo}</strong><small>${esc(o.off || o.sub)}</small></span>
+          </button>`).join('')}`;
+      document.body.appendChild(menu);
+      btn.classList.add('open');
+      facturarMenuTarget = { movId, btn };
+
+      // La app se dibuja con zoom: el rect viene escalado y style.left/top no.
+      const rect = btn.getBoundingClientRect();
+      const f = (btn.offsetWidth && rect.width / btn.offsetWidth) || 1;
+      const viewH = window.innerHeight / f;
+      const left = Math.max(8, rect.right / f - menu.offsetWidth);
+      let top = rect.bottom / f + 6;
+      if (top + menu.offsetHeight > viewH - 8) top = Math.max(8, rect.top / f - menu.offsetHeight - 6);
+      menu.style.left = left + 'px';
+      menu.style.top = top + 'px';
+      const first = menu.querySelector('.rc-fact-opt:not([disabled])');
+      if (first) first.focus();
+
+      document.addEventListener('mousedown', onFacturarMenuOutside, true);
+      document.addEventListener('keydown', onFacturarMenuKey, true);
+      window.addEventListener('resize', closeFacturarMenu);
+      document.addEventListener('scroll', closeFacturarMenu, true);
+    }
+
+    // cbteTipo: 1 = Factura A, 6 = Factura B, 0 = Comprobante X (sin ARCA).
+    async function emitirFacturaSaldo(movId, cbteTipo, btn) {
       const clientId = currentClientId;
       const m = (movementsCache[clientId] || []).find((x) => x.id === movId);
       const c = (clientsCache || []).find((x) => x.id === clientId);
-      if (!m || !c || m.tipo !== 'saldo') return;
+      if (!m || !c || m.tipo !== 'saldo' || !btn) return;
       const total = cobRound2(m.montoFactura);
       const nombre = clientDisplayName(c);
-      const resetBtn = () => { if (btn && btn.isConnected) { btn.disabled = false; btn.innerHTML = `${icon('receipt')} Facturar`; } };
+      const resetBtn = () => {
+        if (btn.isConnected) { btn.disabled = false; btn.innerHTML = btn.dataset.label; }
+      };
 
       if (c.pais === 'PY') {
         if (!confirm(`¿Pasar a factura el saldo de ${formatMoney(total)} de ${nombre}?`)) return;
@@ -12157,15 +12334,11 @@
         return;
       }
 
-      if (!cobranzasData) { try { await loadCobranzas(); } catch (_e) { /* sin estado de ARCA: comprobante interno */ } }
       const emisor = c.arcaEmisor || 'default';
       const arcaState = cobranzasData?.arcaAccounts?.[emisor] || cobranzasData?.arca;
-      const arcaOk = Boolean(arcaState?.configured);
       const docNro = String(c.cuit || '').replace(/\D/g, '');
       const conCuit = docNro.length === 11;
-      // Mismos valores por defecto que el popup de Facturar: con CUIT, A a responsable
-      // inscripto; sin CUIT, B a consumidor final.
-      const cbteTipo = arcaOk ? (conCuit ? 1 : 6) : 0;
+      const sinArca = cbteTipo === 0;
       // Los ítems del saldo van a la factura si suman el total; si el saldo se editó
       // después, se factura el total en un solo ítem con su descripción.
       const items = (m.items || []).filter((it) => Number(it.importe) > 0);
@@ -12173,8 +12346,8 @@
       const itemsFactura = items.length && sumaItems === total
         ? items.map((it) => ({ detalle: it.detalle || 'Ítem', importe: cobRound2(it.importe) }))
         : [{ detalle: m.detalle || c.descripcionComprobante || 'Servicios de consultoría digital', importe: total }];
-      const tipoTxt = cbteTipo === 0
-        ? 'un comprobante interno (sin ARCA)'
+      const tipoTxt = sinArca
+        ? 'un Comprobante X (sin validez fiscal)'
         : `Factura ${cbteTipo === 1 ? 'A' : 'B'}${arcaState?.production ? '' : ' (homologación)'}`;
       const detalleTxt = itemsFactura.map((it) => `• ${it.detalle}: ${formatMoney(it.importe)}`).join('\n');
       if (!confirm(`¿Emitir ${tipoTxt} a ${nombre} por ${formatMoney(total)}?\n\n${detalleTxt}`)) return;
@@ -12182,34 +12355,36 @@
       const body = {
         impTotal: total,
         items: itemsFactura,
-        sinArca: cbteTipo === 0,
+        sinArca,
         cbteTipo,
         concepto: 2,
         docTipo: conCuit ? 80 : 99,
         docNro: conCuit ? docNro : '0',
-        condIvaReceptor: conCuit ? 1 : 5,
+        // A: responsable inscripto. B: monotributista si tiene CUIT, si no consumidor final.
+        condIvaReceptor: cbteTipo === 1 ? 1 : (conCuit ? 6 : 5),
         arcaEmisor: emisor,
         detalle: itemsFactura.map((it) => it.detalle).join(' + ').slice(0, 500),
         registrarMovimiento: true,
         saldoMovementId: movId,
       };
       btn.disabled = true;
-      btn.textContent = 'Emitiendo…';
+      btn.textContent = sinArca ? 'Generando…' : 'Emitiendo…';
       try {
-        // Si un intento anterior dejó un borrador, se reintenta ése en vez de crear otro.
-        const borrador = saldoBorradores[movId];
+        // Si un intento en ARCA dejó un borrador, A/B lo reintentan (con la letra
+        // elegida ahora) en vez de crear otro. El X no pasa por ARCA: va aparte.
+        const borrador = sinArca ? null : saldoBorradores[movId];
         const data = borrador
           ? await api(`/api/admin/cobranzas/invoices/${encodeURIComponent(borrador)}/retry`, { method: 'POST', body: JSON.stringify(body) })
           : await api(`/api/admin/cobranzas/${encodeURIComponent(clientId)}/invoice`, { method: 'POST', body: JSON.stringify(body) });
         delete saldoBorradores[movId];
         const inv = data.invoice;
-        toast(cbteTipo === 0 ? `Comprobante ${inv.numero} generado` : `Factura ${inv.numero} emitida (CAE ${inv.cae})`, 'success');
+        toast(sinArca ? `Comprobante X ${inv.numero} generado` : `Factura ${inv.cbteLetra} ${inv.numero} emitida (CAE ${inv.cae})`, 'success');
         await loadMovementsForClient(clientId);
         loadCobranzas();
         loadAdminDashboard();
       } catch (err) {
         resetBtn();
-        if (err.data && err.data.invoiceId) saldoBorradores[movId] = err.data.invoiceId;
+        if (!sinArca && err.data && err.data.invoiceId) saldoBorradores[movId] = err.data.invoiceId;
         toast(err.message || 'No se pudo emitir la factura.', 'error');
         loadCobranzas();
       }
