@@ -5016,7 +5016,14 @@
     .card-view-footer .trello-action[data-view-btn="checklist"]::before { content: '✓'; }
     .card-view-footer .trello-action[data-view-btn="details"]::before { content: '⌁'; }
     .card-view-footer .trello-action[data-view-btn="attachments"]::before { content: '↗'; }
+    .card-view-footer #banner-upload-btn::before { content: '▣'; }
+    .card-view-footer #banner-remove-btn::before { content: '×'; }
     .card-view-footer .trello-action:not([data-view-btn])::before { content: '◷'; }
+
+    .banner-size-hint {
+      color: var(--muted);
+      font-size: 0.65rem;
+    }
 
     .card-view-footer .trello-action.view-on {
       background: var(--surface3);
@@ -8679,6 +8686,18 @@
       box-shadow: 0 10px 22px rgba(0, 0, 0, 0.22), 0 0 0 1px var(--team-accent-soft);
     }
 
+    #tab-clientes .kcard.has-banner,
+    #tab-clientes .kcard.has-banner:hover {
+      background-image: linear-gradient(90deg, rgba(13, 18, 24, 0.72), rgba(13, 18, 24, 0.22)), var(--card-banner);
+      background-size: cover;
+      background-position: center;
+    }
+
+    #tab-clientes .kcard.has-banner .kcard-title {
+      color: #fff;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
+    }
+
     #tab-clientes .kcard-body {
       gap: 0.48rem;
       padding: 0.72rem 0.72rem 0.7rem;
@@ -9637,6 +9656,13 @@
               onclick="openClientDetailsFromMenu()">Datos del cliente</button>
             <button id="attachments-footer-btn" class="trello-action" data-view-btn="attachments" type="button"
               onclick="openAttachmentsFromMenu()">Archivos</button>
+            <button id="banner-upload-btn" class="trello-action" type="button" title="Se adapta a 640 × 160 px"
+              onclick="$('f-banner').click()">Cargar banner</button>
+            <button id="banner-remove-btn" class="trello-action" type="button" style="display:none"
+              onclick="clearBannerImage()">Quitar banner</button>
+            <span id="banner-size-hint" class="banner-size-hint">640 × 160 px</span>
+            <input id="f-banner" type="file" accept="image/jpeg,image/png,image/webp" style="display:none"
+              onchange="loadBannerImage(this)" />
           </footer>
         </main>
 
@@ -13148,6 +13174,7 @@
     let modalStatus = 'iniciada';
     let modalColor = 'none';
     let modalCoverImage = '';
+    let modalBannerImage = '';
     let duePickerYear = null;
     let duePickerMonth = null;
     let dueDraftDate = '';
@@ -13362,6 +13389,68 @@
       updateCoverPreview();
       syncModalPreview();
       autosaveCardIfEnabled();
+    }
+
+    function syncBannerButtons() {
+      const team = $('f-equipo') ? $('f-equipo').value : '';
+      const visible = team === 'marketing' || team === 'desarrollo';
+      const upload = $('banner-upload-btn');
+      const remove = $('banner-remove-btn');
+      const hint = $('banner-size-hint');
+      if (upload) {
+        upload.style.display = visible ? '' : 'none';
+        upload.textContent = modalBannerImage ? 'Cambiar banner' : 'Cargar banner';
+      }
+      if (remove) remove.style.display = visible && modalBannerImage ? '' : 'none';
+      if (hint) hint.style.display = visible ? '' : 'none';
+    }
+
+    function loadBannerImage(input) {
+      const file = input.files && input.files[0];
+      input.value = '';
+      if (!file) return;
+      if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 5 * 1024 * 1024) {
+        toast('Usá JPG, PNG o WebP de hasta 5 MB.', 'error');
+        return;
+      }
+      const url = URL.createObjectURL(file);
+      const cardId = editingId;
+      const image = new Image();
+      image.onload = () => {
+        URL.revokeObjectURL(url);
+        if (editingId !== cardId || !$('card-overlay').classList.contains('open')) return;
+        if (image.width < 320 || image.height < 80) {
+          toast('El banner debe medir al menos 320 × 80 px. Recomendado: 640 × 160 px.', 'error');
+          return;
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = 640;
+        canvas.height = 160;
+        const ctx = canvas.getContext('2d');
+        const scale = Math.max(640 / image.width, 160 / image.height);
+        const width = image.width * scale;
+        const height = image.height * scale;
+        ctx.drawImage(image, (640 - width) / 2, (160 - height) / 2, width, height);
+        const banner = canvas.toDataURL('image/jpeg', 0.82);
+        if (banner.length > 1_000_000) {
+          toast('El banner procesado supera 750 KB. Probá otra imagen.', 'error');
+          return;
+        }
+        modalBannerImage = banner;
+        syncBannerButtons();
+        autosaveCardIfEnabled(true);
+      };
+      image.onerror = () => {
+        URL.revokeObjectURL(url);
+        toast('No se pudo leer la imagen.', 'error');
+      };
+      image.src = url;
+    }
+
+    function clearBannerImage() {
+      modalBannerImage = '';
+      syncBannerButtons();
+      autosaveCardIfEnabled(true);
     }
 
     function makeChecklistId() {
@@ -15080,7 +15169,7 @@
     </span>` : '';
 
       return `
-    <div class="kcard" data-id="${c.id}"
+    <div class="kcard${c.bannerImage ? ' has-banner' : ''}" data-id="${c.id}"${/^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/.test(c.bannerImage || '') ? ` style="--card-banner:url('${c.bannerImage}')"` : ''}
          onclick="openCard('${c.id}')">
       <div class="kcard-body">
         <div class="kcard-top">
@@ -15727,6 +15816,7 @@
       syncChecklistButton();
       syncClientDataButton();
       syncAttachmentsButton();
+      syncBannerButtons();
       syncEquipoVisibility();
     }
 
@@ -16003,6 +16093,7 @@
       modalStatus = status;
       modalColor = 'none';
       modalCoverImage = '';
+      modalBannerImage = '';
       membersPopoverOpen = false;
       membersSearch = '';
       modalChecklist = [];
@@ -16084,6 +16175,7 @@
       modalStatus = c.estado;
       modalColor = c.color || 'none';
       modalCoverImage = c.coverImage || '';
+      modalBannerImage = c.bannerImage || '';
       membersPopoverOpen = false;
       membersSearch = '';
       modalChecklist = normalizeChecklist(c.checklist);
@@ -16279,6 +16371,7 @@
       modalChecklist = normalizeChecklist(modalChecklist).map(item => ({ ...item, usuario: '' }));
       renderChecklist();
       syncPautaButton();
+      syncBannerButtons();
       applyCardView();
       syncModalPreview();
       autosaveCardIfEnabled();
@@ -16287,6 +16380,7 @@
     function clearForm() {
       ['f-nf', 'f-rs', 'f-cuit', 'f-ca', 'f-ntel', 'f-t', 'f-ta', 'f-c', 'f-monto', 'f-vence', 'f-vence-hora', 'f-pauta-url'].forEach(id => { if ($(id)) $(id).value = ''; });
       if ($('f-cover')) $('f-cover').value = '';
+      if ($('f-banner')) $('f-banner').value = '';
       if ($('f-attachment-input')) $('f-attachment-input').value = '';
       if ($('checklist-new-text')) $('checklist-new-text').value = '';
       $('f-debe').value = 'no';
@@ -16694,6 +16788,7 @@
         estado: modalStatus, equipo: $('f-equipo').value,
         color: modalColor, nf: $('f-nf').value.trim(), rs: $('f-rs').value.trim(),
         coverImage: modalCoverImage,
+        bannerImage: ['marketing', 'desarrollo'].includes($('f-equipo').value) ? modalBannerImage : '',
         cuit: isExampleCuil($('f-cuit').value) ? '' : $('f-cuit').value.trim(), ca: $('f-ca').value.trim(),
         ntel: $('f-ntel').value.trim(), t: $('f-t').value.trim(),
         ta: $('f-ta').value.trim(), c: $('f-c').value.trim(),
@@ -18788,6 +18883,7 @@
       pickColor(c.color || 'none');
 
       modalCoverImage = c.coverImage || '';
+      modalBannerImage = c.bannerImage || '';
 
       if (!membersPopoverOpen) {
         populateUsers(cardUserIds(c));

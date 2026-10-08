@@ -41,6 +41,7 @@ async function ensureDatabaseMigrations() {
   await pool.query("CREATE INDEX IF NOT EXISTS idx_cards_whatsapp_lid_alias ON cards(whatsapp_lid_alias)");
   await pool.query("ALTER TABLE cards ADD COLUMN IF NOT EXISTS pauta_url TEXT NOT NULL DEFAULT ''");
   await pool.query("ALTER TABLE cards ADD COLUMN IF NOT EXISTS attachments JSONB NOT NULL DEFAULT '[]'::jsonb");
+  await pool.query("ALTER TABLE cards ADD COLUMN IF NOT EXISTS banner_image TEXT NOT NULL DEFAULT ''");
   await pool.query("ALTER TABLE client_movements ADD COLUMN IF NOT EXISTS archivos JSONB NOT NULL DEFAULT '[]'::jsonb");
   await pool.query("ALTER TABLE client_movements ADD COLUMN IF NOT EXISTS tipo TEXT NOT NULL DEFAULT 'factura'");
   await pool.query("UPDATE client_movements SET tipo = 'pago' WHERE haber > 0 AND tipo = 'factura'");
@@ -290,6 +291,7 @@ function cardDTO(row, descriptionHistory = []) {
     vence: row.vence,
     venceHora: row.vence_hora || '',
     coverImage: row.cover_image,
+    bannerImage: row.banner_image || '',
     pautaUrl: row.pauta_url || '',
     checklist: cleanChecklist(row.checklist),
     attachments: Array.isArray(row.attachments) ? row.attachments : [],
@@ -1066,6 +1068,19 @@ function cleanAvatarImage(value) {
   return image;
 }
 
+function cleanBannerImage(value, equipo) {
+  const image = String(value || '');
+  if (!image) return '';
+  if (!['marketing', 'desarrollo'].includes(equipo) ||
+      image.length > 1_000_000 ||
+      !/^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/.test(image)) {
+    const err = new Error('El banner debe ser una imagen JPG válida de hasta 750 KB para Marketing o Devs.');
+    err.status = 400;
+    throw err;
+  }
+  return image;
+}
+
 function cardValues(body, user, existing = {}) {
   const equipo = cleanTeam(body.equipo || existing.equipo || user.equipo);
   const rawVenceHora = String(body.venceHora ?? existing.vence_hora ?? '');
@@ -1106,6 +1121,7 @@ function cardValues(body, user, existing = {}) {
     vence: String(body.vence || ''),
     venceHora: /^\d{2}:\d{2}$/.test(rawVenceHora) ? rawVenceHora : '',
     coverImage: String(body.coverImage || ''),
+    bannerImage: cleanBannerImage(body.bannerImage ?? existing.banner_image ?? '', equipo),
     pautaUrl: Object.prototype.hasOwnProperty.call(body, 'pautaUrl')
       ? String(body.pautaUrl || '')
       : String(existing.pauta_url || ''),
@@ -2475,14 +2491,14 @@ app.post('/api/cards', requireAuth, async (req, res, next) => {
       const { rows } = await client.query(
         `INSERT INTO cards (
           id, nf, rs, cuit, ca, ntel, t, ta, c, color, estado, equipo, usuario,
-          usuarios, creado_por, creado_en, debe, monto_deuda, vence, vence_hora, cover_image, checklist, pauta_url, attachments
+          usuarios, creado_por, creado_en, debe, monto_deuda, vence, vence_hora, cover_image, banner_image, checklist, pauta_url, attachments
         )
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,$15,$16,$17,$18,$19,$20,$21,$22::jsonb,$23,$24::jsonb)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,$15,$16,$17,$18,$19,$20,$21,$22,$23::jsonb,$24,$25::jsonb)
         RETURNING *`,
         [
           cardId, data.nf, data.rs, data.cuit, data.ca, data.ntel, data.t, data.ta, data.c,
           data.color, data.estado, data.equipo, data.usuario, JSON.stringify(data.usuarios), req.user.id, creadoEn,
-          data.debe, data.montoDeuda, data.vence, data.venceHora, data.coverImage, JSON.stringify(data.checklist), data.pautaUrl,
+          data.debe, data.montoDeuda, data.vence, data.venceHora, data.coverImage, data.bannerImage, JSON.stringify(data.checklist), data.pautaUrl,
           JSON.stringify(data.attachments),
         ]
       );
@@ -2578,13 +2594,13 @@ app.put('/api/cards/:id', requireAuth, async (req, res, next) => {
       `UPDATE cards SET
         nf=$1, rs=$2, cuit=$3, ca=$4, ntel=$5, t=$6, ta=$7, c=$8, color=$9,
         estado=$10, equipo=$11, usuario=$12, usuarios=$13::jsonb, debe=$14, monto_deuda=$15, vence=$16,
-        vence_hora=$17, cover_image=$18, checklist=$19::jsonb, pauta_url=$20, attachments=$21::jsonb, updated_at=NOW()
-       WHERE id=$22
+        vence_hora=$17, cover_image=$18, banner_image=$19, checklist=$20::jsonb, pauta_url=$21, attachments=$22::jsonb, updated_at=NOW()
+       WHERE id=$23
        RETURNING *`,
       [
         data.nf, data.rs, data.cuit, data.ca, data.ntel, data.t, data.ta, data.c, data.color,
         data.estado, data.equipo, data.usuario, JSON.stringify(data.usuarios), data.debe, data.montoDeuda, data.vence,
-        data.venceHora, data.coverImage, JSON.stringify(data.checklist), data.pautaUrl,
+        data.venceHora, data.coverImage, data.bannerImage, JSON.stringify(data.checklist), data.pautaUrl,
         JSON.stringify(data.attachments), req.params.id,
       ]
     );
