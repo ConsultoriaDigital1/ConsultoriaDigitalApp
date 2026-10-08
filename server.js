@@ -2243,6 +2243,56 @@ app.post('/api/events', requireAuth, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+app.post('/api/events/regular', requireAuth, async (req, res, next) => {
+  try {
+    const titulo = String(req.body.titulo || '').trim();
+    const descripcion = String(req.body.descripcion || '').trim();
+    const fecha = String(req.body.fecha || '').trim();
+    const horaInicio = String(req.body.horaInicio || '').trim();
+    const horaFin = String(req.body.horaFin || '').trim();
+    const equipo = cleanTeam(req.body.equipo) || req.user.equipo;
+    const clienteId = String(req.body.clienteId || '').trim();
+    const color = String(req.body.color || 'blue').trim();
+    const meses = Number(req.body.meses);
+    const dias = req.body.dias;
+    const start = /^\d{4}-\d{2}-\d{2}$/.test(fecha) ? new Date(`${fecha}T00:00:00Z`) : null;
+    if (!titulo || !start || !Number.isFinite(start.getTime()) || start.toISOString().slice(0, 10) !== fecha) {
+      return res.status(400).json({ error: 'Titulo y fecha de inicio validos son requeridos.' });
+    }
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(horaInicio) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(horaFin) || horaFin <= horaInicio) {
+      return res.status(400).json({ error: 'Indica un horario de inicio y fin valido para el mismo dia.' });
+    }
+    if (!Number.isInteger(meses) || meses < 1 || meses > 1200) {
+      return res.status(400).json({ error: 'La cantidad de meses debe estar entre 1 y 1200.' });
+    }
+    if (!Array.isArray(dias) || !dias.length || dias.some(d => !Number.isInteger(d) || d < 0 || d > 6)) {
+      return res.status(400).json({ error: 'Selecciona al menos un dia de la semana.' });
+    }
+    if (!canAccessTeam(req.user, equipo)) return res.status(403).json({ error: 'Sin acceso a ese equipo.' });
+
+    // Los meses incluyen el mes de inicio; se crean fechas individuales para
+    // conservar la edicion y sincronizacion con Google de cada ocurrencia.
+    const end = Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + meses, 1);
+    const weekdays = new Set(dias);
+    const fechas = [];
+    for (let time = start.getTime(); time < end; time += 86400000) {
+      const day = new Date(time);
+      if (weekdays.has(day.getUTCDay())) fechas.push(day.toISOString().slice(0, 10));
+      if (fechas.length > 1000) return res.status(400).json({ error: 'La serie supera 1000 eventos. Elegi menos meses o dias.' });
+    }
+    if (!fechas.length) return res.status(400).json({ error: 'No hay fechas con esos dias desde la fecha elegida.' });
+    const ids = fechas.map(() => mkId());
+    const { rows } = await pool.query(
+      `INSERT INTO calendar_events (id,titulo,descripcion,fecha,hora_inicio,hora_fin,equipo,cliente_id,color,creado_por,creado_en)
+       SELECT occurrence.id,$3,$4,occurrence.fecha,$5,$6,$7,$8,$9,$10,$11
+       FROM unnest($1::text[], $2::text[]) AS occurrence(id,fecha)
+       RETURNING *`,
+      [ids, fechas, titulo, descripcion, horaInicio, horaFin, equipo, clienteId, color, req.user.id, Date.now()]
+    );
+    res.status(201).json({ events: rows.map(eventDTO) });
+  } catch (err) { next(err); }
+});
+
 app.patch('/api/events/:id', requireAuth, async (req, res, next) => {
   try {
     const { rows: ex } = await pool.query('SELECT * FROM calendar_events WHERE id=$1', [req.params.id]);

@@ -6678,22 +6678,23 @@
       background: rgba(87, 157, 255, 0.05);
     }
 
-    .cal-day-add::after {
-      content: "+";
+    .cal-day-plus {
       position: absolute;
-      top: 0.3rem;
-      right: 0.4rem;
-      font-size: 0.85rem;
+      top: 0.22rem;
+      right: 0.25rem;
+      border: 0;
+      border-radius: 4px;
+      background: transparent;
+      color: #579dff;
+      cursor: pointer;
+      font-size: 1rem;
       font-weight: 700;
       line-height: 1;
-      color: #579dff;
-      opacity: 0;
-      transition: opacity 150ms ease;
-      pointer-events: none;
+      padding: 0.1rem 0.28rem;
     }
 
-    .cal-day-add:hover::after {
-      opacity: 1;
+    .cal-day-plus:hover, .cal-day-plus:focus-visible {
+      background: rgba(87, 157, 255, 0.18);
     }
 
     .cal-day.empty {
@@ -6791,6 +6792,32 @@
     .cal-day.today .cal-daynum {
       cursor: pointer;
     }
+
+    .cal-day-detail-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      max-height: 50vh;
+      overflow-y: auto;
+    }
+
+    .cal-day-detail-item {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--day-color, #579dff);
+      border-radius: var(--r-sm);
+      background: var(--surface);
+      color: var(--text);
+      text-align: left;
+      padding: 0.55rem 0.7rem;
+      cursor: pointer;
+    }
+
+    .cal-day-detail-item:hover { background: var(--surface3); }
+    .cal-day-detail-item small { display: block; color: var(--muted); margin-top: 0.15rem; }
+
+    .ev-weekdays { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+    .ev-weekday { display: flex; align-items: center; gap: 0.2rem; font-size: 0.75rem; cursor: pointer; }
 
     .ev-color-picker {
       display: flex;
@@ -9286,6 +9313,7 @@
               <button id="cal-gcal-btn" class="btn btn-ghost btn-sm" onclick="openGcalConfigModal()"
                 title="Configurar Google Calendar"><i class="ico-ph" data-ico="settings"></i> Google Cal</button>
               <button id="cal-add-event-btn" class="btn btn-primary btn-sm" onclick="openEventModal()">+ Evento</button>
+              <button id="cal-add-regular-btn" class="btn btn-ghost btn-sm" onclick="openRegularEventModal()">+ Evento regular</button>
               <button id="cal-prev-btn" class="btn btn-ghost btn-sm" onclick="changeMonth(-1)">‹</button>
               <button id="cal-next-btn" class="btn btn-ghost btn-sm" onclick="changeMonth(1)">›</button>
             </div>
@@ -9933,6 +9961,22 @@
     </div>
   </div>
 
+  <!-- DAY DETAIL MODAL -->
+  <div id="cal-day-overlay" class="overlay" onclick="if(event.target===this)closeOverlay('cal-day-overlay')">
+    <div class="modal" style="max-width:460px" onclick="event.stopPropagation()">
+      <div class="modal-head">
+        <span class="modal-head-title" id="cal-day-title"></span>
+        <button class="modal-close" type="button" onclick="closeOverlay('cal-day-overlay')"><i class="ico-ph" data-ico="x"></i></button>
+      </div>
+      <div class="event-modal-body" style="padding:1.2rem 1.4rem">
+        <div id="cal-day-detail-list" class="cal-day-detail-list"></div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-primary btn-sm" type="button" id="cal-day-add-btn">+ Agregar evento</button>
+      </div>
+    </div>
+  </div>
+
   <!-- EVENT MODAL -->
   <div id="event-overlay" class="overlay" onclick="eventBg(event)">
     <div class="modal" style="max-width:460px" onclick="event.stopPropagation()">
@@ -9963,6 +10007,17 @@
               <option value="desarrollo">Equipo de Desarrollo</option>
               <option value="admin">Administracion</option>
             </select>
+          </div>
+        </div>
+        <div id="ev-regular-options" style="display:none">
+          <div class="form-group">
+            <label class="form-label">Repetir los días</label>
+            <div class="ev-weekdays" id="ev-weekdays"></div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="ev-meses">Durante cuántos meses</label>
+            <input id="ev-meses" class="form-input" type="number" min="1" max="1200" step="1" value="1" />
+            <div style="color:var(--muted);font-size:0.66rem;margin-top:0.3rem">Incluye el mes de inicio, desde la fecha elegida. Hasta 1000 eventos por serie.</div>
           </div>
         </div>
         <div class="form-group">
@@ -10001,7 +10056,7 @@
           Agendar en Google
         </button>
         <button class="btn btn-ghost btn-sm" onclick="closeEventModal()">Cancelar</button>
-        <button class="btn btn-primary btn-sm" onclick="saveEvent()">Guardar</button>
+        <button id="ev-save-btn" class="btn btn-primary btn-sm" onclick="saveEvent()">Guardar</button>
       </div>
     </div>
   </div>
@@ -14330,14 +14385,15 @@
         if (date) items.push({
           type: 'event',
           date,
+          endDate: ev.horaFin && ev.horaFin > ev.horaInicio ? calendarDateTime(ev.fecha, ev.horaFin) : null,
           event: ev,
           title: ev.titulo,
           meta: (ev.horaInicio || 'Todo el día') + ' · Evento del equipo' + eventClientLabel(ev),
           color: EVT_COLORS[ev.color] || '#579dff',
         });
       });
-      const cutoff = Date.now() - 86400000;
-      return items.filter(item => item.date.getTime() >= cutoff).sort((a, b) => a.date - b.date).slice(0, 14);
+      const now = Date.now();
+      return items.filter(item => (item.endDate || item.date).getTime() >= now).sort((a, b) => a.date - b.date).slice(0, 14);
     }
 
     function renderClientesAgenda() {
@@ -17837,6 +17893,20 @@
       return date ? date.getTime() : Number.POSITIVE_INFINITY;
     }
 
+    let calendarDayItems = {};
+
+    function openCalendarDay(fecha) {
+      const day = Number(fecha.slice(8));
+      const items = (calendarDayItems[day] || []).slice().sort((a, b) => calendarItemTimestamp(a) - calendarItemTimestamp(b));
+      $('cal-day-title').textContent = dateFromInput(fecha).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+      $('cal-day-add-btn').onclick = () => { closeOverlay('cal-day-overlay'); openEventModal(fecha); };
+      $('cal-day-detail-list').innerHTML = items.length ? items.map(item => item.type === 'event'
+        ? `<button type="button" class="cal-day-detail-item" style="--day-color:${EVT_COLORS[item.data.color] || '#579dff'}" onclick="closeOverlay('cal-day-overlay');openEditEvent('${esc(item.data.id)}')"><strong>${esc(item.data.titulo)}</strong><small>${esc(item.data.horaInicio || '')}${item.data.horaFin ? '–' + esc(item.data.horaFin) : ''}${esc(eventClientLabel(item.data))}</small></button>`
+        : `<button type="button" class="cal-day-detail-item" style="--day-color:#f4a340" onclick="closeOverlay('cal-day-overlay');openCard('${esc(item.data.id)}')"><strong>${esc(item.data.nf || item.data.rs || 'Cliente')}</strong><small>${esc(item.data.venceHora || 'Todo el día')} · Vencimiento</small></button>`
+      ).join('') : '<div style="color:var(--muted)">No hay eventos este día.</div>';
+      openOverlay('cal-day-overlay');
+    }
+
     function renderCalendarGrid(teams, events) {
       $('cal-header').innerHTML = DAYS.map(d => `<div class="cal-lbl">${d}</div>`).join('');
 
@@ -17858,6 +17928,7 @@
         if (!itemsByDay[day]) itemsByDay[day] = [];
         itemsByDay[day].push({ type: 'event', data: ev });
       });
+      calendarDayItems = itemsByDay;
 
       const today = new Date();
       let startDow = new Date(calYear, calMonth, 1).getDay();
@@ -17872,8 +17943,9 @@
         // La celda ocupa todo el alto de la fila, asi que mostramos todos los
         // eventos del dia y dejamos que la lista scrollee si no entran.
         const items = (itemsByDay[d] || []).slice().sort((a, b) => calendarItemTimestamp(a) - calendarItemTimestamp(b));
-        html += `<div class="cal-day cal-day-add${isToday ? ' today' : ''}" onclick="openEventModal('${isoDate}')" title="Agregar evento">
+        html += `<div class="cal-day cal-day-add${isToday ? ' today' : ''}" role="button" tabindex="0" onclick="openCalendarDay('${isoDate}')" onkeydown="if(event.target===this&&(event.key==='Enter'||event.key===' ')){event.preventDefault();openCalendarDay('${isoDate}') }" title="Ver eventos del día">
       <div class="cal-daynum">${d}</div>
+      <button type="button" class="cal-day-plus" onclick="event.stopPropagation();openEventModal('${isoDate}')" title="Agregar evento el ${d}" aria-label="Agregar evento el ${d}">+</button>
       <div class="cal-day-events">
       ${items.map(item => item.type === 'event'
           ? `<div class="cal-event evt" style="border-left-color:${EVT_COLORS[item.data.color] || '#579dff'};color:${EVT_COLORS[item.data.color] || '#579dff'}" onclick="event.stopPropagation();openEditEvent('${item.data.id}')"><span class="cal-event-time">${esc(item.data.horaInicio || '')}</span><span class="cal-event-label">${esc(item.data.titulo)}${esc(eventClientLabel(item.data))}</span>${eventSyncDot(item.data)}</div>`
@@ -18532,6 +18604,7 @@
 
     function openEventModal(fecha) {
       eventModalMode = 'create';
+      $('ev-regular-options').style.display = 'none';
       $('ev-id').value = '';
       $('ev-titulo').value = '';
       $('ev-desc').value = '';
@@ -18553,6 +18626,18 @@
       hideErr('ev-err');
       openOverlay('event-overlay');
       $('ev-titulo').focus();
+    }
+
+    function openRegularEventModal() {
+      openEventModal();
+      eventModalMode = 'regular';
+      $('event-modal-title').textContent = 'Nuevo evento regular';
+      $('ev-regular-options').style.display = '';
+      const labels = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+      $('ev-weekdays').innerHTML = labels.map((label, index) =>
+        `<label class="ev-weekday"><input type="checkbox" value="${index}">${label}</label>`
+      ).join('');
+      $('ev-meses').value = '1';
     }
 
     const EV_SYNC_LABEL = {
@@ -18614,6 +18699,7 @@
       const ev = getEvents().find(e => e.id === id);
       if (!ev) return;
       eventModalMode = 'edit';
+      $('ev-regular-options').style.display = 'none';
       $('ev-id').value = ev.id;
       $('ev-titulo').value = ev.titulo;
       $('ev-desc').value = ev.descripcion || '';
@@ -18647,6 +18733,14 @@
       if (!titulo) { showErr('ev-err', 'El titulo es requerido.'); return; }
       if (!fecha) { showErr('ev-err', 'La fecha es requerida.'); return; }
       if (!horaInicio) { showErr('ev-err', 'La hora de inicio es requerida.'); return; }
+      const regular = eventModalMode === 'regular';
+      const dias = regular ? [...$('ev-weekdays').querySelectorAll('input:checked')].map(input => Number(input.value)) : [];
+      const meses = regular ? Number($('ev-meses').value) : 0;
+      if (regular && !dias.length) { showErr('ev-err', 'Seleccioná al menos un día.'); return; }
+      if (regular && (!Number.isInteger(meses) || meses < 1 || meses > 1200)) { showErr('ev-err', 'Indicá una cantidad de meses entre 1 y 1200.'); return; }
+      const saveBtn = $('ev-save-btn');
+      if (saveBtn.disabled) return;
+      saveBtn.disabled = true;
       try {
         const body = { titulo, descripcion, fecha, horaInicio, horaFin, equipo, clienteId, color: evColorSelected };
 
@@ -18655,6 +18749,9 @@
           const data = await api(`/api/events/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
           const idx = eventsCache.findIndex(e => e.id === id);
           if (idx !== -1) eventsCache[idx] = data.event; else eventsCache.push(data.event);
+        } else if (regular) {
+          const data = await api('/api/events/regular', { method: 'POST', body: JSON.stringify({ ...body, dias, meses }) });
+          eventsCache.push(...data.events);
         } else {
           const data = await api('/api/events', { method: 'POST', body: JSON.stringify(body) });
           eventsCache.push(data.event);
@@ -18662,9 +18759,11 @@
         renderCalendar();
         renderClientesAgenda();
         closeEventModal();
-        toast(eventModalMode === 'edit' ? 'Evento actualizado' : 'Evento creado', 'success');
+        toast(eventModalMode === 'edit' ? 'Evento actualizado' : regular ? 'Eventos regulares creados' : 'Evento creado', 'success');
       } catch (err) {
         showErr('ev-err', err.message);
+      } finally {
+        saveBtn.disabled = false;
       }
     }
 
