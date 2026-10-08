@@ -1859,6 +1859,43 @@ app.get('/api/admin/dashboard', requireAdmin, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// Resumen de cobros por mes, con el mismo criterio que el dashboard mensual.
+app.get('/api/admin/collections-summary', requireAdmin, async (req, res, next) => {
+  try {
+    const year = Number(req.query.year || new Date().getFullYear());
+    const years = Number(req.query.years || 1);
+    if (!Number.isInteger(year) || year < 2000 || year > 2100 ||
+        !Number.isInteger(years) || years < 1 || years > 5) {
+      return res.status(400).json({ error: 'Parámetros year/years inválidos.' });
+    }
+    const pais = req.query.pais === 'PY' ? 'PY' : 'AR';
+    const start = `${year - years + 1}-01-01`;
+    const end = `${year + 1}-01-01`;
+    const { rows } = await pool.query(
+      `SELECT LEFT(cm.fecha, 7) AS mes,
+              SUM(cm.haber) AS cobrado,
+              COUNT(*) AS pagos,
+              COUNT(DISTINCT cm.client_id) AS clientes
+       FROM client_movements cm
+       JOIN clients c ON c.id = cm.client_id
+       WHERE c.deleted_at IS NULL
+         AND c.pais = $1
+         AND cm.fecha >= $2 AND cm.fecha < $3
+         AND cm.haber > 0
+         AND COALESCE(cm.medio_pago, '') != 'canje'
+       GROUP BY LEFT(cm.fecha, 7)
+       ORDER BY mes`,
+      [pais, start, end]
+    );
+    res.json({ year, years, pais, months: rows.map(r => ({
+      month: r.mes,
+      collected: Number(r.cobrado),
+      payments: Number(r.pagos),
+      clients: Number(r.clientes),
+    })) });
+  } catch (err) { next(err); }
+});
+
 // Eliminacion definitiva deshabilitada: los clientes solo se mandan a papelera y se pueden restaurar.
 app.delete('/api/admin/clients/:id/purge', requireAdmin, (_req, res) => {
   res.status(405).json({ error: 'La eliminacion definitiva esta deshabilitada. Restaurar desde la papelera.' });

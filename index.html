@@ -4066,6 +4066,46 @@
       text-align: center;
     }
 
+    .admin-dash-actions, .annual-controls {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .annual-panel { padding: 0.7rem 1rem 1.5rem; }
+    .annual-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.2rem; }
+    .annual-title { font-family: var(--font-disp); font-size: 1.3rem; font-weight: 900; color: var(--text-hi); }
+    .annual-sub { color: var(--muted); font-size: 0.78rem; margin-top: 0.25rem; }
+    .annual-controls label { color: var(--muted); font-size: 0.75rem; }
+    .annual-controls select, .annual-controls input { background: var(--bg2); border: 1px solid var(--border2); border-radius: var(--r-sm); color: var(--text-hi); padding: 0.45rem; font: inherit; }
+    .annual-controls input { width: 5.5rem; }
+    .annual-stats { display: grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap: 0.7rem; margin-bottom: 1rem; }
+    .annual-stat, .annual-chart-card, .annual-month { background: rgba(14, 18, 24, 0.88); border: 1px solid var(--border2); border-radius: var(--r-sm); }
+    .annual-stat { padding: 0.9rem 1rem; }
+    .annual-stat-label { color: var(--muted); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.07em; }
+    .annual-stat-value { display: block; color: var(--text-hi); font: 900 1.2rem var(--font-disp); margin-top: 0.35rem; }
+    .annual-stat-note { color: var(--muted); font-size: 0.7rem; margin-top: 0.25rem; }
+    .annual-chart-card { padding: 1rem; margin-bottom: 1rem; }
+    .annual-chart-title { color: var(--text-hi); font-weight: 800; font-size: 0.9rem; margin-bottom: 0.2rem; }
+    .annual-chart-sub { color: var(--muted); font-size: 0.7rem; margin-bottom: 1rem; }
+    .annual-chart-scroll { overflow-x: auto; }
+    .annual-bars { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(58px, 1fr); align-items: end; gap: 0.4rem; min-width: max(100%, calc(var(--annual-months) * 58px)); height: 220px; }
+    .annual-bar-item { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 0.35rem; color: var(--muted); font-size: 0.66rem; }
+    .annual-bar { width: min(100%, 38px); min-height: 2px; border-radius: 5px 5px 0 0; background: linear-gradient(0deg, #247d51, #4ade80); }
+    .annual-bar-item.future .annual-bar { background: var(--surface3); }
+    .annual-bar-item strong { color: var(--text-hi); font-size: 0.65rem; white-space: nowrap; }
+    .annual-trend { display: block; width: 100%; height: 150px; }
+    .annual-months { display: grid; grid-template-columns: repeat(3, minmax(180px, 1fr)); gap: 0.65rem; }
+    .annual-month { display: flex; justify-content: space-between; gap: 0.8rem; padding: 0.7rem 0.85rem; align-items: center; }
+    .annual-month-name { color: var(--text-hi); font-size: 0.78rem; font-weight: 800; }
+    .annual-month-detail { color: var(--muted); font-size: 0.68rem; margin-top: 0.2rem; }
+    .annual-month-amount { color: #4ade80; font-size: 0.8rem; font-weight: 800; white-space: nowrap; }
+    .annual-month.future { opacity: 0.5; }
+    .admin-numbers-hidden .annual-number, .admin-numbers-hidden .annual-chart { filter: blur(6px); user-select: none; pointer-events: none; }
+    @media (max-width: 850px) { .annual-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } .annual-months { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 550px) { .admin-dash-header { gap: 0.6rem; flex-wrap: wrap; } .annual-months { grid-template-columns: 1fr; } }
+
     /* Modal Cliente — ancho */
     .client-modal-wide {
       max-width: min(1320px, 95vw) !important;
@@ -10444,6 +10484,7 @@
       expand: '<path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/>',
       book: '<path d="M2 6h4"/><path d="M2 10h4"/><path d="M2 14h4"/><path d="M2 18h4"/><rect width="16" height="20" x="4" y="2" rx="2"/><path d="M16 2v20"/>',
       receipt: '<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 17.5v-11"/>',
+      chart: '<path d="M3 3v18h18"/><path d="M7 16v-4"/><path d="M12 16V8"/><path d="M17 16V5"/>',
       save: '<path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/>',
       hand: '<path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2"/><path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/>',
       zap: '<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>',
@@ -10620,6 +10661,11 @@
     let adminDashData = null;
     let adminNumbersHidden = false;
     let adminAutoHideTimer = null;
+    let adminSummaryYear = _now.getFullYear();
+    let adminSummaryYears = 1;
+    let adminSummaryCountry = 'AR';
+    let adminSummaryReturnTab = 'clientes-arg';
+    let adminSummaryRequest = 0;
 
     const MEDIO_PAGO_LABEL = {
       efectivo: 'Efectivo', transferencia: 'Transferencia',
@@ -10646,6 +10692,7 @@
       if (tab === 'libreta') applyLibretaUrl();
       if (tab === 'flujo') applyFlujoUrl();
       if (tab === 'cobranzas') renderCobranzasSubTab();
+      if (tab === 'resumen') loadAdminSummary();
     }
 
     function applyAdminSubTab() {
@@ -10705,6 +10752,8 @@
       if (btn) btn.innerHTML = label;
       const cobBtn = $('cob-hide-btn');
       if (cobBtn) cobBtn.innerHTML = label;
+      const summaryBtn = $('annual-hide-btn');
+      if (summaryBtn) summaryBtn.innerHTML = label;
     }
 
     function toggleAdminNumbers() {
@@ -10729,9 +10778,106 @@
       if (clientsDashFilter && isClientsAdminTab()) renderClientsResults();
     }
 
-    function formatMoney(n) {
+    function openAdminSummary() {
+      adminSummaryReturnTab = adminSubTab;
+      if (isClientsAdminTab()) adminSummaryCountry = activeClientCountry();
+      switchAdminSubTab('resumen');
+    }
+
+    function changeAdminSummary() {
+      const yearInput = $('annual-year');
+      const yearsInput = $('annual-years');
+      adminSummaryYear = Math.max(2000, Math.min(_now.getFullYear(), Number(yearInput.value) || _now.getFullYear()));
+      adminSummaryYears = Math.max(1, Math.min(5, Number(yearsInput.value) || 1));
+      adminSummaryCountry = $('annual-country').value === 'PY' ? 'PY' : 'AR';
+      yearInput.value = adminSummaryYear;
+      loadAdminSummary();
+    }
+
+    async function loadAdminSummary() {
+      const cont = $('admin-sub-resumen');
+      if (!cont) return;
+      const request = ++adminSummaryRequest;
+      cont.innerHTML = '<div class="admin-placeholder">Cargando resumen…</div>';
+      try {
+        const data = await api(`/api/admin/collections-summary?year=${adminSummaryYear}&years=${adminSummaryYears}&pais=${adminSummaryCountry}`);
+        if (request === adminSummaryRequest && adminSubTab === 'resumen') renderAdminSummary(data);
+      } catch (err) {
+        if (request === adminSummaryRequest) cont.innerHTML = `<div class="admin-placeholder">${esc(err.message || 'No se pudo cargar el resumen.')}</div>`;
+      }
+    }
+
+    function renderAdminSummary(data) {
+      const cont = $('admin-sub-resumen');
+      if (!cont) return;
+      const byMonth = new Map(data.months.map(m => [m.month, m]));
+      const months = [];
+      for (let year = data.year - data.years + 1; year <= data.year; year++) {
+        for (let month = 1; month <= 12; month++) {
+          const key = `${year}-${String(month).padStart(2, '0')}`;
+          const row = byMonth.get(key) || { collected: 0, payments: 0, clients: 0 };
+          const currentKey = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, '0')}`;
+          months.push({ ...row, key, year, month, future: key > currentKey });
+        }
+      }
+      const visible = months.filter(m => !m.future);
+      const total = visible.reduce((sum, m) => sum + m.collected, 0);
+      const payments = visible.reduce((sum, m) => sum + m.payments, 0);
+      const peak = visible.reduce((best, m) => m.collected > (best?.collected || 0) ? m : best, null);
+      const max = Math.max(1, ...visible.map(m => m.collected));
+      const money = value => formatMoney(value, data.pais);
+      const label = m => new Date(m.year, m.month - 1, 1).toLocaleString('es-AR', { month: 'short', year: 'numeric' });
+      let cumulative = 0;
+      const points = visible.map((m, i) => {
+        cumulative += m.collected;
+        return `${visible.length === 1 ? 0 : i * 1000 / (visible.length - 1)},${140 - (total ? cumulative / total * 130 : 0)}`;
+      }).join(' ');
+      cont.innerHTML = `
+        <div class="annual-panel">
+          <div class="annual-header">
+            <div>
+              <button class="btn btn-ghost btn-sm" onclick="switchAdminSubTab(adminSummaryReturnTab)">← Volver</button>
+              <div class="annual-title" style="margin-top:0.7rem">Resumen total de cobros</div>
+              <div class="annual-sub">Pagos registrados, sin canjes · ${data.pais === 'PY' ? 'Guaraníes' : 'Pesos argentinos'}</div>
+            </div>
+            <div class="annual-controls">
+              <button class="btn btn-ghost btn-sm" id="annual-hide-btn" onclick="toggleAdminNumbers()">${adminNumbersHidden ? icon('eye') + ' Mostrar' : icon('eye-off') + ' Ocultar'}</button>
+              <label for="annual-country">País</label>
+              <select id="annual-country" onchange="changeAdminSummary()"><option value="AR" ${data.pais === 'AR' ? 'selected' : ''}>Argentina</option><option value="PY" ${data.pais === 'PY' ? 'selected' : ''}>Paraguay</option></select>
+              <label for="annual-years">Período</label>
+              <select id="annual-years" onchange="changeAdminSummary()">${[1, 2, 3, 4, 5].map(n => `<option value="${n}" ${n === data.years ? 'selected' : ''}>${n} ${n === 1 ? 'año' : 'años'}</option>`).join('')}</select>
+              <label for="annual-year">Hasta</label>
+              <input id="annual-year" type="number" min="2000" max="${_now.getFullYear()}" value="${data.year}" onchange="changeAdminSummary()" aria-label="Año final">
+            </div>
+          </div>
+          <div class="annual-stats">
+            <div class="annual-stat"><div class="annual-stat-label">Total cobrado</div><span class="annual-stat-value annual-number">${money(total)}</span><div class="annual-stat-note annual-number">${visible.length} meses del período</div></div>
+            <div class="annual-stat"><div class="annual-stat-label">Promedio mensual</div><span class="annual-stat-value annual-number">${money(total / (visible.length || 1))}</span><div class="annual-stat-note">Incluye meses sin cobros</div></div>
+            <div class="annual-stat"><div class="annual-stat-label">Mejor mes</div><span class="annual-stat-value annual-number">${peak ? money(peak.collected) : money(0)}</span><div class="annual-stat-note">${peak ? label(peak) : 'Sin cobros'}</div></div>
+            <div class="annual-stat"><div class="annual-stat-label">Pagos registrados</div><span class="annual-stat-value annual-number">${payments.toLocaleString('es-AR')}</span><div class="annual-stat-note annual-number">${visible.filter(m => m.collected > 0).length} meses con cobros</div></div>
+          </div>
+          <div class="annual-chart-card">
+            <div class="annual-chart-title">Cobrado por mes</div><div class="annual-chart-sub">Cada barra representa los pagos registrados en ese mes</div>
+            <div class="annual-chart-scroll annual-chart"><div class="annual-bars" style="--annual-months:${months.length}">
+              ${months.map(m => `<div class="annual-bar-item ${m.future ? 'future' : ''}" title="${label(m)}: ${m.future ? 'Sin datos aún' : money(m.collected)}">
+                <strong>${m.future ? '—' : m.collected ? money(m.collected) : '0'}</strong>
+                <div class="annual-bar" style="height:${m.future ? 2 : Math.max(2, Math.round(m.collected / max * 165))}px"></div>
+                <span>${label(m)}</span>
+              </div>`).join('')}
+            </div></div>
+          </div>
+          <div class="annual-chart-card">
+            <div class="annual-chart-title">Cobrado acumulado</div><div class="annual-chart-sub">Evolución del total durante el período seleccionado</div>
+            <svg class="annual-trend annual-chart" viewBox="0 0 1000 150" preserveAspectRatio="none" role="img" aria-label="Evolución del cobro acumulado"><line x1="0" y1="140" x2="1000" y2="140" stroke="rgba(255,255,255,.15)"/><polyline points="${points}" fill="none" stroke="#4ade80" stroke-width="3" vector-effect="non-scaling-stroke"/></svg>
+          </div>
+          <div class="annual-chart-title" style="margin-bottom:0.7rem">Detalle mes a mes</div>
+          <div class="annual-months">${months.map(m => `<div class="annual-month ${m.future ? 'future' : ''}"><div><div class="annual-month-name">${label(m)}</div><div class="annual-month-detail annual-number">${m.future ? 'Sin datos aún' : `${m.payments} pagos · ${m.clients} clientes`}</div></div><div class="annual-month-amount annual-number">${m.future ? '—' : money(m.collected)}</div></div>`).join('')}</div>
+        </div>`;
+    }
+
+    function formatMoney(n, pais = activeClientCountry()) {
       const num = Number(n || 0);
-      if (activeClientCountry() === 'PY') {
+      if (pais === 'PY') {
         return `Gs. ${new Intl.NumberFormat('es-PY', { maximumFractionDigits: 0 }).format(num)}`;
       }
       const abs = Math.abs(num).toFixed(2);
@@ -10831,6 +10977,7 @@
         <button class="btn btn-ghost btn-sm" id="cob-hide-btn" onclick="toggleAdminNumbers()" title="Ocultar/mostrar cifras">
           ${adminNumbersHidden ? icon('eye') + ' Mostrar' : icon('eye-off') + ' Ocultar'}
         </button>
+        <button class="btn btn-ghost btn-sm" onclick="openAdminSummary()">${icon('chart')} Resumen total</button>
       </div>
     </div>
     <div id="cobranzas-results"><div class="admin-placeholder">Cargando pendientes…</div></div>
@@ -14978,9 +15125,12 @@
         <span class="admin-month-label" id="admin-dash-month-label">${adminMonthLabel(adminDashYear, adminDashMonth)}</span>
         <button class="admin-month-nav-btn" onclick="changeAdminDashMonth(1)">&#8594;</button>
       </div>
-      <button class="btn btn-ghost btn-sm" id="admin-hide-btn" onclick="toggleAdminNumbers()" title="Ocultar/mostrar cifras">
-        ${icon('eye-off')} Ocultar
-      </button>
+      <div class="admin-dash-actions">
+        <button class="btn btn-ghost btn-sm" id="admin-hide-btn" onclick="toggleAdminNumbers()" title="Ocultar/mostrar cifras">
+          ${icon('eye-off')} Ocultar
+        </button>
+        <button class="btn btn-ghost btn-sm" onclick="openAdminSummary()">${icon('chart')} Resumen total</button>
+      </div>
     </div>
     <div class="admin-summary" id="admin-summary">
       <div class="admin-metric metric-ingresos" style="--mi:0" data-dash-filter="previstos" onclick="setDashFilter('previstos')">
@@ -15015,12 +15165,14 @@
       <iframe id="flujo-iframe" src="about:blank" referrerpolicy="no-referrer" loading="lazy" style="width:100%;height:calc(100vh - var(--topnav-h) - 220px);border:1px solid var(--border2);border-radius:var(--r-md);background:var(--bg2)"></iframe>
     </div>
     <div id="admin-sub-cobranzas" class="admin-subpanel"></div>
+    <div id="admin-sub-resumen" class="admin-subpanel"></div>
   `;
 
       // Marcar tab activo y renderizar contenido del sub-tab actual
       applyAdminSubTab();
       renderClientesSubTab();
       if (adminSubTab === 'cobranzas') renderCobranzasSubTab();
+      if (adminSubTab === 'resumen') loadAdminSummary();
       loadAdminDashboard();
 
       // Restaurar estado activo de las tarjetas del dashboard
