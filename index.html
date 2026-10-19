@@ -12019,7 +12019,7 @@
       </td>
       <td onclick="event.stopPropagation()">
         <div class="ct-actions">
-          ${(c.pais || 'AR') === 'AR' ? `<button class="btn btn-lime btn-sm" onclick="openCobranzaInvoice('${c.id}')" title="Emitir factura electrónica en ARCA">${icon('receipt')} Facturar</button>` : ''}
+          <button class="btn btn-lime btn-sm" onclick="openCobranzaInvoice('${c.id}')" title="${(c.pais || 'AR') === 'PY' ? 'Generar un Recibo X (sin validez fiscal, no pasa por DNIT)' : 'Emitir factura electrónica en ARCA'}">${icon('receipt')} Facturar</button>
           <button class="btn btn-saldo btn-sm" onclick="openCobranzaInvoice('${c.id}','saldo')" title="Guardar una prefactura sin emitirla">${icon('save')} Cargar saldo</button>
           <button class="btn btn-factura btn-sm" onclick="openMovementModal('${c.id}','factura')" title="Cargar una factura manualmente">${icon('file')} Cargar factura</button>
           <button class="btn btn-pago btn-sm" onclick="openMovementModal('${c.id}','pago')" title="Registrar un pago recibido">${icon('dollar')} Cargar pago</button>
