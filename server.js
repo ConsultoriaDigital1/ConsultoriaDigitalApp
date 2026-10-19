@@ -3236,7 +3236,9 @@ async function finalizarFactura(invoiceId, inv, opts) {
   let movementId = null;
   if (registrarMovimiento) {
     const detalleMov = sinArca
-      ? `Comprobante ${inv.cbteLetra} ${inv.numero} (sin ARCA)`
+      ? (client.pais === 'PY'
+        ? `Recibo ${inv.cbteLetra} ${inv.numero} (sin DNIT)`
+        : `Comprobante ${inv.cbteLetra} ${inv.numero} (sin ARCA)`)
       : `Factura ${inv.cbteLetra} ${inv.numero} — CAE ${inv.cae}`;
     // Si se factura un saldo ya cargado, ese mismo movimiento pasa a ser la
     // factura: crear uno nuevo le duplicaría la deuda al cliente.
@@ -3363,8 +3365,12 @@ app.post('/api/admin/cobranzas/:clientId/invoice', requireAdmin, async (req, res
     const b = req.body || {};
     const arcaAccount = arca.forAccount(arcaAccountId(b.arcaEmisor || client.arca_emisor));
 
+    // Clientes PY: no hay facturación electrónica con la DNIT, siempre es un
+    // Recibo X interno. El RUC se guarda tal cual (con su dígito verificador).
+    const esPY = client.pais === 'PY';
+    const rucPY = esPY ? String(b.docNro && b.docNro !== '0' ? b.docNro : (client.cuit || '')).trim().slice(0, 30) : '';
     const cuitCliente = String(b.docNro || client.cuit || '').replace(/\D/g, '');
-    const docTipo = Number(b.docTipo || (cuitCliente.length === 11 ? 80 : 99));
+    const docTipo = esPY ? (rucPY ? 80 : 99) : Number(b.docTipo || (cuitCliente.length === 11 ? 80 : 99));
 
     // Ítems (conceptos) de la factura: cada uno con importe IVA incluido.
     // El total facturado es la suma de los ítems (o el impTotal legado si no hay ítems).
@@ -3384,8 +3390,8 @@ app.post('/api/admin/cobranzas/:clientId/invoice', requireAdmin, async (req, res
 
     // "Sin ARCA": comprobante interno no fiscal. No pasa por AFIP/ARCA, sólo se
     // genera el PDF. Le asignamos una numeración local propia (letra X).
-    const sinArca = b.sinArca === true || Number(b.cbteTipo) === 0;
-    const docNroInv = docTipo === 99 ? '0' : cuitCliente;
+    const sinArca = esPY || b.sinArca === true || Number(b.cbteTipo) === 0;
+    const docNroInv = docTipo === 99 ? '0' : (esPY ? rucPY : cuitCliente);
     if (!Number.isFinite(impTotal) || impTotal <= 0) {
       return res.status(400).json({ error: 'Importe inválido.' });
     }
@@ -3585,8 +3591,12 @@ app.get('/api/admin/cobranzas/invoices/:id/pdf', requireAdmin, async (req, res, 
     const dto = client ? clientDTO(client) : { razonSocial: '', nombreFantasia: '', direccion: '' };
 
     const arcaAccount = arca.forAccount(arcaAccountId(rows[0].arca_emisor));
-    const pdf = await buildInvoicePdf(inv, dto, arcaAccount.status().cuit || '', arcaAccount.issuerProfile());
-    const fname = `${inv.cbteTipo === 0 ? 'Comprobante' : 'Factura'}_${inv.cbteLetra}_${inv.numero}.pdf`;
+    const esReciboPY = inv.cbteTipo === 0 && dto.pais === 'PY';
+    const issuer = esReciboPY
+      ? { ...arcaAccount.issuerProfile(), razonSocial: 'CONSULTORIA DIGITAL EAS', taxIdLabel: 'RUC', domicilio: process.env.PY_DOMICILIO || '' }
+      : arcaAccount.issuerProfile();
+    const pdf = await buildInvoicePdf(inv, dto, esReciboPY ? '80144030-0' : (arcaAccount.status().cuit || ''), issuer);
+    const fname = `${esReciboPY ? 'Recibo' : (inv.cbteTipo === 0 ? 'Comprobante' : 'Factura')}_${inv.cbteLetra}_${inv.numero}.pdf`;
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="${fname}"`);
     res.send(pdf);

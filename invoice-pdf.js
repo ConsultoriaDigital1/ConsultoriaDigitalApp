@@ -31,6 +31,10 @@ function money(n) {
   return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(Number(n) || 0);
 }
 
+function moneyPYG(n) {
+  return `Gs. ${new Intl.NumberFormat('es-PY', { maximumFractionDigits: 0 }).format(Math.round(Number(n) || 0))}`;
+}
+
 function fmtFecha(iso) {
   if (!iso || !/^\d{4}-\d{2}-\d{2}/.test(iso)) return iso || '';
   const [y, m, d] = iso.slice(0, 10).split('-');
@@ -92,6 +96,10 @@ function fieldRow(doc, icon, x, y, opts) {
  */
 async function buildInvoicePdf(inv, client, cuitEmisor, emisorData = {}) {
   const emisor = { ...DEFAULT_EMISOR, ...emisorData };
+  const esReciboPY = Number(inv.cbteTipo) === 0 && client.pais === 'PY';
+  const taxIdLabel = emisor.taxIdLabel || (esReciboPY ? 'RUC' : 'CUIT');
+  // El Recibo X de PY va en guaraníes y sin los datos fiscales argentinos del emisor.
+  const fmtImporte = esReciboPY ? moneyPYG : money;
   const cuitEnDatosEmisor = emisor.id === 'comydes';
   const logoBuffer = (() => {
     try { return emisor.logoPath && fs.existsSync(emisor.logoPath) ? fs.readFileSync(emisor.logoPath) : null; }
@@ -158,11 +166,11 @@ async function buildInvoicePdf(inv, client, cuitEmisor, emisorData = {}) {
 
     let ey = nameY;
     const emisorFields = [
-      cuitEnDatosEmisor && cuitEmisor && ['card', 'CUIT:', fmtCuit(cuitEmisor)],
+      cuitEnDatosEmisor && cuitEmisor && ['card', `${taxIdLabel}:`, fmtCuit(cuitEmisor)],
       emisor.domicilio && ['pin', 'Domicilio:', emisor.domicilio],
-      ['file', 'Condición frente al IVA:', emisor.condIva],
-      emisor.iibb && ['chart', 'Ingresos Brutos:', emisor.iibb],
-      emisor.inicioActividades && ['calendar', 'Inicio de actividades:', emisor.inicioActividades],
+      !esReciboPY && ['file', 'Condición frente al IVA:', emisor.condIva],
+      !esReciboPY && emisor.iibb && ['chart', 'Ingresos Brutos:', emisor.iibb],
+      !esReciboPY && emisor.inicioActividades && ['calendar', 'Inicio de actividades:', emisor.inicioActividades],
     ].filter(Boolean);
     emisorFields.forEach(([ic, label, val]) => {
       fieldRow(doc, ic, X, ey, { label, value: val, width: emisorW, size: 8 });
@@ -180,7 +188,7 @@ async function buildInvoicePdf(inv, client, cuitEmisor, emisorData = {}) {
     const rx = boxX + letterBox + 16;
     const rw = X + W - rx;
     doc.fillColor(NAVY).font('Helvetica-Bold').fontSize(21)
-      .text(CBTE_NOMBRE[inv.cbteTipo] || 'COMPROBANTE', rx, headY + 4);
+      .text(esReciboPY ? 'RECIBO X' : (CBTE_NOMBRE[inv.cbteTipo] || 'COMPROBANTE'), rx, headY + 4);
     let ry = headY + 36;
     fieldRow(doc, 'pin', rx, ry, {
       label: `Punto de Venta: ${String(inv.ptoVta).padStart(4, '0')}`,
@@ -190,7 +198,7 @@ async function buildInvoicePdf(inv, client, cuitEmisor, emisorData = {}) {
     fieldRow(doc, 'calendar', rx, ry, { label: 'Fecha de Emisión:', value: fmtFecha(inv.fecha), width: rw, size: 8.5 });
     ry += 18;
     if (!cuitEnDatosEmisor) {
-      fieldRow(doc, 'user', rx, ry, { label: 'CUIT:', value: fmtCuit(cuitEmisor), width: rw, size: 8.5 });
+      fieldRow(doc, 'user', rx, ry, { label: `${taxIdLabel}:`, value: fmtCuit(cuitEmisor), width: rw, size: 8.5 });
     }
 
     let y = Math.max(ey, ry + 24, headY + letterBox) + 18;
@@ -212,8 +220,8 @@ async function buildInvoicePdf(inv, client, cuitEmisor, emisorData = {}) {
     doc.fillColor(INK).text(`   ${client.razonSocial || client.nombreFantasia || '-'}`, { width: cw });
     let cy = y + 36;
     fieldRow(doc, 'card', cx0, cy, {
-      label: inv.docNro !== '0' ? `${DOC_NOMBRE[inv.docTipo] || 'Doc'}:` : 'Condición:',
-      value: inv.docNro !== '0' ? inv.docNro : 'Consumidor Final', width: cw, size: 9, iconSize: 12,
+      label: inv.docNro !== '0' ? `${esReciboPY ? 'RUC' : (DOC_NOMBRE[inv.docTipo] || 'Doc')}:` : (esReciboPY ? 'RUC:' : 'Condición:'),
+      value: inv.docNro !== '0' ? inv.docNro : (esReciboPY ? 'Sin RUC' : 'Consumidor Final'), width: cw, size: 9, iconSize: 12,
     });
     cy += 19;
     if (client.direccion) {
@@ -240,7 +248,7 @@ async function buildInvoicePdf(inv, client, cuitEmisor, emisorData = {}) {
       doc.roundedRect(X, y, W, rowH, 8).fill(CARD_BG);
       doc.fillColor(INK).font('Helvetica').fontSize(10)
         .text(txt, X + 16, y + (rowH - txtH) / 2, { width: W - 160 });
-      doc.text(money(it.importe), X + W - 130, y + (rowH - 12) / 2, { width: 114, align: 'right' });
+      doc.text(fmtImporte(it.importe), X + W - 130, y + (rowH - 12) / 2, { width: 114, align: 'right' });
       y += rowH + 6;
     });
     y += 12;
@@ -260,7 +268,7 @@ async function buildInvoicePdf(inv, client, cuitEmisor, emisorData = {}) {
       const putRow = (label, val) => {
         doc.font('Helvetica').fontSize(9.5).fillColor(MUTED)
           .text(label, sumX + padX, sy, { width: sumW / 2 });
-        doc.fillColor(INK).text(money(val), sumX + sumW - padX - 140, sy, { width: 140, align: 'right' });
+        doc.fillColor(INK).text(fmtImporte(val), sumX + sumW - padX - 140, sy, { width: 140, align: 'right' });
       };
       putRow('Importe Neto Gravado:', inv.impNeto);
       // separador punteado
@@ -276,7 +284,7 @@ async function buildInvoicePdf(inv, client, cuitEmisor, emisorData = {}) {
     doc.fillColor(NAVY).font('Helvetica-Bold').fontSize(15)
       .text('Importe Total:', sumX + padX, bandY + bandH / 2 - 9);
     doc.fontSize(18)
-      .text(money(inv.impTotal), sumX + sumW - padX - 180, bandY + bandH / 2 - 11, { width: 180, align: 'right' });
+      .text(fmtImporte(inv.impTotal), sumX + sumW - padX - 180, bandY + bandH / 2 - 11, { width: 180, align: 'right' });
     y += sumH + 26;
 
     // ══════════════ Pie ══════════════
@@ -290,7 +298,9 @@ async function buildInvoicePdf(inv, client, cuitEmisor, emisorData = {}) {
       doc.fillColor(NAVY).font('Helvetica-Bold').fontSize(11)
         .text('Documento no fiscal — comprobante interno', X, fy, { width: W });
       doc.fillColor(MUTED).font('Helvetica').fontSize(8.5)
-        .text('Este comprobante no fue emitido ante AFIP/ARCA y no tiene validez fiscal. No válido como factura.',
+        .text(esReciboPY
+          ? 'Este recibo no fue emitido ante la DNIT y no tiene validez fiscal. No válido como factura.'
+          : 'Este comprobante no fue emitido ante AFIP/ARCA y no tiene validez fiscal. No válido como factura.',
           X, fy + 18, { width: W });
     } else {
       // QR con marco redondeado

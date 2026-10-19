@@ -11359,7 +11359,7 @@
         return;
       }
       if ((c.pais || 'AR') === 'PY') {
-        toast('La facturación ARCA sólo está disponible para clientes ARG.', 'error');
+        openCobranzaReciboPY(c);
         return;
       }
       // Factura ARCA: IVA 21% en pesos.
@@ -11444,6 +11444,46 @@
       syncTipoComprobante();
       onCobEmisorChange();
       onCobTipoChange();
+    }
+
+    // Clientes PY: no hay facturación electrónica con la DNIT, así que se genera
+    // un Recibo X interno (sin validez fiscal) en guaraníes, con IVA 10% informativo.
+    function openCobranzaReciboPY(c) {
+      cobIvaRate = 0.10;
+      cobDecimals = 0;
+      cobranzaOverlayShell(`Facturar a ${c.nombreFantasia || c.razonSocial}`, `
+      <div style="margin-bottom:0.8rem;padding:0.5rem 0.7rem;border-radius:var(--r-sm,6px);background:rgba(120,120,120,0.15);border:1px solid var(--border2,#444);font-size:0.8rem">
+        Se genera un <strong>Recibo X</strong>: comprobante interno sin validez fiscal, no pasa por la DNIT.
+      </div>
+      <div style="display:grid;gap:0.7rem">
+        <div style="display:grid;gap:0.35rem">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:0.8rem;font-weight:600">Ítems del recibo</span>
+            <button type="button" class="btn btn-subtle btn-sm" onclick="addCobItem()">${icon('plus')} Agregar ítem</button>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 240px 36px;gap:0.5rem;font-size:0.72rem;color:var(--muted,#8a8a8a)">
+            <span>Descripción (aparece en el PDF)</span><span>Importe c/IVA (PYG)</span><span></span>
+          </div>
+          <div id="cob-items" style="display:grid;gap:0.5rem"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.7rem;padding-top:0.2rem;border-top:1px solid var(--border2,#333)">
+          <label style="display:grid;gap:0.25rem;font-size:0.8rem">Importe sin IVA (PYG)
+            <input id="cob-neto" type="text" inputmode="decimal" class="clients-search-inp" style="width:100%" oninput="recalcCobFromSummary('neto')" onblur="fmtCobMoneyField(this)">
+          </label>
+          <label style="display:grid;gap:0.25rem;font-size:0.8rem">IVA 10% (PYG)
+            <input id="cob-iva" type="text" inputmode="decimal" class="clients-search-inp" style="width:100%" oninput="recalcCobFromSummary('iva')" onblur="fmtCobMoneyField(this)">
+          </label>
+          <label style="display:grid;gap:0.25rem;font-size:0.8rem">Importe total (PYG)
+            <input id="cob-importe" type="text" inputmode="decimal" class="clients-search-inp" style="width:100%" oninput="recalcCobFromSummary('total')" onblur="fmtCobMoneyField(this)">
+          </label>
+        </div>
+        <label style="display:grid;gap:0.25rem;font-size:0.8rem">RUC del cliente (vacío = sin RUC)
+          <input id="cob-doc" type="text" value="${esc(c.cuit || '')}" class="clients-search-inp" style="width:100%" placeholder="Ej.: 80012345-6">
+        </label>
+        <button class="btn btn-lime" id="cob-submit" onclick="submitCobranzaInvoice('${c.id}')">${icon('file')} Generar Recibo X (sin DNIT)</button>
+        <div id="cob-result"></div>
+      </div>`, 960);
+      addCobItem(c.descripcionComprobante || 'Servicios de consultoría digital', Number(c.saldo || 0));
     }
 
     function onCobEmisorChange() {
@@ -11623,7 +11663,11 @@
 
     async function submitCobranzaInvoice(clientId) {
       const btn = $('cob-submit');
-      const docNro = String($('cob-doc').value || '').replace(/\D/g, '');
+      // El popup de PY no tiene selector de tipo: siempre es un Recibo X.
+      const esPY = !$('cob-tipo');
+      const docNro = esPY
+        ? String($('cob-doc').value || '').trim()
+        : String($('cob-doc').value || '').replace(/\D/g, '');
       // Ítems (conceptos) de la factura: cada uno con descripción e importe c/IVA.
       const items = [];
       document.querySelectorAll('#cob-items .cob-item').forEach((row) => {
@@ -11640,18 +11684,19 @@
       const impTotal = totalField > 0
         ? totalField
         : cobRound2(items.reduce((s, it) => s + it.importe, 0));
-      const cbteTipo = Number($('cob-tipo').value);
+      const cbteTipo = esPY ? 0 : Number($('cob-tipo').value);
       const sinArca = cbteTipo === 0; // comprobante no fiscal: sólo genera el PDF
+      const nombreX = esPY ? 'Recibo' : 'Comprobante';
       const body = {
         impTotal,
         items,
         sinArca,
         cbteTipo,
-        concepto: Number($('cob-concepto').value),
-        docTipo: docNro.length === 11 ? 80 : 99,
+        concepto: esPY ? 2 : Number($('cob-concepto').value),
+        docTipo: (esPY ? docNro : docNro.length === 11) ? 80 : 99,
         docNro: docNro || '0',
-        condIvaReceptor: Number($('cob-condiva').value),
-        arcaEmisor: $('cob-arca-emisor').value || 'default',
+        condIvaReceptor: esPY ? 5 : Number($('cob-condiva').value),
+        arcaEmisor: esPY ? 'default' : ($('cob-arca-emisor').value || 'default'),
         detalle: items.map((it) => it.detalle).join(' + ').slice(0, 500),
         // Registrar la factura como movimiento en la cuenta del cliente (aparece en Resumen de cuenta)
         registrarMovimiento: true,
@@ -11676,21 +11721,22 @@
         const inv = data.invoice;
         $('cob-result').innerHTML = `
         <div style="margin-top:0.6rem;padding:0.7rem;border-radius:var(--r-sm,6px);border:1px solid var(--lime,#84cc16);font-size:0.85rem;display:grid;gap:0.3rem">
-          <strong>✓ ${sinArca ? 'Comprobante' : 'Factura'} ${esc(inv.cbteLetra)} ${esc(inv.numero)} ${sinArca ? 'generado' : 'emitida'}</strong>
-          ${sinArca ? '<span class="admin-muted">Comprobante interno, sin validez fiscal (no pasó por ARCA).</span>' : `<span>CAE: <span class="admin-data">${esc(inv.cae)}</span> · Vto CAE: ${esc(inv.caeVto)}</span>`}
+          <strong>✓ ${sinArca ? nombreX : 'Factura'} ${esc(inv.cbteLetra)} ${esc(inv.numero)} ${sinArca ? 'generado' : 'emitida'}</strong>
+          ${sinArca ? `<span class="admin-muted">${nombreX} interno, sin validez fiscal (no pasó por ${esPY ? 'la DNIT' : 'ARCA'}).</span>` : `<span>CAE: <span class="admin-data">${esc(inv.cae)}</span> · Vto CAE: ${esc(inv.caeVto)}</span>`}
           <a href="/api/admin/cobranzas/invoices/${esc(inv.id)}/pdf" target="_blank" rel="noopener"><strong>Descargar PDF</strong></a>
           ${sinArca ? '' : `<a href="${esc(inv.qrUrl)}" target="_blank" rel="noopener">Ver QR / verificar en ARCA</a>`}
           ${cobranzasData?.n8nConfigured ? `<button class="btn btn-subtle btn-sm" onclick="closeCobranzaOverlay();openCobranzaAviso('${clientId}','${inv.id}')">Enviar aviso al cliente</button>` : ''}
         </div>`;
         btn.style.display = 'none';
-        toast(sinArca ? `Comprobante ${inv.numero} generado` : `Factura ${inv.numero} emitida (CAE ${inv.cae})`, 'success');
+        toast(sinArca ? `${nombreX} ${inv.numero} generado` : `Factura ${inv.numero} emitida (CAE ${inv.cae})`, 'success');
         loadCobranzas();
         loadAppData?.();
         // Refrescar el resumen de cuenta del cliente para que aparezca la factura recién emitida
         loadMovementsForClient?.(clientId);
       } catch (err) {
         btn.disabled = false;
-        onCobTipoChange();
+        if (esPY) btn.innerHTML = `${icon('file')} Generar Recibo X (sin DNIT)`;
+        else onCobTipoChange();
         const info = err.data || {};
         if (info.invoiceId) cobBorradorId = info.invoiceId;
         const resultBox = $('cob-result');
@@ -12289,7 +12335,11 @@
       const taxLabel = $('cv-tax-label');
       if (taxLabel) taxLabel.textContent = (c.pais || 'AR') === 'PY' ? 'RUC' : 'CUIT';
       const facturarBtn = $('cv-facturar-btn');
-      if (facturarBtn) facturarBtn.style.display = (c.pais || 'AR') === 'PY' ? 'none' : '';
+      if (facturarBtn) {
+        facturarBtn.title = (c.pais || 'AR') === 'PY'
+          ? 'Generar un Recibo X (sin validez fiscal, no pasa por DNIT)'
+          : 'Emitir factura electrónica en ARCA';
+      }
       fld('cv-direccion', c.direccion);
       fld('cv-tel-admin', c.telAdmin);
       fld('cv-tel-dueno', c.telDueno);
@@ -12373,7 +12423,7 @@
         wrap.innerHTML = `<div class="rc-empty">${clientMovementsOnlySaldos ? 'Sin prefacturas o saldos cargados.' : 'Sin movimientos cargados.'}</div>`;
         return;
       }
-      // ARG despliega A / B / X; PY no tiene ARCA y factura directo.
+      // ARG despliega A / B / X; PY genera directamente un Recibo X sin DNIT.
       const facturarLabel = `${icon('receipt')} Facturar${esPY ? '' : ' <span class="rc-caret"></span>'}`;
       const rows = list.map(({ m, saldo: saldoFila }) => {
         const kind = movementKind(m);
@@ -12408,7 +12458,7 @@
         <td class="num rc-saldo ${saldoFila > 0 ? 'debt' : 'ok'}">${formatMoney(saldoFila)}</td>
         <td class="rc-actions">
           ${kind === 'saldo' ? `<button class="btn btn-lime btn-sm rc-facturar-btn" data-label="${esc(facturarLabel)}"
-            title="${esPY ? 'Pasar este saldo a factura' : 'Elegir Factura A, Factura B o Comprobante X'}"
+            title="${esPY ? 'Generar Recibo X (sin DNIT)' : 'Elegir Factura A, Factura B o Comprobante X'}"
             ${esPY ? '' : 'aria-haspopup="menu"'} onclick="facturarSaldo('${m.id}', this)">${facturarLabel}</button>` : ''}
           ${m.invoiceId ? `<a class="btn btn-ghost btn-sm rc-pdf-btn" title="Abrir factura ${esc((m.invoiceLetra || '') + ' ' + (m.invoiceNumero || ''))} en PDF"
             href="/api/admin/cobranzas/invoices/${esc(m.invoiceId)}/pdf" target="_blank" rel="noopener"
@@ -12451,8 +12501,8 @@
     // Factura un saldo cargado usando sus ítems e importe.
     // Clientes ARG: el botón despliega Factura A, Factura B o Comprobante X (sin
     // validez fiscal, no pasa por ARCA); el saldo pasa a ser ese comprobante.
-    // Clientes PY: el saldo pasa a factura cargada, porque no hay facturación
-    // electrónica de Paraguay.
+    // Clientes PY: el saldo pasa a un Recibo X (sin validez fiscal), porque no
+    // hay facturación electrónica con la DNIT.
     const saldoBorradores = {}; // movimiento de saldo -> borrador ARCA que falló, para reintentarlo
     let facturarMenuTarget = null; // { movId, btn } del desplegable abierto
 
@@ -12482,7 +12532,7 @@
 
     async function facturarSaldo(movId, btn) {
       const c = (clientsCache || []).find((x) => x.id === currentClientId);
-      if (c && c.pais === 'PY') return emitirFacturaSaldo(movId, null, btn);
+      if (c && c.pais === 'PY') return emitirFacturaSaldo(movId, 0, btn);
       const yaAbierto = btn.classList.contains('open');
       closeFacturarMenu();
       if (yaAbierto || !c) return;
@@ -12546,22 +12596,6 @@
         if (btn.isConnected) { btn.disabled = false; btn.innerHTML = btn.dataset.label; }
       };
 
-      if (c.pais === 'PY') {
-        if (!confirm(`¿Pasar a factura el saldo de ${formatMoney(total)} de ${nombre}?`)) return;
-        btn.disabled = true;
-        btn.textContent = 'Facturando…';
-        try {
-          await api(`/api/admin/clients/${encodeURIComponent(clientId)}/movements/${encodeURIComponent(movId)}/facturar`, { method: 'POST' });
-          await loadMovementsForClient(clientId);
-          loadAdminDashboard();
-          toast('Saldo facturado.', 'success');
-        } catch (err) {
-          resetBtn();
-          toast(err.message || 'No se pudo facturar el saldo.', 'error');
-        }
-        return;
-      }
-
       const emisor = c.arcaEmisor || 'default';
       const arcaState = cobranzasData?.arcaAccounts?.[emisor] || cobranzasData?.arca;
       const docNro = String(c.cuit || '').replace(/\D/g, '');
@@ -12574,7 +12608,9 @@
       const itemsFactura = items.length && sumaItems === total
         ? items.map((it) => ({ detalle: it.detalle || 'Ítem', importe: cobRound2(it.importe) }))
         : [{ detalle: m.detalle || c.descripcionComprobante || 'Servicios de consultoría digital', importe: total }];
-      const tipoTxt = sinArca
+      const tipoTxt = c.pais === 'PY'
+        ? 'un Recibo X (sin validez fiscal, no pasa por DNIT)'
+        : sinArca
         ? 'un Comprobante X (sin validez fiscal)'
         : `Factura ${cbteTipo === 1 ? 'A' : 'B'}${arcaState?.production ? '' : ' (homologación)'}`;
       const detalleTxt = itemsFactura.map((it) => `• ${it.detalle}: ${formatMoney(it.importe)}`).join('\n');
@@ -12586,8 +12622,8 @@
         sinArca,
         cbteTipo,
         concepto: 2,
-        docTipo: conCuit ? 80 : 99,
-        docNro: conCuit ? docNro : '0',
+        docTipo: conCuit || (c.pais === 'PY' && c.cuit) ? 80 : 99,
+        docNro: c.pais === 'PY' ? (String(c.cuit || '').trim() || '0') : (conCuit ? docNro : '0'),
         // A: responsable inscripto. B: monotributista si tiene CUIT, si no consumidor final.
         condIvaReceptor: cbteTipo === 1 ? 1 : (conCuit ? 6 : 5),
         arcaEmisor: emisor,
@@ -12606,7 +12642,7 @@
           : await api(`/api/admin/cobranzas/${encodeURIComponent(clientId)}/invoice`, { method: 'POST', body: JSON.stringify(body) });
         delete saldoBorradores[movId];
         const inv = data.invoice;
-        toast(sinArca ? `Comprobante X ${inv.numero} generado` : `Factura ${inv.cbteLetra} ${inv.numero} emitida (CAE ${inv.cae})`, 'success');
+        toast(sinArca ? `${c.pais === 'PY' ? 'Recibo X' : 'Comprobante X'} ${inv.numero} generado` : `Factura ${inv.cbteLetra} ${inv.numero} emitida (CAE ${inv.cae})`, 'success');
         await loadMovementsForClient(clientId);
         loadCobranzas();
         loadAdminDashboard();
