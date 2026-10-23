@@ -1817,9 +1817,15 @@ app.get('/api/admin/dashboard', requireAdmin, async (req, res, next) => {
     const pais = req.query.pais === 'PY' ? 'PY' : 'AR';
 
     const [ingresosRes, pendientesRes] = await Promise.all([
+      // "Facturados" excluye los comprobantes internos X (cbte_tipo = 0), que no
+      // pasan por ARCA. Las facturas cargadas a mano (sin invoice) sí cuentan.
       pool.query(
         `SELECT
-           COALESCE(SUM(monto_factura) FILTER (WHERE cm.tipo = 'factura' AND COALESCE(cm.medio_pago,'') != 'canje'), 0) AS ingresos_facturados,
+           COALESCE(SUM(monto_factura) FILTER (WHERE cm.tipo = 'factura' AND COALESCE(cm.medio_pago,'') != 'canje'
+             AND NOT EXISTS (
+               SELECT 1 FROM invoices i
+               WHERE i.movement_id = cm.id AND i.estado = 'emitida' AND i.cbte_tipo = 0
+             )), 0) AS ingresos_facturados,
            COALESCE(SUM(monto_factura) FILTER (WHERE cm.tipo IN ('factura','saldo') AND COALESCE(cm.medio_pago,'') != 'canje'), 0) AS ingresos_previstos,
            COALESCE(SUM(monto_factura) FILTER (WHERE cm.tipo = 'saldo' AND COALESCE(cm.medio_pago,'') != 'canje'), 0) AS saldos_cargados,
            COALESCE(SUM(haber)         FILTER (WHERE COALESCE(cm.medio_pago,'') != 'canje'), 0) AS cobrados

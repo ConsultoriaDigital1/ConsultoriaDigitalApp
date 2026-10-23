@@ -11825,7 +11825,8 @@
           }
           if (clientsDashFilter === 'facturados') {
             const movs = movementsCache[c.id] || [];
-            return movs.some(m => m.tipo === 'factura' && Number(m.montoFactura || 0) > 0 && (m.fecha || '').startsWith(monthPrefix));
+            // Los comprobantes X no pasan por ARCA: no cuentan como facturados
+            return movs.some(m => m.tipo === 'factura' && m.invoiceLetra !== 'X' && Number(m.montoFactura || 0) > 0 && (m.fecha || '').startsWith(monthPrefix));
           }
           if (clientsDashFilter === 'saldos') {
             const movs = movementsCache[c.id] || [];
