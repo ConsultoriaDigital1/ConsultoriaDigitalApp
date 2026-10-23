@@ -1826,6 +1826,7 @@ app.get('/api/admin/dashboard', requireAdmin, async (req, res, next) => {
                SELECT 1 FROM invoices i
                WHERE i.movement_id = cm.id AND i.estado = 'emitida' AND i.cbte_tipo = 0
              )), 0) AS ingresos_facturados,
+           COALESCE(SUM(monto_factura) FILTER (WHERE cm.tipo = 'factura' AND COALESCE(cm.medio_pago,'') != 'canje'), 0) AS ingresos_facturados_total,
            COALESCE(SUM(monto_factura) FILTER (WHERE cm.tipo IN ('factura','saldo') AND COALESCE(cm.medio_pago,'') != 'canje'), 0) AS ingresos_previstos,
            COALESCE(SUM(monto_factura) FILTER (WHERE cm.tipo = 'saldo' AND COALESCE(cm.medio_pago,'') != 'canje'), 0) AS saldos_cargados,
            COALESCE(SUM(haber)         FILTER (WHERE COALESCE(cm.medio_pago,'') != 'canje'), 0) AS cobrados
@@ -1872,6 +1873,7 @@ app.get('/api/admin/dashboard', requireAdmin, async (req, res, next) => {
       year, month, pais,
       ingresosPrevistos: Number(ingresosRes.rows[0].ingresos_previstos),
       ingresosFacturados: Number(ingresosRes.rows[0].ingresos_facturados),
+      ingresosFacturadosTotal: Number(ingresosRes.rows[0].ingresos_facturados_total),
       saldosCargados: Number(ingresosRes.rows[0].saldos_cargados),
       cobrados: Number(ingresosRes.rows[0].cobrados),
       pendientesMes: Number(pendientesRes.rows[0].pendientes_mes),

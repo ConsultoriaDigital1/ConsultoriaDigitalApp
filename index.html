@@ -3007,6 +3007,23 @@
       line-height: 1.1;
     }
 
+    /* Total con comprobantes X, debajo del facturado por ARCA */
+    .admin-metric-sub {
+      color: var(--text);
+      font-size: 0.85rem;
+      font-weight: 800;
+      margin-top: 0.4rem;
+      opacity: 0.8;
+    }
+
+    .admin-metric-subcap {
+      color: var(--muted);
+      font-size: 0.55rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      margin-top: 0.1rem;
+    }
+
     .admin-metric-link {
       align-self: flex-start;
       margin-top: 0.45rem;
@@ -10812,11 +10829,12 @@
       if (lbl) lbl.textContent = adminMonthLabel(adminDashYear, adminDashMonth);
       const set = (id, val) => { const el = $(id); if (el) el.textContent = val; };
       if (!data) {
-        ['adash-previstos', 'adash-facturados', 'adash-cobrados', 'adash-pendientes-total'].forEach(id => set(id, '—'));
+        ['adash-previstos', 'adash-facturados', 'adash-facturados-total', 'adash-cobrados', 'adash-pendientes-total'].forEach(id => set(id, '—'));
         return;
       }
       set('adash-previstos', formatMoney(data.ingresosPrevistos));
       set('adash-facturados', formatMoney(data.ingresosFacturados));
+      set('adash-facturados-total', formatMoney(data.ingresosFacturadosTotal));
       set('adash-cobrados', formatMoney(data.cobrados));
       // Pendiente de cobro total = suma de saldos pendientes (incluye canje, excluye saldos a favor).
       // Usa el cálculo único del backend para que coincida con la lista al filtrar por la tarjeta.
@@ -15324,6 +15342,8 @@
         <div class="admin-metric-icon">${icon('receipt')}</div>
         <div class="admin-metric-label">Ingresos facturados</div>
         <div class="admin-metric-value" id="adash-facturados">—</div>
+        <div class="admin-metric-value admin-metric-sub" id="adash-facturados-total">—</div>
+        <div class="admin-metric-subcap">Total con comprobantes X</div>
       </div>
       <div class="admin-metric metric-cobrados" style="--mi:2" data-dash-filter="cobrados" onclick="setDashFilter('cobrados')">
         <div class="admin-metric-icon">${icon('check')}</div>
