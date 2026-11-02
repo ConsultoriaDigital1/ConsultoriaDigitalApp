@@ -9102,6 +9102,36 @@
         transform: scale(0.96);
       }
     }
+
+    .ws-wrap { padding:24px; overflow:auto; flex:1; min-height:0; }
+    .ws-welcome { margin:16px 0 32px; }
+    .ws-welcome h1 { font-size:clamp(26px,4vw,42px); margin:12px 0; }
+    .ws-welcome p,.ws-empty { color:var(--text-muted,#94a3b8); }
+    .ws-eyebrow { font-size:11px; font-weight:700; letter-spacing:1px; color:#88baff; overflow-wrap:anywhere; }
+    .ws-home-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:18px; max-width:1200px; }
+    .ws-home-card { position:relative; display:flex; flex-direction:column; align-items:flex-start; gap:16px; text-align:left; padding:28px; min-height:200px; background:linear-gradient(135deg,var(--surface2),var(--surface)); border:1px solid var(--border); border-radius:16px; color:var(--text-hi,#fff); cursor:pointer; font:inherit; }
+    .ws-home-card:hover { border-color:#579dff; transform:translateY(-2px); }
+    .ws-home-card strong { font-size:23px; }.ws-home-card>span:last-of-type { color:var(--text-muted,#94a3b8); font-size:13px; line-height:1.6; max-width:90%; }
+    .ws-number { color:#88baff; font-size:13px; }.ws-home-card b { position:absolute; right:24px; top:24px; color:#88baff; }
+    .ws-toolbar,.ws-actions { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:18px; }
+    .ws-toolbar label { display:flex; gap:10px; align-items:center; }
+    .ws-wrap input,.ws-wrap select,.ws-wrap textarea { background:var(--surface2); color:var(--text-hi,#fff); border:1px solid var(--border); border-radius:6px; padding:10px; font:inherit; min-width:0; max-width:100%; }
+    .ws-toolbar select { max-width:260px; }.ws-wrap textarea { resize:vertical; }
+    .ws-entry-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px; }
+    .ws-entry { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:16px; overflow-wrap:anywhere; }
+    .ws-entry h3 { margin:12px 0; font-size:17px; }.ws-entry p { margin:10px 0; font-size:13px; line-height:1.6; }.ws-entry a { color:#88baff; }
+    .ws-entry dl div { display:flex; gap:12px; justify-content:space-between; border-bottom:1px solid var(--border); padding:10px 0; }.ws-entry dd { font-weight:700; margin:0; }
+    .ws-pre { white-space:pre-wrap; }.ws-entry .ws-actions { margin:16px 0 0; }.ws-badge { font-size:11px; padding:4px 8px; border-radius:4px; background:var(--surface3); }
+    .ws-schedule-scroll { overflow-x:auto; border:1px solid var(--border); border-radius:10px; }
+    .ws-schedule { border-collapse:separate; border-spacing:0; width:100%; table-layout:fixed; min-width:1450px; }
+    .ws-schedule th,.ws-schedule td { padding:12px; border-right:1px solid var(--border); border-bottom:1px solid var(--border); vertical-align:top; text-align:left; }
+    .ws-schedule thead th { background:var(--surface2); font-size:12px; }.ws-schedule tbody th { position:sticky; left:0; z-index:1; background:var(--surface); font-size:13px; overflow-wrap:anywhere; }.ws-schedule td { height:140px; background:var(--bg2); }.ws-schedule .ws-entry { padding:10px; margin:8px 0; }.ws-empty { padding:20px; font-size:13px; }
+    .ws-form { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px; margin-bottom:24px; max-width:900px; }.ws-form label { display:flex; flex-direction:column; gap:8px; font-size:13px; }.ws-full { grid-column:1/-1; }.ws-form h3,.ws-form .ws-actions { margin:0; }
+    .ws-secret { display:flex; gap:6px; margin-top:12px; }.ws-secret input { width:100%; }
+    .nav-tabs { overflow-x:auto; min-width:0; }.nav-tab { flex-shrink:0; }
+    @media(max-width:1000px) { .ws-home-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+    @media(max-width:700px) { .mobile-bottom-nav { display:flex; overflow-x:auto; overflow-y:hidden; justify-content:flex-start; }.mobile-nav-tab { flex:0 0 104px; } }
+    @media(max-width:600px) { .ws-wrap { padding:16px; }.ws-home-grid { gap:10px; }.ws-home-card { padding:18px; min-height:170px; }.ws-home-card strong { font-size:19px; }.ws-home-card b { right:12px; top:12px; }.ws-form { grid-template-columns:1fr; }.ws-entry-grid { grid-template-columns:1fr; }.mobile-bottom-nav { overflow-x:auto; justify-content:flex-start; }.mobile-nav-tab { flex:0 0 104px; }.ws-toolbar label { width:100%; }.ws-toolbar select { flex:1; } }
   </style>
 </head>
 
@@ -9174,10 +9204,14 @@
         <span class="brand-text">CD</span>
       </div>
       <div class="nav-tabs">
+        <button class="nav-tab" data-tab="inicio" onclick="switchTab('inicio')" style="display:none">INICIO</button>
+        <button class="nav-tab" data-tab="cronograma" onclick="switchTab('cronograma')" style="display:none">CRONOGRAMA</button>
+        <button class="nav-tab" data-tab="estadisticas" onclick="switchTab('estadisticas')" style="display:none">ESTADÍSTICAS</button>
+        <button class="nav-tab" data-tab="credenciales" onclick="switchTab('credenciales')" style="display:none">CREDENCIALES</button>
         <button class="nav-tab active" data-tab="clientes" onclick="switchTab('clientes')">CLIENTES</button>
         <button class="nav-tab" data-tab="calendario" onclick="switchTab('calendario')">CALENDARIO</button>
         <button class="nav-tab" data-tab="notas" onclick="switchTab('notas')">NOTAS</button>
-        <button class="nav-tab" data-tab="talentos" onclick="switchTab('talentos')">TALENTOS</button>
+        <button class="nav-tab" data-tab="talentos" onclick="switchTab('talentos')">EQUIPO</button>
       </div>
       <div class="topnav-right">
         <button id="global-whatsapp-btn" class="global-whatsapp-btn disconnected" onclick="openGlobalWhatsappModal()"
@@ -9246,6 +9280,10 @@
       <!-- Content -->
       <main class="content">
 
+        <div id="tab-inicio" class="tab-panel"><div id="marketing-home" class="ws-wrap"></div></div>
+        <div id="tab-cronograma" class="tab-panel"><div class="cbar"><div><div class="cbar-title">CRONOGRAMA</div><div class="cbar-sub">Planificación semanal por cliente</div></div></div><div id="workspace-cronograma" class="ws-wrap"></div></div>
+        <div id="tab-estadisticas" class="tab-panel"><div class="cbar"><div><div class="cbar-title">Estadísticas</div><div class="cbar-sub">Resultados por canal y reportes para clientes</div></div></div><div id="workspace-estadisticas" class="ws-wrap"></div></div>
+        <div id="tab-credenciales" class="tab-panel"><div class="cbar"><div><div class="cbar-title">Credenciales</div><div class="cbar-sub">Accesos de clientes · Marketing y Devs</div></div></div><div id="workspace-credenciales" class="ws-wrap"></div></div>
         <!-- ── CLIENTES TAB ── -->
         <div id="tab-clientes" class="tab-panel active" data-team="all">
           <div class="cbar" id="clientes-cbar">
@@ -9357,7 +9395,7 @@
         <div id="tab-talentos" class="tab-panel">
           <div class="cbar">
             <div>
-              <div class="cbar-title">Equipo / Talentos</div>
+              <div class="cbar-title">Equipo</div>
               <div class="cbar-sub" id="talentos-sub">Miembros registrados</div>
             </div>
             <button class="btn btn-primary btn-sm" style="margin-left:auto" onclick="openUserModal()">+ Agregar
@@ -9393,6 +9431,10 @@
       </main>
     </div>
     <nav class="mobile-bottom-nav" aria-label="Navegación principal">
+      <button class="mobile-nav-tab" data-tab="inicio" onclick="switchTab('inicio')" style="display:none"><i class="ico-ph" data-ico="home"></i><span>Inicio</span></button>
+      <button class="mobile-nav-tab" data-tab="cronograma" onclick="switchTab('cronograma')" style="display:none"><i class="ico-ph" data-ico="calendar"></i><span>Cronograma</span></button>
+      <button class="mobile-nav-tab" data-tab="estadisticas" onclick="switchTab('estadisticas')" style="display:none"><i class="ico-ph" data-ico="chart"></i><span>Estadísticas</span></button>
+      <button class="mobile-nav-tab" data-tab="credenciales" onclick="switchTab('credenciales')" style="display:none"><i class="ico-ph" data-ico="lock"></i><span>Credenciales</span></button>
       <button class="mobile-nav-tab active" data-tab="clientes" onclick="switchTab('clientes')">
         <i class="ico-ph" data-ico="users"></i><span>Clientes</span>
       </button>
@@ -10517,6 +10559,7 @@
   <!-- ═══════════════════════════════════════════
      JAVASCRIPT
      ═══════════════════════════════════════════ -->
+  <script src="workspace-ui.js"></script>
   <script>
     'use strict';
 
@@ -10564,6 +10607,7 @@
        ICON SYSTEM  (Lucide-style inline SVG, themeable via currentColor)
     ───────────────────────────────────────── */
     const ICONS = {
+      home: '<path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1Z"/><path d="M9 21v-8h6v8"/>',
       search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
       user: '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
       users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
@@ -13319,6 +13363,8 @@
 
     async function doLogout() {
       await api('/api/auth/logout', { method: 'POST' }).catch(() => { });
+      clearWorkspace();
+      $('marketing-home').innerHTML = '';
       currentUser = null;
       usersCache = [];
       cardsCache = [];
@@ -13363,13 +13409,14 @@
       if (u.equipo === 'ventas' || activeTeam === 'ventas') {
         switchTab('ventas');
       } else {
-        renderBoard();
+        switchTab(u.equipo === 'marketing' ? 'inicio' : 'clientes');
       }
       if (activeTab === 'notas') renderNotas();
       renderTalentos();
     }
 
     function applyAccessUi() {
+      syncWorkspaceNav();
       document.querySelectorAll('.sb-btn[data-team]').forEach(btn => {
         btn.style.display = canViewTeam(btn.dataset.team) ? '' : 'none';
         btn.classList.toggle('active', btn.dataset.team === activeTeam);
@@ -13851,7 +13898,14 @@
        NAVIGATION
     ───────────────────────────────────────── */
     function switchTab(tab) {
+      if (['inicio', 'cronograma', 'estadisticas', 'credenciales'].includes(tab) && !workspaceAllowed(tab)) return;
+      clearWorkspace();
       activeTab = tab;
+      const workspaceTab = ['inicio', 'cronograma', 'estadisticas', 'credenciales'].includes(tab);
+      $('cnotes-handle').style.display = workspaceTab ? 'none' : '';
+      if (workspaceTab) toggleClientesNotes(false);
+      if (tab === 'inicio') renderMarketingHome();
+      if (['cronograma', 'estadisticas', 'credenciales'].includes(tab)) renderWorkspace(tab);
       document.querySelectorAll('.nav-tab, .mobile-nav-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
       document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + tab));
       closeDD();
@@ -13877,7 +13931,7 @@
     }
 
     function goClientesHome() {
-      switchTab('clientes');
+      switchTab(currentUser?.equipo === 'marketing' ? 'inicio' : 'clientes');
     }
 
     // Keep logo navigation to clients tab
@@ -13927,6 +13981,9 @@
       if (activeTab === 'calendario') renderCalendar();
       if (activeTab === 'notas') renderNotas();
       if (activeTab === 'talentos') renderTalentos();
+      if (team === 'marketing') switchTab('inicio');
+      else if (['inicio', 'cronograma', 'estadisticas'].includes(activeTab)) switchTab('clientes');
+      else if (activeTab === 'credenciales') renderWorkspace('credenciales');
     }
 
     /* ─────────────────────────────────────────
@@ -17231,7 +17288,7 @@
       if (cbar) cbar.style.display = activeTeam === 'admin' ? 'none' : '';
       syncAutosaveBtn();
       if (backBtn) backBtn.style.display = inTrash ? '' : 'none';
-      if (titleEl) titleEl.textContent = inTrash ? 'Papelera de tarjetas' : 'Gestión de Clientes';
+      if (titleEl) titleEl.textContent = inTrash ? 'Papelera de tarjetas' : (activeTeam === 'marketing' ? 'Checklist de clientes' : 'Gestión de Clientes');
       const visibleTrash = (cardsTrashCache || []).filter(c => activeTeam === 'all' || c.equipo === activeTeam);
       if (countEl) {
         if (visibleTrash.length > 0) {

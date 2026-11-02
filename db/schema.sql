@@ -279,3 +279,14 @@ ALTER TABLE whatsapp_messages ADD COLUMN IF NOT EXISTS media_filename TEXT NOT N
 ALTER TABLE whatsapp_messages ADD COLUMN IF NOT EXISTS media_path TEXT NOT NULL DEFAULT '';
 ALTER TABLE whatsapp_messages ADD COLUMN IF NOT EXISTS media_size BIGINT NOT NULL DEFAULT 0;
 ALTER TABLE whatsapp_messages ADD COLUMN IF NOT EXISTS media_error TEXT NOT NULL DEFAULT '';
+
+-- Cronograma, reportes y accesos cifrados por cliente
+CREATE TABLE IF NOT EXISTS workspace_entries (
+  id TEXT PRIMARY KEY,
+  card_id TEXT NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL CHECK (kind IN ('cronograma', 'estadisticas', 'credenciales')),
+  data JSONB NOT NULL,
+  updated_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_workspace_entries_card ON workspace_entries(card_id, kind);

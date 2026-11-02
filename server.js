@@ -9,6 +9,7 @@ const EventEmitter = require('events');
 const gcal = require('./google-calendar');
 const arca = require('./arca-service');
 const { buildInvoicePdf } = require('./invoice-pdf');
+const workspace = require('./workspace');
 
 const app = express();
 const pool = new Pool({
@@ -37,6 +38,7 @@ if (process.env.NODE_ENV === 'production' && SESSION_SECRET === 'dev-only-change
 }
 
 async function ensureDatabaseMigrations() {
+  await pool.query(workspace.schema);
   await pool.query("ALTER TABLE cards ADD COLUMN IF NOT EXISTS whatsapp_lid_alias TEXT NOT NULL DEFAULT ''");
   await pool.query("CREATE INDEX IF NOT EXISTS idx_cards_whatsapp_lid_alias ON cards(whatsapp_lid_alias)");
   await pool.query("ALTER TABLE cards ADD COLUMN IF NOT EXISTS pauta_url TEXT NOT NULL DEFAULT ''");
@@ -1245,6 +1247,8 @@ app.post('/api/auth/logout', (_req, res) => {
   clearSessionCookie(res);
   res.json({ ok: true });
 });
+
+workspace.register(app, pool, requireAuth, canAccessTeam);
 
 app.get('/api/bootstrap', requireAuth, async (req, res, next) => {
   try {
@@ -3750,7 +3754,7 @@ app.use('/api', (_req, res) => {
 
 // Assets estáticos (logo, favicons). Se sirven explícitamente para no exponer
 // el resto del directorio (server.js, .env, db/, node_modules, etc.).
-const STATIC_FILES = ['logo.webp', 'favicon.svg', 'favicon.png'];
+const STATIC_FILES = ['logo.webp', 'favicon.svg', 'favicon.png', 'workspace-ui.js'];
 for (const file of STATIC_FILES) {
   app.get('/' + file, (_req, res) => res.sendFile(path.join(__dirname, file)));
 }

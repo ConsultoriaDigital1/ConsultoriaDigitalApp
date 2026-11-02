@@ -4,6 +4,7 @@
   "private": true,
   "main": "server.js",
   "scripts": {
+    "test:workspace": "node --test scripts/workspace.test.js",
     "start": "node server.js",
     "dev": "node scripts/dev.js",
     "dev:server": "node --watch-path=server.js --watch-path=whatsapp-service.js --watch-path=google-calendar.js server.js",

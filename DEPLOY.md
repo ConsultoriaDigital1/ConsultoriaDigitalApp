@@ -95,6 +95,7 @@ En produccion usa:
 NODE_ENV=production
 COOKIE_SECURE=true
 SESSION_SECRET=pega_aqui_el_resultado_de_openssl_rand_hex_32
+CREDENTIALS_SECRET=otro_secreto_generado_con_openssl_rand_hex_32
 GOOGLE_CALENDAR_CTZ=America/Argentina/Buenos_Aires
 GOOGLE_CALENDAR_MARKETING_ID=
 GOOGLE_CALENDAR_DESARROLLO_ID=
@@ -106,3 +107,10 @@ Genera el secreto con:
 ```bash
 openssl rand -hex 32
 ```
+
+`CREDENTIALS_SECRET` cifra las contraseñas de clientes con AES-256-GCM.
+Conservá esta clave junto al backup de la base: cambiarla impide recuperar los
+accesos existentes. Si se omite, se usa `SESSION_SECRET` (mínimo 24 caracteres).
+El servidor crea automáticamente `workspace_entries` al iniciar para guardar
+cronogramas, estadísticas y accesos. Las estadísticas se cargan manualmente por
+cliente, canal y período; el reporte se exporta con Imprimir / Guardar como PDF.
