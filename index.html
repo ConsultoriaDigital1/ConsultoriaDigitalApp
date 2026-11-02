@@ -9111,6 +9111,8 @@
     .ws-eyebrow { font-size:11px; font-weight:700; letter-spacing:1px; color:#88baff; overflow-wrap:anywhere; }
     .ws-home-grid { display:grid; flex:1; grid-template-columns:repeat(3,minmax(0,1fr)); grid-auto-rows:minmax(200px,1fr); gap:18px; }
     .ws-home-card { position:relative; display:flex; flex-direction:column; align-items:flex-start; justify-content:center; gap:16px; text-align:left; padding:28px; min-height:200px; background:linear-gradient(135deg,var(--surface2),var(--surface)); border:1px solid var(--border); border-radius:16px; color:var(--text-hi,#fff); cursor:pointer; font:inherit; }
+    #cnotes-handle { display:none; }
+    .ws-home-card:last-child:nth-child(odd) { grid-column:span 2; }
     .ws-home-card:hover { border-color:#579dff; transform:translateY(-2px); }
     .ws-home-card strong { font-size:23px; }.ws-home-card>span:last-of-type { color:var(--text-muted,#94a3b8); font-size:13px; line-height:1.6; max-width:90%; }
     .ws-number { color:#88baff; font-size:13px; }.ws-home-card b { position:absolute; right:24px; top:24px; color:#88baff; }
@@ -9302,8 +9304,6 @@
         <button class="nav-tab" data-tab="credenciales" onclick="switchTab('credenciales')" style="display:none">CREDENCIALES</button>
         <button class="nav-tab active" data-tab="clientes" onclick="switchTab('clientes')">CLIENTES</button>
         <button class="nav-tab" data-tab="calendario" onclick="switchTab('calendario')">CALENDARIO</button>
-        <button class="nav-tab" data-tab="notas" onclick="switchTab('notas')">NOTAS</button>
-        <button class="nav-tab" data-tab="talentos" onclick="switchTab('talentos')">EQUIPO</button>
       </div>
       <div class="topnav-right">
         <button id="global-whatsapp-btn" class="global-whatsapp-btn disconnected" onclick="openGlobalWhatsappModal()"
@@ -9330,6 +9330,8 @@
         <div class="dd-email" id="dd-email"></div>
       </div>
       <button class="dd-item" onclick="openProfileModal()"><i class="ico-ph" data-ico="user"></i> Mi perfil</button>
+      <button class="dd-item" onclick="switchTab('notas')"><i class="ico-ph" data-ico="book"></i> Notas</button>
+      <button class="dd-item" onclick="switchTab('talentos')"><i class="ico-ph" data-ico="users"></i> Equipo</button>
       <hr style="border:none;border-top:1px solid var(--border);margin:0.2rem 0">
       <button class="dd-item danger" onclick="doLogout()"><i class="ico-ph" data-ico="logout"></i> Cerrar
         sesión</button>
@@ -9547,12 +9549,6 @@
       </button>
       <button class="mobile-nav-tab" data-tab="calendario" onclick="switchTab('calendario')">
         <i class="ico-ph" data-ico="calendar"></i><span>Calendario</span>
-      </button>
-      <button class="mobile-nav-tab" data-tab="notas" onclick="switchTab('notas')">
-        <i class="ico-ph" data-ico="book"></i><span>Notas</span>
-      </button>
-      <button class="mobile-nav-tab" data-tab="talentos" onclick="switchTab('talentos')">
-        <i class="ico-ph" data-ico="users"></i><span>Equipo</span>
       </button>
       <button class="mobile-nav-tab" data-tab="ventas" onclick="switchTab('ventas')" style="display:none">
         <i class="ico-ph" data-ico="receipt"></i><span>Ventas</span>

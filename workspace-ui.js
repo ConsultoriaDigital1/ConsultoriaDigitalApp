@@ -81,7 +81,6 @@ function renderMarketingHome() {
     ['clientes', '03', 'Checklist', 'Clientes, pendientes y seguimiento del trabajo'],
     ['estadisticas', '04', 'Estadísticas', 'Resultados por canal y reportes para clientes'],
     ['credenciales', '05', 'Credenciales', 'Accesos de cada cliente en un solo lugar'],
-    ['talentos', '06', 'Equipo', 'Conocé a las personas de tu equipo'],
   ];
   $('marketing-home').innerHTML = `<div class="ws-welcome"><span class="ws-eyebrow">EQUIPO DE MARKETING</span><h1>Hola, ${esc(currentUser.nombre)} 👋</h1><p>¿A qué opción querés ir hoy?</p></div><div class="ws-home-grid">${options.map(([tab, n, title, sub]) => `<button class="ws-home-card" onclick="switchTab('${tab}')"><span class="ws-number">${n}</span><strong>${title}</strong><span>${sub}</span><b aria-hidden="true">↗</b></button>`).join('')}</div>`;
 }
