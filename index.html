@@ -9151,6 +9151,72 @@
     @media(max-width:1000px) { .ws-home-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
     @media(max-width:700px) { .mobile-bottom-nav { display:flex; overflow-x:auto; overflow-y:hidden; justify-content:flex-start; }.mobile-nav-tab { flex:0 0 104px; } }
     @media(max-width:600px) { .ws-wrap { padding:16px; }.ws-home-grid { gap:10px; grid-auto-rows:minmax(170px,1fr); }.ws-home-card { padding:18px; min-height:170px; }.ws-home-card strong { font-size:19px; }.ws-home-card b { right:12px; top:12px; }.ws-form { grid-template-columns:1fr; }.ws-entry-grid { grid-template-columns:1fr; }.mobile-bottom-nav { overflow-x:auto; justify-content:flex-start; }.mobile-nav-tab { flex:0 0 104px; }.ws-toolbar label { width:100%; }.ws-toolbar select { flex:1; } }
+
+    .clientes-mobile-controls,.pend-mobile-add-toggle { display:none; }
+    @media (max-width:700px) {
+      #clientes-cbar { padding:.65rem .75rem; min-height:0; }
+      #clientes-cbar .cbar-title { font-size:1rem; }
+      #clientes-cbar .cbar-sub { font-size:.63rem; margin-top:.25rem; }
+      #clientes-cbar > div:last-child { display:grid !important; grid-template-columns:repeat(3,minmax(0,1fr)); overflow:visible; gap:.4rem !important; margin:0 !important; padding:0; }
+      #clientes-cbar > div:last-child .btn { min-width:0; width:100%; min-height:calc(44px / var(--zoom)); font-size:.68rem; padding:.35rem .45rem; white-space:normal; justify-content:center; }
+      #clientes-cbar #btn-new-card { grid-column:auto; order:-1; }
+      #clientes-cbar #filter-user-select { grid-column:1/-1; text-align:left; }
+      .clientes-mobile-controls { display:flex; flex-direction:column; gap:.5rem; padding:.55rem .75rem; flex-shrink:0; border-bottom:1px solid var(--border); background:var(--bg); }
+      .clientes-mobile-controls[hidden],.clientes-mobile-filters[hidden] { display:none; }
+      .clientes-mobile-views { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:4px; padding:4px; border-radius:12px; background:var(--bg2); }
+      .clientes-mobile-views button { min-height:calc(44px / var(--zoom)); border:0; border-radius:9px; background:transparent; color:var(--muted); font:inherit; font-size:.72rem; font-weight:800; cursor:pointer; }
+      .clientes-mobile-views button[aria-pressed="true"] { color:var(--text-hi); background:var(--surface3); box-shadow:0 2px 6px #0002; }
+      .clientes-mobile-filters { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,.8fr); gap:.4rem; }
+      .clientes-mobile-filters input,.clientes-mobile-filters select { min-width:0; width:100%; min-height:calc(44px / var(--zoom)); padding:.45rem .5rem; font:inherit; font-size:.72rem; background:var(--surface2); color:var(--text-hi); border:1px solid var(--border2); border-radius:9px; }
+      #tab-clientes .clientes-body { min-width:0; min-height:0; }
+      #tab-clientes #kanban-board.kanban-wrap { display:block; overflow-y:auto; overflow-x:hidden; padding:.75rem; overscroll-behavior:contain; }
+      #tab-clientes #kanban-board.kanban-wrap > .kanban-col,
+      #tab-clientes #kanban-board.kanban-wrap > .kanban-pendientes,
+      #tab-clientes #kanban-board.kanban-wrap > .clientes-agenda { width:100% !important; min-width:0 !important; max-width:none !important; height:auto; min-height:0; max-height:none; margin-bottom:.75rem; flex:none !important; }
+      #kanban-board[data-mobile-view="clientes"] > :is(.kanban-pendientes,.clientes-agenda),
+      #kanban-board[data-mobile-view="pendientes"] > :is(.kanban-col,.clientes-agenda),
+      #kanban-board[data-mobile-view="agenda"] > :is(.kanban-col,.kanban-pendientes),
+      #kanban-board[data-mobile-status="iniciada"] > .kanban-col:not([data-status="iniciada"]),
+      #kanban-board[data-mobile-status="en_proceso"] > .kanban-col:not([data-status="en_proceso"]),
+      #kanban-board[data-mobile-status="finalizado"] > .kanban-col:not([data-status="finalizado"]) { display:none; }
+      #tab-clientes .col-cards,#tab-clientes .pend-list,#tab-clientes .agenda-list { flex:none; min-height:0; overflow:visible; }
+      #tab-clientes .col-head,#tab-clientes .pend-head { padding:.75rem; }
+      #tab-clientes .col-title { font-size:.7rem; }
+      #tab-clientes .kcard { flex-shrink:0; min-height:82px; }
+      #tab-clientes .kcard-body { padding:.75rem; }
+      #tab-clientes .kcard-title { font-size:.83rem; overflow-wrap:anywhere; }
+      #tab-clientes .kcard-check { flex-shrink:0; width:28px; height:28px; }
+      #tab-clientes .kcard-ava { width:28px; height:28px; font-size:.6rem; }
+      #tab-clientes .add-card-btn { min-height:calc(44px / var(--zoom)); }
+      .pend-mobile-add-toggle { display:block; margin:.5rem .72rem .75rem; min-height:calc(44px / var(--zoom)); padding:.4rem .65rem; border:1px solid var(--border2); border-radius:9px; background:var(--surface2); color:var(--text-hi); font:inherit; font-size:.75rem; font-weight:800; cursor:pointer; }
+      #kanban-board:not([data-mobile-add="true"]) .pend-add-wrap { display:none; }
+      #tab-clientes .pend-add-row { flex-direction:column; align-items:stretch; }
+      #tab-clientes .pend-add-row > * { width:100%; min-width:0; }
+      #tab-clientes .pend-client-select,#tab-clientes .pend-add-input,#tab-clientes .pend-add-btn { min-height:calc(44px / var(--zoom)); font-size:.75rem; }
+      #tab-clientes .pend-item { padding:.75rem; grid-template-columns:28px minmax(0,1fr); }
+      #tab-clientes .pend-item-check { width:24px; height:24px; }
+      #tab-clientes .pend-item-text { font-size:.8rem; }
+      #tab-clientes .pend-item-client { font-size:.68rem; overflow-wrap:anywhere; }
+      #tab-clientes .pend-filters { display:flex; flex-wrap:wrap; gap:.4rem; }
+      #tab-clientes .pend-filter,#tab-clientes .pend-progress-btn { min-height:calc(44px / var(--zoom)); font-size:.7rem; }
+      #tab-clientes .agenda-head { flex-wrap:wrap; gap:.65rem; }
+      #tab-clientes .agenda-item-title { white-space:normal; overflow-wrap:anywhere; font-size:.8rem; }
+      #tab-clientes .agenda-item-meta { white-space:normal; font-size:.65rem; }
+      #tab-clientes .agenda-item { padding:.75rem; min-height:70px; }
+      #tab-clientes .kanban-resize-handle,#tab-clientes.active ~ #cnotes-handle { display:none; }
+      #card-overlay { padding:0; z-index:600; }
+      #card-overlay .card-detail-modal:not(.ventas-chat-mode) { width:100%; max-width:100%; height:100%; max-height:100%; border-radius:0; }
+      #card-overlay .card-detail-modal:not(.ventas-chat-mode) .card-detail-shell { min-width:0; min-height:0; overflow-x:hidden; overscroll-behavior:contain; }
+      #card-overlay .card-detail-modal:not(.ventas-chat-mode) .card-detail-main { min-width:0; padding:.8rem; }
+      #card-overlay .card-detail-modal:not(.ventas-chat-mode) .checklist-item { grid-template-columns:32px 32px minmax(0,1fr) 40px; gap:.4rem; padding:.65rem; }
+      #card-overlay .card-detail-modal:not(.ventas-chat-mode) .checklist-item-check { grid-column:1; grid-row:1; width:26px; height:26px; margin:.35rem 0 0; }
+      #card-overlay .card-detail-modal:not(.ventas-chat-mode) .checklist-item-progress { grid-column:2; grid-row:1; width:28px; height:28px; margin:.3rem 0 0; }
+      #card-overlay .card-detail-modal:not(.ventas-chat-mode) .checklist-item-text { grid-column:1/-1; grid-row:2; min-width:0; font-size:.83rem; line-height:1.5; }
+      #card-overlay .card-detail-modal:not(.ventas-chat-mode) .checklist-user-select { grid-column:3; grid-row:1; min-width:0; width:100%; min-height:44px; margin:0; font-size:.7rem; }
+      #card-overlay .card-detail-modal:not(.ventas-chat-mode) .checklist-item-del { grid-column:4; grid-row:1; min-height:44px; width:40px; }
+      #card-overlay .card-detail-modal:not(.ventas-chat-mode) .modal-foot { flex-wrap:wrap; padding:.65rem; gap:.4rem; }
+      #card-overlay .card-detail-modal:not(.ventas-chat-mode) .modal-foot .btn { flex:1 1 120px; min-height:calc(44px / var(--zoom)); font-size:.75rem; }
+    }
   </style>
 </head>
 
@@ -9331,6 +9397,19 @@
               <button id="btn-new-card" class="btn btn-subtle btn-sm" onclick="openNewCard()">
                 <i class="ico-ph" data-ico="plus"></i> Nueva tarjeta
               </button>
+            </div>
+          </div>
+          <div class="clientes-mobile-controls" id="clientes-mobile-controls">
+            <div class="clientes-mobile-views" role="group" aria-label="Vista de clientes">
+              <button type="button" data-client-view="clientes" aria-pressed="true" onclick="setClientesMobileView('clientes')">Clientes</button>
+              <button type="button" data-client-view="pendientes" aria-pressed="false" onclick="setClientesMobileView('pendientes')">Pendientes</button>
+              <button type="button" data-client-view="agenda" aria-pressed="false" onclick="setClientesMobileView('agenda')">Agenda</button>
+            </div>
+            <div class="clientes-mobile-filters" id="clientes-mobile-filters">
+              <input type="search" id="clientes-mobile-search" aria-label="Buscar cliente o tarea" placeholder="Buscar cliente o tarea…" oninput="onSearch(this.value)" />
+              <select id="clientes-mobile-status" aria-label="Estado de clientes" onchange="setClientesMobileStatus(this.value)">
+                <option value="all">Todos los estados</option><option value="iniciada">Iniciada</option><option value="en_proceso">En proceso</option><option value="finalizado">Finalizado</option>
+              </select>
             </div>
           </div>
           <div class="clientes-body">
@@ -13397,6 +13476,10 @@
       cardsView = 'active';
       ventasView = 'active';
       myClientsOnly = false;
+      searchQ = '';
+      clientesMobileView = 'clientes';
+      clientesMobileStatus = 'all';
+      clientesMobileAddOpen = false;
       eventsCache = [];
       notesCache = { personal: null, teams: {} };
       noteSaveTimers = {};
@@ -14044,11 +14127,52 @@
       return cards;
     }
 
+    let clientesMobileView = 'clientes';
+    let clientesMobileStatus = 'all';
+    let clientesMobileAddOpen = false;
+    function toggleClientesMobileAdd() {
+      clientesMobileAddOpen = !clientesMobileAddOpen;
+      syncClientesMobileUi();
+      if (clientesMobileAddOpen) $('pend-add-text').focus();
+    }
+    function setClientesMobileView(view) {
+      if (!['clientes', 'pendientes', 'agenda'].includes(view)) return;
+      clientesMobileView = view;
+      syncClientesMobileUi();
+      $('kanban-board').scrollTop = 0;
+    }
+    function setClientesMobileStatus(status) {
+      clientesMobileStatus = STATUSES.includes(status) ? status : 'all';
+      syncClientesMobileUi();
+      $('kanban-board').scrollTop = 0;
+    }
+    function syncClientesMobileUi() {
+      const controls = $('clientes-mobile-controls');
+      controls.hidden = activeTeam === 'admin' || cardsView === 'trash';
+      $('kanban-board').dataset.mobileView = clientesMobileView;
+      $('kanban-board').dataset.mobileStatus = clientesMobileStatus;
+      $('kanban-board').dataset.mobileAdd = String(clientesMobileAddOpen);
+      const addToggle = $('pend-mobile-add-toggle');
+      if (addToggle) addToggle.setAttribute('aria-expanded', String(clientesMobileAddOpen));
+      controls.querySelectorAll('[data-client-view]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.clientView === clientesMobileView)));
+      $('clientes-mobile-filters').hidden = clientesMobileView !== 'clientes';
+      $('clientes-mobile-status').value = clientesMobileStatus;
+      if (document.activeElement !== $('clientes-mobile-search')) $('clientes-mobile-search').value = searchQ;
+    }
+
+    window.matchMedia('(max-width:700px)').addEventListener('change', event => {
+      if (!event.matches && searchQ) {
+        searchQ = '';
+        if (currentUser && activeTab === 'clientes') renderBoard();
+      }
+    });
+
     function renderBoard() {
       const board = $('kanban-board');
       const users = getUsers();
       renderClientesNotes();
       syncCardsViewToolbar();
+      syncClientesMobileUi();
       if (cardsView === 'trash' && activeTeam !== 'admin') {
         board.className = 'admin-table-wrap';
         renderCardsTrash(board, users);
@@ -14065,6 +14189,7 @@
         const colCards = cards.filter(c => c.estado === status).sort(byPosition);
         const col = document.createElement('div');
         col.className = 'kanban-col';
+        col.dataset.status = status;
         col.innerHTML = `
       <div class="col-head">
         <span class="col-title">${STATUS_LABEL[status]}</span>
@@ -14102,7 +14227,8 @@
     <div class="pend-client-filter">
       <select id="pend-client-select" class="pend-client-select" onchange="setPendientesClient(this.value)"></select>
     </div>
-    <div class="pend-add-wrap">
+    <button type="button" id="pend-mobile-add-toggle" class="pend-mobile-add-toggle" aria-controls="pend-add-wrap" aria-expanded="${clientesMobileAddOpen}" onclick="toggleClientesMobileAdd()">+ Agregar a checklist</button>
+    <div class="pend-add-wrap" id="pend-add-wrap">
       <div class="pend-add-label">Agregar a checklist</div>
       <div class="pend-add-row">
         <select id="pend-add-client-select" class="pend-client-select" onchange="setPendAddClient(this.value)"></select>
@@ -14426,6 +14552,9 @@
         forceFallback: true,
         fallbackOnBody: true,
         fallbackTolerance: 4,
+        delay: 220,
+        delayOnTouchOnly: true,
+        touchStartThreshold: 8,
         filter: '.pend-item-check, .pend-progress-btn, .pend-undo-btn',
         preventOnFilter: false,
         onStart: () => { pendDragging = true; },
@@ -16154,6 +16283,9 @@
           forceFallback: true,        // ghost custom y mismo comportamiento en todos los navegadores
           fallbackOnBody: true,
           fallbackTolerance: 4,
+          delay: 220,
+          delayOnTouchOnly: true,
+          touchStartThreshold: 8,
           filter: '.kcard-check, .empty-col',
           preventOnFilter: false,
           onStart: beginKanbanDrag,
@@ -17327,7 +17459,7 @@
         subEl.textContent = visibleTrash.length
           ? `${visibleTrash.length} tarjeta${visibleTrash.length === 1 ? '' : 's'} en la papelera.`
           : 'La papelera está vacía.';
-      }
+      } else if (subEl) subEl.textContent = 'Tablero Kanban — ' + (TEAMS[activeTeam] || 'Todos los equipos');
     }
 
     function renderCardsTrash(board, users) {
