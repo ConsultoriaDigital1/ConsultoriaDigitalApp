@@ -9226,6 +9226,12 @@
     .audit-entry { border:1px solid var(--border2); border-radius:10px; background:var(--bg2); padding:16px; margin-top:12px; }.audit-entry-head { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; }.audit-entry time { color:var(--muted); font-size:.6rem; }.audit-entry h3 { font-size:.85rem; margin:12px 0 6px; padding:0; overflow-wrap:anywhere; }.audit-entry p { font-size:.7rem; overflow-wrap:anywhere; }.audit-entry summary { cursor:pointer; font-size:.67rem; padding:12px 0 2px; color:#9dc4ff; }.audit-changes section { border-top:1px solid var(--border); padding-top:12px; margin-top:12px; }.audit-changes h4 { font-size:.7rem; margin-bottom:8px; }.audit-change-values { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }.audit-change-values>div { min-width:0; }.audit-change-values span { color:var(--muted); font-size:.6rem; }.audit-change-values pre { white-space:pre-wrap; overflow-wrap:anywhere; font:inherit; font-size:.65rem; line-height:1.5; margin-top:4px; max-height:240px; overflow:auto; }.audit-more { margin-top:16px; }.audit-more[hidden] { display:none; }
     @media(max-width:700px) { #clientes-cbar > div:last-child { grid-template-columns:repeat(2,minmax(0,1fr)) !important; } }
     @media(max-width:600px) { dialog.ws-audit-dialog { padding:16px; }.audit-filters { grid-template-columns:1fr; }.audit-change-values { grid-template-columns:1fr; }.audit-filters input,.audit-filters select,.audit-filters .btn { min-height:44px; } }
+
+    .statistics-client-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:16px; }
+    .statistics-client-button { display:flex; flex-direction:column; align-items:flex-start; gap:12px; text-align:left; min-height:160px; padding:24px; background:var(--surface); color:var(--text-hi); border:1px solid var(--border2); border-radius:14px; font:inherit; cursor:pointer; }
+    .statistics-client-button:hover { border-color:#579dff; background:var(--surface2); }.statistics-client-button strong { font-size:.95rem; overflow-wrap:anywhere; }.statistics-client-button>span { font-size:.65rem; color:var(--muted); }.statistics-client-button .statistics-client-open { color:#9dc4ff; margin-top:auto; }
+    dialog.statistics-client-dialog { padding:24px; }.statistics-client-dialog .audit-head { margin-bottom:24px; }.statistics-period-label { color:var(--muted); font-size:.65rem; margin-bottom:16px; }#statistics-period-error[hidden] { display:none; }
+    @media(max-width:600px) { .statistics-client-grid { grid-template-columns:1fr; }dialog.statistics-client-dialog { padding:16px; }.statistics-client-dialog .ws-toolbar .btn { flex:1 1 auto; min-height:44px; } }
   </style>
 </head>
 
@@ -9559,6 +9565,12 @@
   <!-- ═══════════════════════════════════════════
      CARD MODAL
      ═══════════════════════════════════════════ -->
+  <dialog id="statistics-client-dialog" class="ws-wrap ws-schedule-dialog ws-report-dialog statistics-client-dialog" aria-labelledby="statistics-client-title"
+    oncancel="event.preventDefault();closeStatisticsClient()" onclick="if(event.target===this)closeStatisticsClient()">
+    <header class="audit-head"><div><h2 id="statistics-client-title"></h2><p>Reportes mensuales del cliente</p></div><button type="button" class="modal-close" aria-label="Cerrar reportes del cliente" onclick="closeStatisticsClient()">×</button></header>
+    <div id="statistics-client-content"></div>
+  </dialog>
+
   <dialog id="card-audit-dialog" class="ws-wrap ws-schedule-dialog ws-audit-dialog" aria-labelledby="card-audit-title"
     oncancel="event.preventDefault();closeCardAudit()" onclick="if(event.target===this)closeCardAudit()">
     <header class="audit-head"><div><h2 id="card-audit-title">Trazabilidad</h2><p id="card-audit-context"></p></div><button type="button" class="modal-close" aria-label="Cerrar trazabilidad" onclick="closeCardAudit()">×</button></header>
@@ -13498,6 +13510,9 @@
       ventasView = 'active';
       myClientsOnly = false;
       searchQ = '';
+      statisticsMineOnly = false;
+      statisticsPeriodFilter.start = '';
+      statisticsPeriodFilter.end = '';
       clientesMobileView = 'clientes';
       clientesMobileStatus = 'all';
       clientesMobileAddOpen = false;

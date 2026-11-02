@@ -128,3 +128,12 @@ sin duplicar su contenido. La API respeta los equipos visibles del usuario.
 
 Validación: `pnpm test:audit`. Para PostgreSQL real: `pnpm test:audit:db`;
 crea un esquema aislado dentro de una transacción y termina con ROLLBACK.
+
+
+En Estadísticas se muestran los clientes de Marketing, con filtro Mis clientes.
+Los reportes y sus acciones se abren dentro del pop-up del cliente. Desde/Hasta
+filtra los reportes del período y conserva visibles los clientes sin registros.
+La trazabilidad de reportes usa el recurso `estadisticas` en `card_audit_log` y
+registra creación, edición y eliminación con cambios por campo y usuario.
+El servidor instala el trigger `statistics_audit_trigger` al reiniciar;
+no se reconstruyen cambios anteriores a su activación.

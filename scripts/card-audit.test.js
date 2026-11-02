@@ -9,13 +9,15 @@ test('trazabilidad limita equipos y rechaza filtros inválidos', () => {
   assert.throws(() => auditQuery({ equipo: 'admin' }, { action: 'otro' }), { status: 400 });
   assert.throws(() => auditQuery({ equipo: 'admin' }, { cursor: '1 OR 1=1' }), { status: 400 });
   assert.throws(() => auditQuery({ equipo: 'admin' }, { cursor: '99999999999999999999' }), { status: 400 });
+  assert.throws(() => auditQuery({ equipo: 'admin' }, { resource: 'credenciales' }), { status: 400 });
+  assert.equal(auditQuery({ equipo: 'marketing' }, { resource: 'estadisticas', cardId: 'c1' }).values[1], 'estadisticas');
 });
 
 test('búsqueda parametrizada y paginación estable', () => {
   const result = auditQuery({ equipo: 'admin' }, { team: 'marketing', cursor: '84', action: 'move', q: "50%_O'Reilly" });
   assert.match(result.text, /ORDER BY id DESC LIMIT 51/);
   assert.ok(!result.text.includes("O'Reilly"));
-  assert.deepEqual(result.values, [['marketing'], '84', 'move', "%50\\%\\_O'Reilly%"]);
+  assert.deepEqual(result.values, [['marketing'], 'card', '84', 'move', "%50\\%\\_O'Reilly%"]);
 });
 
 test('usuario y cambio comparten transacción; los errores revierten todo', async () => {

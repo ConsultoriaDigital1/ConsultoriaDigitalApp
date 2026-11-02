@@ -12,6 +12,7 @@ function checkMonthlyDuplicate(id, cardId, kind, data) {
   }
 }
 const pool = { async query(sql, values) {
+  if (['BEGIN', 'COMMIT', 'ROLLBACK'].includes(sql) || sql.startsWith('SELECT set_config')) return { rows: [] };
   if (sql.startsWith('SELECT * FROM cards')) return { rows: cards.filter(c => c.id === values[0]) };
   if (sql.startsWith('INSERT')) {
     const row = { id: values[0], card_id: values[1], kind: values[2], data: JSON.parse(values[3]) };
@@ -29,6 +30,7 @@ const pool = { async query(sql, values) {
   const rows = entries.map(e => ({ ...e, equipo: cards.find(c => c.id === e.card_id).equipo }));
   return { rows: rows.filter(e => sql.includes('WHERE e.kind') ? e.kind === values[0] : e.id === values[0]) };
 } };
+pool.connect = async () => ({ query: (sql, values) => pool.query(sql, values), release() {} });
 let server, base;
 before(async () => {
   const app = express();

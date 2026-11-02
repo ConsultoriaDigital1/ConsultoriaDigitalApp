@@ -13,7 +13,7 @@ async function main() {
     await db.query('BEGIN');
     await db.query(`CREATE SCHEMA ${namespace}`);
     await db.query(`SET LOCAL search_path TO ${namespace}, public`);
-    for (const name of ['users', 'cards', 'card_description_history']) await db.query(`CREATE TABLE ${name} (LIKE public.${name} INCLUDING DEFAULTS)`);
+    for (const name of ['users', 'cards', 'card_description_history', 'workspace_entries']) await db.query(`CREATE TABLE ${name} (LIKE public.${name} INCLUDING DEFAULTS)`);
     await db.query(audit.schema);
     await audit.setActor(db, { id: 'audit-user', nombre: 'Eliana', apellido: 'Prueba', username: 'eliana' });
     await db.query("INSERT INTO users (id, username, nombre, password_hash, equipo) VALUES ('audit-user', 'eliana', 'Eliana', 'NO_LOGIN', 'marketing')");
@@ -22,6 +22,23 @@ async function main() {
     await db.query("UPDATE cards SET position=3 WHERE id='audit-card'");
     await db.query("UPDATE cards SET checklist=$1, cover_image=$2, attachments=$3 WHERE id='audit-card'", [JSON.stringify([{ id: 'task', text: 'Publicar reel', done: true, usuario: 'audit-user' }]), 'PRIVATE_BINARY_COVER', JSON.stringify([{ id: 'file', name: 'reporte.pdf', type: 'application/pdf', size: 12, data: 'PRIVATE_BINARY_FILE' }])]);
     await db.query("INSERT INTO card_description_history (id,card_id,user_id,description,kind,creado_en) VALUES ('comment','audit-card','audit-user','Comentario de prueba','comentario',1)");
+    const report = { format: 'monthly', month: '2026-11', start: '2026-11-01', end: '2026-11-30', adsActive: false, sections: { instagram: { views: '45000', followers: '5300', interactions: '850' } }, notes: '' };
+    await db.query("INSERT INTO workspace_entries (id,card_id,kind,data,updated_by) VALUES ('audit-report','audit-card','estadisticas',$1,'audit-user')", [JSON.stringify(report)]);
+    await db.query("UPDATE workspace_entries SET data=$1 WHERE id='audit-report'", [JSON.stringify({ ...report, notes: 'Actualizado', sections: { instagram: { ...report.sections.instagram, views: '46000' } } })]);
+    await db.query("UPDATE workspace_entries SET updated_at=NOW() WHERE id='audit-report'");
+    await db.query('SAVEPOINT report_rollback');
+    await db.query("UPDATE workspace_entries SET data=jsonb_set(data,'{notes}','\"Revertido\"') WHERE id='audit-report'");
+    await db.query('ROLLBACK TO SAVEPOINT report_rollback');
+    await db.query("DELETE FROM workspace_entries WHERE id='audit-report'");
+    const statisticsQuery = audit.auditQuery({ equipo: 'marketing' }, { resource: 'estadisticas', cardId: 'audit-card' });
+    const reports = (await db.query(statisticsQuery.text, statisticsQuery.values)).rows.reverse();
+    assert.deepEqual(reports.map(r => r.action), ['create', 'edit', 'delete']);
+    assert.equal(reports[0].actor.username, 'eliana');
+    assert.equal(reports[1].record_id, 'audit-report');
+    assert.equal(reports[1].changes['instagram.views'].before, '45000');
+    assert.equal(reports[1].changes['instagram.views'].after, '46000');
+    assert.equal(reports[1].changes.notes.after, 'Actualizado');
+    assert.equal(reports[2].changes.month.before, '2026-11');
     const count = async () => Number((await db.query('SELECT count(*) AS n FROM card_audit_log')).rows[0].n);
     const before = await count();
     await db.query("UPDATE cards SET updated_at=NOW() WHERE id='audit-card'");
@@ -40,7 +57,7 @@ async function main() {
     await audit.setActor(db, { id: 'audit-user', nombre: 'Eliana', apellido: 'Prueba', username: 'eliana' });
     await db.query("DELETE FROM cards WHERE id='audit-card'");
     await db.query("DELETE FROM users WHERE id='audit-user'");
-    const { rows } = await db.query('SELECT * FROM card_audit_log ORDER BY id');
+    const { rows } = await db.query("SELECT * FROM card_audit_log WHERE resource='card' ORDER BY id");
     assert.deepEqual(rows.map(r => r.action), ['create', 'move', 'reorder', 'edit', 'comment', 'trash', 'restore', 'move', 'edit', 'delete']);
     assert.equal(rows[0].actor.name, 'Eliana Prueba');
     assert.equal(rows[1].changes.estado.before, 'iniciada');
@@ -57,7 +74,7 @@ async function main() {
     assert.ok(marketing.rows.some(r => r.action === 'move' && r.teams.includes('desarrollo')), 'registra la transferencia de equipo');
     const literal = audit.auditQuery({ equipo: 'admin' }, { q: '50%_literal', action: 'create' });
     assert.equal((await db.query(literal.text, literal.values)).rows.length, 1);
-    console.log('PostgreSQL: creación, movimientos, edición, checklist, comentarios, papelera, restauración, eliminación, permisos y rollback verificados.');
+    console.log('PostgreSQL: tarjetas y reportes; creación, cambios por campo, usuarios, eliminación, permisos y rollback verificados.');
   } finally {
     await db.query('ROLLBACK').catch(() => {});
     db.release();

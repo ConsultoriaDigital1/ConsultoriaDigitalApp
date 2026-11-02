@@ -34,6 +34,9 @@ function auditQuery(user, query) {
   const params = [teams];
   const conditions = ['teams && $1::text[]'];
   const add = (sql, value) => { params.push(value); conditions.push(sql.replace('?', '$' + params.length)); };
+  const resource = query.resource || 'card';
+  if (!['card', 'estadisticas'].includes(resource)) throw Object.assign(new Error('Historial inválido.'), { status: 400 });
+  add('resource = ?', resource);
   if (query.cursor) {
     if (!/^\d{1,18}$/.test(String(query.cursor))) throw Object.assign(new Error('Página inválida.'), { status: 400 });
     add('id < ?::bigint', query.cursor);
@@ -57,7 +60,7 @@ function register(app, pool, requireAuth) {
     try {
       const query = auditQuery(req.user, req.query);
       const { rows } = await pool.query(query.text, query.values);
-      res.json({ entries: rows.slice(0, 50).map(row => ({ id: row.id, cardId: row.card_id, cardName: row.card_name, action: row.action, actor: row.actor, changes: row.changes, occurredAt: row.occurred_at })), nextCursor: rows.length > 50 ? rows[49].id : null });
+      res.json({ entries: rows.slice(0, 50).map(row => ({ id: row.id, cardId: row.card_id, cardName: row.card_name, resource: row.resource, recordId: row.record_id, action: row.action, actor: row.actor, changes: row.changes, occurredAt: row.occurred_at })), nextCursor: rows.length > 50 ? rows[49].id : null });
     } catch (err) { next(err); }
   });
 }

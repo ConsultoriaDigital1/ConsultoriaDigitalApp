@@ -10,6 +10,9 @@ CREATE TABLE IF NOT EXISTS card_audit_log (
 );
 CREATE INDEX IF NOT EXISTS idx_card_audit_teams ON card_audit_log USING GIN (teams);
 CREATE INDEX IF NOT EXISTS idx_card_audit_card ON card_audit_log (card_id, id DESC);
+ALTER TABLE card_audit_log ADD COLUMN IF NOT EXISTS resource TEXT NOT NULL DEFAULT 'card';
+ALTER TABLE card_audit_log ADD COLUMN IF NOT EXISTS record_id TEXT;
+CREATE INDEX IF NOT EXISTS idx_card_audit_resource ON card_audit_log (resource, id DESC);
 
 -- No FK a cards/users: el historial sobrevive a la eliminación de ambos.
 CREATE OR REPLACE FUNCTION card_audit_snapshot(value JSONB) RETURNS JSONB
@@ -79,3 +82,47 @@ $$;
 DROP TRIGGER IF EXISTS card_comments_audit_trigger ON card_description_history;
 CREATE TRIGGER card_comments_audit_trigger AFTER INSERT ON card_description_history
 FOR EACH ROW EXECUTE FUNCTION record_card_comment_audit();
+
+CREATE OR REPLACE FUNCTION statistics_audit_snapshot(value JSONB) RETURNS JSONB
+LANGUAGE sql IMMUTABLE AS $$
+  SELECT (value - ARRAY['sections','format']) || coalesce((
+    SELECT jsonb_object_agg(channel.key || '.' || metric.key, metric.value)
+    FROM jsonb_each(coalesce(value->'sections','{}'::jsonb)) channel
+    CROSS JOIN LATERAL jsonb_each(channel.value) metric
+  ), '{}'::jsonb);
+$$;
+
+CREATE OR REPLACE FUNCTION record_statistics_audit() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE
+  previous JSONB := '{}'::jsonb;
+  following JSONB := '{}'::jsonb;
+  delta JSONB;
+  row_data workspace_entries;
+  card_row cards;
+  actor_data JSONB;
+  client_name TEXT;
+BEGIN
+  IF TG_OP = 'DELETE' THEN row_data := OLD; ELSE row_data := NEW; END IF;
+  IF row_data.kind <> 'estadisticas' THEN RETURN NULL; END IF;
+  IF TG_OP <> 'INSERT' THEN previous := statistics_audit_snapshot(OLD.data) || jsonb_build_object('cliente', OLD.card_id); END IF;
+  IF TG_OP <> 'DELETE' THEN following := statistics_audit_snapshot(NEW.data) || jsonb_build_object('cliente', NEW.card_id); END IF;
+  SELECT coalesce(jsonb_object_agg(key, jsonb_build_object('before', previous->key, 'after', following->key)), '{}'::jsonb)
+    INTO delta FROM (SELECT jsonb_object_keys(previous || following) AS key) keys
+    WHERE previous->key IS DISTINCT FROM following->key;
+  IF delta = '{}'::jsonb THEN RETURN NULL; END IF;
+  SELECT * INTO card_row FROM cards WHERE id = row_data.card_id;
+  client_name := coalesce(nullif(card_row.nf,''), nullif(card_row.rs,''),
+    (SELECT card_name FROM card_audit_log WHERE card_id = row_data.card_id ORDER BY id DESC LIMIT 1),
+    'Cliente eliminado (' || row_data.card_id || ')');
+  actor_data := coalesce(nullif(current_setting('app.card_audit_actor', true), '')::jsonb,
+    jsonb_build_object('id', NULL, 'name', 'Sistema', 'username', '', 'source', 'system'));
+  INSERT INTO card_audit_log (card_id, card_name, teams, action, actor, changes, resource, record_id)
+    VALUES (row_data.card_id, client_name, ARRAY[coalesce(card_row.equipo,'marketing')],
+      CASE WHEN TG_OP = 'INSERT' THEN 'create' WHEN TG_OP = 'DELETE' THEN 'delete' ELSE 'edit' END,
+      actor_data, delta, 'estadisticas', row_data.id);
+  RETURN NULL;
+END;
+$$;
+DROP TRIGGER IF EXISTS statistics_audit_trigger ON workspace_entries;
+CREATE TRIGGER statistics_audit_trigger AFTER INSERT OR UPDATE OR DELETE ON workspace_entries
+FOR EACH ROW EXECUTE FUNCTION record_statistics_audit();

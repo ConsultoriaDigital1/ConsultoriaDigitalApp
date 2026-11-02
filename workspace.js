@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const cardAudit = require('./card-audit');
 
 const schema = `CREATE TABLE IF NOT EXISTS workspace_entries (
   id TEXT PRIMARY KEY,
@@ -144,29 +145,35 @@ function register(app, pool, requireAuth, canAccessTeam) {
     try {
       const { kind } = req.params;
       const data = validate(kind, req.body.data || {});
-      const { rows } = await pool.query('SELECT * FROM cards WHERE id = $1 AND deleted_at IS NULL', [req.body.cardId]);
-      if (!rows[0] || !permitted(req.user, rows[0].equipo, kind)) return res.status(403).json({ error: 'Cliente no disponible para tu equipo.' });
-      if (kind === 'credenciales') {
-        if (!data.password) return res.status(400).json({ error: 'Completá la contraseña.' });
-        data.password = encrypt(data.password);
-      }
-      const result = await pool.query('INSERT INTO workspace_entries (id, card_id, kind, data, updated_by) VALUES ($1, $2, $3, $4, $5) RETURNING *', [crypto.randomUUID(), req.body.cardId, kind, JSON.stringify(data), req.user.id]);
-      res.status(201).json({ entry: dto(result.rows[0]) });
+      const row = await cardAudit.withActor(pool, req.user, async client => {
+        const { rows } = await client.query('SELECT * FROM cards WHERE id = $1 AND deleted_at IS NULL FOR UPDATE', [req.body.cardId]);
+        if (!rows[0] || !permitted(req.user, rows[0].equipo, kind)) throw Object.assign(new Error('Cliente no disponible para tu equipo.'), { status: 403 });
+        if (kind === 'credenciales') {
+          if (!data.password) throw Object.assign(new Error('Completá la contraseña.'), { status: 400 });
+          data.password = encrypt(data.password);
+        }
+        const result = await client.query('INSERT INTO workspace_entries (id, card_id, kind, data, updated_by) VALUES ($1, $2, $3, $4, $5) RETURNING *', [crypto.randomUUID(), req.body.cardId, kind, JSON.stringify(data), req.user.id]);
+        return result.rows[0];
+      });
+      res.status(201).json({ entry: dto(row) });
     } catch (err) { reportError(err, next); }
   });
-  async function accessible(req) {
-    const { rows } = await pool.query('SELECT e.*, c.equipo, c.deleted_at FROM workspace_entries e JOIN cards c ON c.id = e.card_id WHERE e.id = $1', [req.params.id]);
+  async function accessible(req, db = pool, lock = false) {
+    const { rows } = await db.query('SELECT e.*, c.equipo, c.deleted_at FROM workspace_entries e JOIN cards c ON c.id = e.card_id WHERE e.id = $1' + (lock ? ' FOR UPDATE OF c, e' : ''), [req.params.id]);
     const row = rows[0];
     return row && !row.deleted_at && permitted(req.user, row.equipo, row.kind) ? row : null;
   }
   app.put('/api/workspace/entries/:id', requireAuth, async (req, res, next) => {
     try {
-      const row = await accessible(req);
-      if (!row) return res.status(404).json({ error: 'Registro no disponible.' });
-      const data = validate(row.kind, req.body.data || {});
-      if (row.kind === 'credenciales') data.password = data.password ? encrypt(data.password) : row.data.password;
-      const result = await pool.query('UPDATE workspace_entries SET data = $1, updated_by = $2, updated_at = NOW() WHERE id = $3 RETURNING *', [JSON.stringify(data), req.user.id, row.id]);
-      res.json({ entry: dto(result.rows[0]) });
+      const saved = await cardAudit.withActor(pool, req.user, async client => {
+        const row = await accessible(req, client, true);
+        if (!row) throw Object.assign(new Error('Registro no disponible.'), { status: 404 });
+        const data = validate(row.kind, req.body.data || {});
+        if (row.kind === 'credenciales') data.password = data.password ? encrypt(data.password) : row.data.password;
+        const result = await client.query('UPDATE workspace_entries SET data = $1, updated_by = $2, updated_at = NOW() WHERE id = $3 RETURNING *', [JSON.stringify(data), req.user.id, row.id]);
+        return result.rows[0];
+      });
+      res.json({ entry: dto(saved) });
     } catch (err) { reportError(err, next); }
   });
   app.post('/api/workspace/entries/:id/reveal', requireAuth, async (req, res, next) => {
@@ -179,9 +186,11 @@ function register(app, pool, requireAuth, canAccessTeam) {
   });
   app.delete('/api/workspace/entries/:id', requireAuth, async (req, res, next) => {
     try {
-      const row = await accessible(req);
-      if (!row) return res.status(404).json({ error: 'Registro no disponible.' });
-      await pool.query('DELETE FROM workspace_entries WHERE id = $1', [row.id]);
+      await cardAudit.withActor(pool, req.user, async client => {
+        const row = await accessible(req, client, true);
+        if (!row) throw Object.assign(new Error('Registro no disponible.'), { status: 404 });
+        await client.query('DELETE FROM workspace_entries WHERE id = $1', [row.id]);
+      });
       res.json({ ok: true });
     } catch (err) { next(err); }
   });
