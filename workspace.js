@@ -12,7 +12,45 @@ CREATE INDEX IF NOT EXISTS idx_workspace_entries_card ON workspace_entries(card_
 UPDATE workspace_entries
 SET data = jsonb_set(data, '{status}', to_jsonb(CASE data->>'status'
   WHEN 'completado' THEN 'publicado' ELSE 'programado' END)), updated_at = NOW()
-WHERE kind = 'cronograma' AND data->>'status' IN ('pendiente', 'en_proceso', 'completado');`;
+WHERE kind = 'cronograma' AND data->>'status' IN ('pendiente', 'en_proceso', 'completado');
+CREATE UNIQUE INDEX IF NOT EXISTS idx_workspace_monthly_report
+ON workspace_entries (card_id, (data->>'month'))
+WHERE kind = 'estadisticas' AND data->>'format' = 'monthly';`;
+
+function validateMonthlyReport(input, fail) {
+  if (typeof input.month !== 'string' || !/^(20\d{2}|2100)-(0[1-9]|1[0-2])$/.test(input.month)) fail('Mes inválido.');
+  if (typeof input.adsActive !== 'boolean') fail('Indicá si tuvo pauta activa.');
+  const definition = {
+    pauta: ['messages', 'reach', 'impressions', 'bestAd'],
+    instagram: ['views', 'followers', 'interactions'],
+    web: ['visits', 'newUsers', 'topPage', 'audience', 'device'],
+    mail: ['sent', 'users', 'opened'],
+    whatsapp: ['sent', 'users', 'opened'],
+  };
+  const textFields = new Set(['bestAd', 'topPage', 'audience', 'device']);
+  const sections = {};
+  for (const [channel, fields] of Object.entries(definition)) {
+    const source = input.sections?.[channel];
+    if (channel === 'pauta' && !input.adsActive) continue;
+    if (!source && channel !== 'pauta') continue;
+    if (!source || typeof source !== 'object' || Array.isArray(source)) fail('Completá los resultados de ' + channel + '.');
+    sections[channel] = {};
+    for (const key of fields) {
+      const value = source[key];
+      if (textFields.has(key)) {
+        if (value != null && (typeof value !== 'string' || value.length > 200)) fail('Campo inválido: ' + key);
+        sections[channel][key] = (value || '').trim();
+      } else {
+        if (typeof value !== 'string' || !/^\d+$/.test(value) || !Number.isSafeInteger(Number(value))) fail('Ingresá un número entero positivo o cero en ' + key + '.');
+        sections[channel][key] = String(Number(value));
+      }
+    }
+  }
+  if (!Object.keys(sections).length) fail('Cargá los resultados de al menos un canal.');
+  if (input.notes != null && (typeof input.notes !== 'string' || input.notes.length > 8000)) fail('Análisis demasiado largo.');
+  const [year, month] = input.month.split('-').map(Number);
+  return { format: 'monthly', month: input.month, start: input.month + '-01', end: new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10), adsActive: input.adsActive, sections, notes: (input.notes || '').trim() };
+}
 
 function secretKey() {
   const secret = process.env.CREDENTIALS_SECRET || process.env.SESSION_SECRET;
@@ -58,6 +96,7 @@ function validate(kind, input) {
     return { title: required('title'), date: date('date'), owner: text('owner', 200), status, notes: text('notes') };
   }
   if (kind === 'estadisticas') {
+    if (input.format === 'monthly') return validateMonthlyReport(input, fail);
     const channel = text('channel');
     if (!['redes', 'pauta', 'web', 'whatsapp'].includes(channel)) fail('Canal inválido.');
     const start = date('start'), end = date('end');
@@ -78,6 +117,12 @@ function validate(kind, input) {
 }
 
 function register(app, pool, requireAuth, canAccessTeam) {
+  function reportError(err, next) {
+    if (err.code === '23505' && err.constraint === 'idx_workspace_monthly_report') {
+      err = Object.assign(new Error('Ya existe un reporte de este cliente para ese mes. Editá el registro existente.'), { status: 409 });
+    }
+    next(err);
+  }
   function permitted(user, team, kind) {
     return canAccessTeam(user, team) && (kind === 'credenciales' ? ['marketing', 'desarrollo'].includes(team) : team === 'marketing');
   }
@@ -107,7 +152,7 @@ function register(app, pool, requireAuth, canAccessTeam) {
       }
       const result = await pool.query('INSERT INTO workspace_entries (id, card_id, kind, data, updated_by) VALUES ($1, $2, $3, $4, $5) RETURNING *', [crypto.randomUUID(), req.body.cardId, kind, JSON.stringify(data), req.user.id]);
       res.status(201).json({ entry: dto(result.rows[0]) });
-    } catch (err) { next(err); }
+    } catch (err) { reportError(err, next); }
   });
   async function accessible(req) {
     const { rows } = await pool.query('SELECT e.*, c.equipo, c.deleted_at FROM workspace_entries e JOIN cards c ON c.id = e.card_id WHERE e.id = $1', [req.params.id]);
@@ -122,7 +167,7 @@ function register(app, pool, requireAuth, canAccessTeam) {
       if (row.kind === 'credenciales') data.password = data.password ? encrypt(data.password) : row.data.password;
       const result = await pool.query('UPDATE workspace_entries SET data = $1, updated_by = $2, updated_at = NOW() WHERE id = $3 RETURNING *', [JSON.stringify(data), req.user.id, row.id]);
       res.json({ entry: dto(result.rows[0]) });
-    } catch (err) { next(err); }
+    } catch (err) { reportError(err, next); }
   });
   app.post('/api/workspace/entries/:id/reveal', requireAuth, async (req, res, next) => {
     res.set('Cache-Control', 'no-store');

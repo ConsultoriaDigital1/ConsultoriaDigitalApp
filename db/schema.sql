@@ -294,3 +294,6 @@ UPDATE workspace_entries
 SET data = jsonb_set(data, '{status}', to_jsonb(CASE data->>'status'
   WHEN 'completado' THEN 'publicado' ELSE 'programado' END)), updated_at = NOW()
 WHERE kind = 'cronograma' AND data->>'status' IN ('pendiente', 'en_proceso', 'completado');
+CREATE UNIQUE INDEX IF NOT EXISTS idx_workspace_monthly_report
+ON workspace_entries (card_id, (data->>'month'))
+WHERE kind = 'estadisticas' AND data->>'format' = 'monthly';

@@ -6,15 +6,22 @@ const { register, validate, encrypt, decrypt } = require('../workspace');
 process.env.CREDENTIALS_SECRET = 'test-only-credentials-key-with-enough-entropy';
 const cards = [{ id: 'm1', equipo: 'marketing' }, { id: 'd1', equipo: 'desarrollo' }];
 const entries = [];
+function checkMonthlyDuplicate(id, cardId, kind, data) {
+  if (kind === 'estadisticas' && data.format === 'monthly' && entries.some(e => e.id !== id && e.card_id === cardId && e.kind === kind && e.data.format === 'monthly' && e.data.month === data.month)) {
+    throw Object.assign(new Error('Duplicate month'), { code: '23505', constraint: 'idx_workspace_monthly_report' });
+  }
+}
 const pool = { async query(sql, values) {
   if (sql.startsWith('SELECT * FROM cards')) return { rows: cards.filter(c => c.id === values[0]) };
   if (sql.startsWith('INSERT')) {
     const row = { id: values[0], card_id: values[1], kind: values[2], data: JSON.parse(values[3]) };
+    checkMonthlyDuplicate(row.id, row.card_id, row.kind, row.data);
     entries.push(row);
     return { rows: [row] };
   }
   if (sql.startsWith('UPDATE')) {
     const row = entries.find(e => e.id === values[2]);
+    checkMonthlyDuplicate(row.id, row.card_id, row.kind, JSON.parse(values[0]));
     row.data = JSON.parse(values[0]);
     return { rows: [row] };
   }
@@ -34,6 +41,50 @@ before(async () => {
   app.use((err, req, res, next) => res.status(err.status || 500).json({ error: err.message }));
   server = await new Promise(resolve => { const s = app.listen(0, '127.0.0.1', () => resolve(s)); });
   base = 'http://127.0.0.1:' + server.address().port;
+});
+
+test('reporte mensual: métricas numéricas, pauta condicional y meses reales', () => {
+  const data = { format: 'monthly', month: '2024-02', adsActive: false, sections: { instagram: { views: '0', followers: '5300', interactions: '850' } }, notes: 'Análisis' };
+  const result = validate('estadisticas', data);
+  assert.equal(result.end, '2024-02-29');
+  assert.equal(validate('estadisticas', { ...data, month: '2025-02' }).end, '2025-02-28');
+  assert.throws(() => validate('estadisticas', { ...data, month: '2026-13' }), /Mes/);
+  assert.throws(() => validate('estadisticas', { ...data, adsActive: 'no' }), /pauta/);
+  assert.throws(() => validate('estadisticas', { ...data, adsActive: true }), /pauta/);
+  assert.throws(() => validate('estadisticas', { ...data, sections: {} }), /canal/);
+  for (const value of ['-1', '2.5', '', '9007199254740992', 'NaN']) {
+    assert.throws(() => validate('estadisticas', { ...data, sections: { instagram: { ...data.sections.instagram, views: value } } }), /entero/);
+  }
+  const pauta = { messages: '120', reach: '18500', impressions: '26900', bestAd: 'Video 2' };
+  assert.equal(validate('estadisticas', { ...data, adsActive: true, sections: { pauta } }).sections.pauta.bestAd, 'Video 2');
+  assert.equal(validate('estadisticas', { ...data, sections: { ...data.sections, pauta } }).sections.pauta, undefined);
+});
+
+test('una carga mensual por cliente: rechaza duplicados y permite editar', async () => {
+  const data = { format: 'monthly', month: '2026-11', adsActive: false, sections: { instagram: { views: '45000', followers: '5300', interactions: '900' }, web: { visits: '500', newUsers: '120', topPage: '/servicios', audience: 'Argentina', device: 'Móvil' }, mail: { sent: '100', users: '100', opened: '45' }, whatsapp: { sent: '60', users: '60', opened: '40' } } };
+  const created = await request('estadisticas', 'marketing', 'POST', { cardId: 'm1', data });
+  assert.equal(created.status, 201);
+  assert.equal(created.body.entry.data.end, '2026-11-30');
+  assert.equal((await request('estadisticas', 'marketing', 'POST', { cardId: 'm1', data })).status, 409);
+  assert.equal((await request('estadisticas', 'desarrollo', 'POST', { cardId: 'd1', data })).status, 403);
+  const id = created.body.entry.id;
+  assert.equal((await request(`entries/${id}`, 'marketing', 'PUT', { data: { ...data, notes: 'Actualizado' } })).body.entry.data.notes, 'Actualizado');
+  const december = await request('estadisticas', 'marketing', 'POST', { cardId: 'm1', data: { ...data, month: '2026-12' } });
+  assert.equal(december.status, 201);
+  assert.equal((await request(`entries/${december.body.entry.id}`, 'marketing', 'PUT', { data })).status, 409);
+  for (const entryId of [id, december.body.entry.id]) await request(`entries/${entryId}`, 'marketing', 'DELETE');
+});
+
+test('variaciones mensuales: cambio de año, cero y falta de datos', () => {
+  const vm = require('node:vm'), fs = require('node:fs');
+  const context = vm.createContext({});
+  vm.runInContext(fs.readFileSync(require.resolve('../workspace-ui.js'), 'utf8'), context);
+  assert.equal(context.monthlyPreviousMonth('2026-01'), '2025-12');
+  assert.equal(context.monthlyChange('120', '100'), '+20% vs. mes anterior');
+  assert.equal(context.monthlyChange('80', '100'), '-20% vs. mes anterior');
+  assert.equal(context.monthlyChange('0', '0'), '0% vs. mes anterior');
+  assert.match(context.monthlyChange('10', '0'), /Sin base/);
+  assert.match(context.monthlyChange('10', undefined), /Sin datos/);
 });
 after(() => server.close());
 async function request(path, team, method = 'GET', body) {

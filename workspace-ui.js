@@ -7,6 +7,48 @@ let workspaceEditing = '';
 const workspaceFilters = {};
 const WORKSPACE_CHANNELS = { redes: 'Redes sociales', pauta: 'Pauta publicitaria', web: 'Página web', whatsapp: 'Difusiones de WhatsApp' };
 const WORKSPACE_STATUS = { programado: 'Programado', publicado: 'Publicado', cancelado: 'Cancelado' };
+const MONTHLY_FIELDS = {
+  pauta: { title: 'Resultados de pauta', fields: [['messages', 'Mensajes'], ['reach', 'Alcance'], ['impressions', 'Impresiones'], ['bestAd', 'Mejor anuncio', 'text']] },
+  instagram: { title: 'Resultados de Instagram', fields: [['views', 'Visualizaciones'], ['followers', 'Seguidores al cierre'], ['interactions', 'Interacciones']] },
+  web: { title: 'Resultados de página web', fields: [['visits', 'Visitas'], ['newUsers', 'Usuarios nuevos'], ['topPage', 'Página más visitada', 'text'], ['audience', 'Público', 'text'], ['device', 'Dispositivo principal', 'text']] },
+  mail: { title: 'Resultados de mail', fields: [['sent', 'Cantidad de envíos'], ['users', 'Usuarios alcanzados'], ['opened', 'Aperturas']] },
+  whatsapp: { title: 'Resultados de difusiones de WhatsApp', fields: [['sent', 'Cantidad de envíos'], ['users', 'Usuarios alcanzados'], ['opened', 'Lecturas']] },
+};
+
+function monthlyPreviousMonth(month) {
+  const [year, number] = month.split('-').map(Number);
+  return new Date(Date.UTC(year, number - 2, 1)).toISOString().slice(0, 7);
+}
+
+function monthlyChange(value, previous) {
+  if (previous == null) return 'Sin datos del mes anterior';
+  const current = Number(value), baseline = Number(previous);
+  if (!baseline) return current === 0 ? '0% vs. mes anterior' : 'Sin base de comparación (mes anterior: 0)';
+  const change = (current - baseline) / baseline * 100;
+  return (change > 0 ? '+' : '') + change.toLocaleString('es-AR', { maximumFractionDigits: 1 }) + '% vs. mes anterior';
+}
+
+function monthlyReportHTML(entry) {
+  const d = entry.data;
+  const previous = workspaceEntries.find(e => e.cardId === entry.cardId && e.data.format === 'monthly' && e.data.month === monthlyPreviousMonth(d.month));
+  return `<h3>Resultados mensuales · ${esc(d.month.split('-').reverse().join('/'))}</h3><p>Pauta activa: <strong>${d.adsActive ? 'Sí' : 'No'}</strong></p><div class="ws-results">${Object.entries(MONTHLY_FIELDS).filter(([key]) => d.sections[key]).map(([channel, group]) => `<section class="ws-result-section"><h4>${group.title}</h4><dl>${group.fields.filter(([key, , type]) => type !== 'text' || d.sections[channel][key]).map(([key, label, type]) => `<div><dt>${label}</dt><dd>${esc(d.sections[channel][key])}${type === 'text' ? '' : `<small class="ws-comparison">${esc(monthlyChange(d.sections[channel][key], previous?.data.sections[channel]?.[key]))}</small>`}</dd></div>`).join('')}</dl></section>`).join('')}</div><p class="ws-pre">${esc(d.notes)}</p>`;
+}
+
+function toggleMonthlySection(channel, enabled) {
+  const fieldset = $('ws-monthly-' + channel);
+  fieldset.hidden = !enabled;
+  fieldset.disabled = !enabled;
+}
+
+function openMonthlyWorkspaceEditor(entry, clients) {
+  const d = entry?.data || {};
+  const currentMonth = new Date().toLocaleDateString('sv-SE').slice(0, 7);
+  $('ws-editor').innerHTML = `<form class="ws-form ws-monthly-form" data-format="monthly" onsubmit="saveWorkspaceEntry(event)"><h3 class="ws-full">Resultados mensuales</h3><label>Cliente<select name="cardId" ${entry ? 'disabled' : ''}>${clients.map(c => `<option value="${esc(c.id)}" ${c.id === (entry?.cardId || $('ws-client-filter').value) ? 'selected' : ''}>${esc(c.nf || c.rs || 'Cliente')}</option>`).join('')}</select></label><label>Mes del reporte<input name="month" type="month" value="${esc(d.month || currentMonth)}" min="2000-01" max="2100-12" required></label><fieldset class="ws-full ws-ads-toggle"><legend>¿Tuvo pauta activa?</legend><label><input type="radio" name="adsActive" value="yes" ${d.adsActive ? 'checked' : ''} onchange="toggleMonthlySection('pauta', true)" required> Sí</label><label><input type="radio" name="adsActive" value="no" ${d.adsActive ? '' : 'checked'} onchange="toggleMonthlySection('pauta', false)"> No</label></fieldset>${Object.entries(MONTHLY_FIELDS).map(([channel, group]) => {
+    const enabled = channel === 'pauta' ? !!d.adsActive : entry ? !!d.sections[channel] : channel === 'instagram';
+    return `${channel === 'pauta' ? '' : `<label class="ws-full ws-channel-toggle"><input type="checkbox" ${enabled ? 'checked' : ''} onchange="toggleMonthlySection('${channel}', this.checked)"> Incluir ${group.title.replace('Resultados de ', '')}</label>`}<fieldset id="ws-monthly-${channel}" class="ws-full ws-monthly-section" ${enabled ? '' : 'hidden disabled'}><legend>${group.title}</legend>${group.fields.map(([key, label, type]) => `<label>${label}<input name="${channel}.${key}" type="${type || 'number'}" value="${esc(d.sections?.[channel]?.[key] ?? '')}" ${type === 'text' ? 'maxlength="200"' : 'min="0" max="9007199254740991" step="1" required'}></label>`).join('')}</fieldset>`;
+  }).join('')}<p class="ws-full ws-monthly-help">Una carga por cliente y mes. Las variaciones se calculan con el mes anterior cuando hay datos disponibles.</p><label class="ws-full">Análisis y próximos pasos<textarea name="notes" rows="3" maxlength="8000">${esc(d.notes)}</textarea></label><div class="ws-actions ws-full"><button type="submit" class="btn btn-primary">Guardar resultados</button><button type="button" class="btn btn-ghost" onclick="closeWorkspaceEditor()">Cancelar</button></div></form>`;
+  $('ws-editor').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
 
 function workspaceAllowed(tab) {
   if (tab === 'credenciales') return isAdmin() || ['marketing', 'desarrollo'].includes(currentUser?.equipo);
@@ -77,7 +119,7 @@ async function renderWorkspace(kind) {
     const result = await api('/api/workspace/' + kind);
     if (request !== workspaceRequest || activeTab !== kind) return;
     workspaceEntries = result.entries;
-    root.innerHTML = `<div class="ws-toolbar"><label>Cliente <select id="ws-client-filter" onchange="renderWorkspaceContent()"><option value="">Todos los clientes</option>${workspaceClients(kind).map(c => `<option value="${esc(c.id)}" ${c.id === workspaceFilters[kind] ? 'selected' : ''}>${esc(c.nf || c.rs || 'Cliente')}</option>`).join('')}</select></label><button class="btn btn-primary" onclick="openWorkspaceEditor()">+ ${kind === 'cronograma' ? 'Nueva tarea' : kind === 'estadisticas' ? 'Nuevas estadísticas' : 'Nuevo acceso'}</button>${kind === 'estadisticas' ? '<button class="btn btn-ghost" onclick="exportWorkspaceReport()">Exportar reporte</button>' : ''}</div>${kind === 'estadisticas' ? '<div class="ws-toolbar"><label>Desde <input id="ws-period-start" type="date" onchange="renderWorkspaceContent()"></label><label>Hasta <input id="ws-period-end" type="date" onchange="renderWorkspaceContent()"></label></div>' : ''}<div id="ws-editor"></div><div id="ws-content"></div>`;
+    root.innerHTML = `<div class="ws-toolbar"><label>Cliente <select id="ws-client-filter" onchange="renderWorkspaceContent()"><option value="">Todos los clientes</option>${workspaceClients(kind).map(c => `<option value="${esc(c.id)}" ${c.id === workspaceFilters[kind] ? 'selected' : ''}>${esc(c.nf || c.rs || 'Cliente')}</option>`).join('')}</select></label><button class="btn btn-primary" onclick="openWorkspaceEditor()">+ ${kind === 'cronograma' ? 'Nueva tarea' : kind === 'estadisticas' ? 'Nuevo reporte mensual' : 'Nuevo acceso'}</button>${kind === 'estadisticas' ? '<button class="btn btn-ghost" onclick="exportWorkspaceReport()">Exportar reporte</button>' : ''}</div>${kind === 'estadisticas' ? '<div class="ws-toolbar"><label>Desde <input id="ws-period-start" type="date" onchange="renderWorkspaceContent()"></label><label>Hasta <input id="ws-period-end" type="date" onchange="renderWorkspaceContent()"></label></div>' : ''}<div id="ws-editor"></div><div id="ws-content"></div>`;
     renderWorkspaceContent();
   } catch (err) {
     if (request === workspaceRequest) { root.innerHTML = '<p class="ws-empty">No se pudo cargar la sección. Volvé a ingresar para reintentar.</p>'; toast(err.message, 'error'); }
@@ -95,7 +137,7 @@ function renderWorkspaceContent() {
     $('ws-content').innerHTML = `<div class="ws-toolbar"><button class="btn btn-ghost" onclick="workspaceWeek--;renderWorkspaceContent()" aria-label="Semana anterior">‹</button><strong>${days[0].split('-').reverse().join('/')} — ${days[6].split('-').reverse().join('/')}</strong><button class="btn btn-ghost" onclick="workspaceWeek++;renderWorkspaceContent()" aria-label="Semana siguiente">›</button><button class="btn btn-ghost" onclick="workspaceWeek=0;renderWorkspaceContent()">Esta semana</button></div><div class="ws-schedule-scroll"><table class="ws-schedule"><thead><tr><th scope="col">Cliente</th>${days.map((date, i) => `<th scope="col">${['LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB', 'DOM'][i]} ${date.slice(8)}</th>`).join('')}</tr></thead><tbody>${clients.map(c => `<tr><th scope="row">${esc(c.nf || c.rs || 'Cliente')}</th>${days.map(date => `<td><div class="ws-day-tasks"><button class="btn btn-ghost btn-sm" aria-label="Agregar tarea el ${date} para ${esc(c.nf || c.rs || 'Cliente')}" data-client="${esc(c.id)}" onclick="openWorkspaceEditor('', '${date}', this.dataset.client)">+</button>${entries.filter(e => e.cardId === c.id && e.data.date === date).map(e => workspaceEntryHTML(e)).join('')}</div></td>`).join('')}</tr>`).join('')}</tbody></table></div>${clients.length ? '' : '<p class="ws-empty">Primero agregá clientes en Checklist.</p>'}`;
     return;
   }
-  $('ws-content').innerHTML = entries.length ? `<div class="ws-entry-grid">${entries.map(workspaceEntryHTML).join('')}</div>` : '<p class="ws-empty">Todavía no hay registros para estos clientes.</p>';
+  $('ws-content').innerHTML = entries.length ? `<div class="ws-entry-grid${workspaceKind === 'estadisticas' ? ' ws-monthly-grid' : ''}">${entries.map(workspaceEntryHTML).join('')}</div>` : '<p class="ws-empty">Todavía no hay registros para estos clientes.</p>';
 }
 
 function workspaceEntryHTML(entry) {
@@ -104,7 +146,7 @@ function workspaceEntryHTML(entry) {
   const id = encodeURIComponent(entry.id);
   let body = '';
   if (entry.kind === 'cronograma') return `<article class="ws-schedule-task"><button class="ws-task-edit" onclick="openWorkspaceEditor('${id}')" title="${esc([d.title, d.owner, d.notes].filter(Boolean).join(' · '))}"><span class="ws-task-title">${esc(d.title)}</span><span class="ws-badge ws-status-${esc(d.status)}">${esc(WORKSPACE_STATUS[d.status])}</span></button><button class="ws-task-delete" onclick="deleteWorkspaceEntry('${id}')" aria-label="Eliminar ${esc(d.title)}">×</button></article>`;
-  if (entry.kind === 'estadisticas') body = `<h3>${esc(WORKSPACE_CHANNELS[d.channel])}</h3><p>${esc(d.start)} al ${esc(d.end)}</p><dl>${d.metrics.map(m => `<div><dt>${esc(m.label)}</dt><dd>${esc(m.value)}</dd></div>`).join('')}</dl><p class="ws-pre">${esc(d.notes)}</p>`;
+  if (entry.kind === 'estadisticas') body = d.format === 'monthly' ? monthlyReportHTML(entry) : `<h3>${esc(WORKSPACE_CHANNELS[d.channel])}</h3><p>${esc(d.start)} al ${esc(d.end)}</p><dl>${d.metrics.map(m => `<div><dt>${esc(m.label)}</dt><dd>${esc(m.value)}</dd></div>`).join('')}</dl><p class="ws-pre">${esc(d.notes)}</p>`;
   if (entry.kind === 'credenciales') body = `<h3>${esc(d.platform)}</h3><p class="ws-pre">${esc(d.username)}</p>${d.url ? `<a href="${esc(d.url)}" target="_blank" rel="noopener noreferrer">Abrir plataforma ↗</a>` : ''}<div class="ws-secret"><input type="password" readonly value="••••••••" aria-label="Contraseña" autocomplete="off"><button class="btn btn-ghost btn-sm" onclick="revealWorkspacePassword('${id}', this)">Mostrar</button></div><p class="ws-pre">${esc(d.notes)}</p>`;
   return `<article class="ws-entry"><span class="ws-eyebrow">${esc(workspaceClientName(entry.cardId))}</span>${body}<div class="ws-actions"><button class="btn btn-ghost btn-sm" onclick="openWorkspaceEditor('${id}')">Editar</button><button class="btn btn-ghost btn-sm" onclick="deleteWorkspaceEntry('${id}')">Eliminar</button></div></article>`;
 }
@@ -116,6 +158,7 @@ function openWorkspaceEditor(id = '', date = '', clientId = '') {
   const clients = workspaceClients();
   if (!clients.length) { toast('Primero creá un cliente en Checklist / Clientes.', 'error'); return; }
   workspaceEditing = id;
+  if (workspaceKind === 'estadisticas' && (!entry || d.format === 'monthly')) { openMonthlyWorkspaceEditor(entry, clients); return; }
   const field = (name, label, type = 'text', value = '', required = true) => `<label>${label}<input name="${name}" type="${type}" value="${esc(value)}" ${required ? 'required' : ''} maxlength="${name === 'password' ? 4000 : 2000}"></label>`;
   const select = (name, label, options, value) => `<label>${label}<select name="${name}">${Object.entries(options).map(([key, title]) => `<option value="${esc(key)}" ${key === value ? 'selected' : ''}>${esc(title)}</option>`).join('')}</select></label>`;
   const today = workspaceDate(new Date());
@@ -131,10 +174,16 @@ function closeWorkspaceEditor() { if ($('ws-editor')) $('ws-editor').innerHTML =
 async function saveWorkspaceEntry(event) {
   event.preventDefault();
   const form = event.target, submit = form.querySelector('[type="submit"]');
-  const values = Object.fromEntries(new FormData(form));
+  let values = Object.fromEntries(new FormData(form));
   const cardId = values.cardId;
   delete values.cardId;
-  if (workspaceKind === 'estadisticas') {
+  if (workspaceKind === 'estadisticas' && form.dataset.format === 'monthly') {
+    const sections = {};
+    for (const channel of Object.keys(MONTHLY_FIELDS)) {
+      if (!$('ws-monthly-' + channel).disabled) sections[channel] = Object.fromEntries(MONTHLY_FIELDS[channel].fields.map(([key]) => [key, values[channel + '.' + key]]));
+    }
+    values = { format: 'monthly', month: values.month, adsActive: values.adsActive === 'yes', sections, notes: values.notes };
+  } else if (workspaceKind === 'estadisticas') {
     const lines = values.metrics.split('\n').filter(line => line.trim());
     if (lines.some(line => line.indexOf('=') <= 0 || !line.slice(line.indexOf('=') + 1).trim())) { toast('Usá nombre = valor para cada métrica.', 'error'); return; }
     values.metrics = lines.map(line => ({ label: line.slice(0, line.indexOf('=')).trim(), value: line.slice(line.indexOf('=') + 1).trim() }));
@@ -174,6 +223,6 @@ function exportWorkspaceReport() {
   if (!entries.length) { toast('Este cliente todavía no tiene estadísticas.', 'error'); return; }
   const popup = window.open('', '_blank');
   if (!popup) { toast('Permití abrir ventanas para exportar el reporte.', 'error'); return; }
-  popup.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Reporte — ${esc(workspaceClientName(client))}</title><style>body{font:16px system-ui;color:#182431;max-width:850px;margin:45px auto;padding:0 24px}h1{font-size:32px}article{border-top:2px solid #ddd;padding:20px 0;break-inside:avoid}dl div{display:flex;justify-content:space-between;border-bottom:1px solid #eee;padding:8px}dd{font-weight:bold}p{white-space:pre-wrap}button{padding:12px;cursor:pointer}@media print{button{display:none}body{margin:0}}</style></head><body><button onclick="window.print()">Imprimir / Guardar como PDF</button><p>CONSULTORÍA DIGITAL · REPORTE DE RESULTADOS</p><h1>${esc(workspaceClientName(client))}</h1>${[...entries].sort((a, b) => a.data.start.localeCompare(b.data.start) || a.data.channel.localeCompare(b.data.channel)).map(e => `<article><h2>${esc(WORKSPACE_CHANNELS[e.data.channel])}</h2><p>Período: ${esc(e.data.start)} al ${esc(e.data.end)}</p><dl>${e.data.metrics.map(m => `<div><dt>${esc(m.label)}</dt><dd>${esc(m.value)}</dd></div>`).join('')}</dl><p>${esc(e.data.notes)}</p></article>`).join('')}</body></html>`);
+  popup.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Reporte — ${esc(workspaceClientName(client))}</title><style>body{font:16px system-ui;color:#182431;max-width:850px;margin:45px auto;padding:0 24px}h1{font-size:32px}article{border-top:2px solid #ddd;padding:20px 0;break-inside:avoid}dl div{display:flex;justify-content:space-between;border-bottom:1px solid #eee;padding:8px}dd{font-weight:bold}.ws-comparison{display:block;font-size:11px;font-weight:normal;color:#596575;margin-top:4px}.ws-result-section{break-inside:avoid}p{white-space:pre-wrap}button{padding:12px;cursor:pointer}@media print{button{display:none}body{margin:0}}</style></head><body><button onclick="window.print()">Imprimir / Guardar como PDF</button><p>CONSULTORÍA DIGITAL · REPORTE DE RESULTADOS</p><h1>${esc(workspaceClientName(client))}</h1>${[...entries].sort((a, b) => a.data.start.localeCompare(b.data.start) || (a.data.channel || 'monthly').localeCompare(b.data.channel || 'monthly')).map(e => e.data.format === 'monthly' ? `<article>${monthlyReportHTML(e)}</article>` : `<article><h2>${esc(WORKSPACE_CHANNELS[e.data.channel])}</h2><p>Período: ${esc(e.data.start)} al ${esc(e.data.end)}</p><dl>${e.data.metrics.map(m => `<div><dt>${esc(m.label)}</dt><dd>${esc(m.value)}</dd></div>`).join('')}</dl><p>${esc(e.data.notes)}</p></article>`).join('')}</body></html>`);
   popup.document.close();
 }

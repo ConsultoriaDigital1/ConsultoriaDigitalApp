@@ -112,5 +112,7 @@ openssl rand -hex 32
 Conservá esta clave junto al backup de la base: cambiarla impide recuperar los
 accesos existentes. Si se omite, se usa `SESSION_SECRET` (mínimo 24 caracteres).
 El servidor crea automáticamente `workspace_entries` al iniciar para guardar
-cronogramas, estadísticas y accesos. Las estadísticas se cargan manualmente por
-cliente, canal y período; el reporte se exporta con Imprimir / Guardar como PDF.
+cronogramas, estadísticas y accesos. Las estadísticas se cargan una vez por cliente y mes, con pauta activa Sí/No
+y resultados de Instagram, web, mail y WhatsApp. Los canales son opcionales;
+las variaciones comparan el mismo canal con el mes anterior. Los reportes
+anteriores por canal se conservan. Se exportan con Imprimir / Guardar como PDF.
