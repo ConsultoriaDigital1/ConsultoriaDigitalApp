@@ -12,6 +12,7 @@ const pool = new Pool({
 async function main() {
   const sql = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
   await pool.query(sql);
+  await pool.query(require('../card-audit').schema);
   console.log('Schema listo.');
 }
 

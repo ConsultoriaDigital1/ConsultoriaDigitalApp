@@ -116,3 +116,15 @@ cronogramas, estadísticas y accesos. Las estadísticas se cargan una vez por cl
 y resultados de Instagram, web, mail y WhatsApp. Los canales son opcionales;
 las variaciones comparan el mismo canal con el mes anterior. Los reportes
 anteriores por canal se conservan. Se exportan con Imprimir / Guardar como PDF.
+
+
+## Trazabilidad de tarjetas
+
+El inicio del servidor y `pnpm db:schema` instalan `db/card-audit.sql`.
+El historial conserva usuario, fecha y cambios anteriores/nuevos, incluso
+si se elimina la tarjeta o su usuario. No reconstruye movimientos anteriores
+a su activación. Las imágenes y archivos se registran por metadatos y huellas,
+sin duplicar su contenido. La API respeta los equipos visibles del usuario.
+
+Validación: `pnpm test:audit`. Para PostgreSQL real: `pnpm test:audit:db`;
+crea un esquema aislado dentro de una transacción y termina con ROLLBACK.

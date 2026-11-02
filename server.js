@@ -10,6 +10,7 @@ const gcal = require('./google-calendar');
 const arca = require('./arca-service');
 const { buildInvoicePdf } = require('./invoice-pdf');
 const workspace = require('./workspace');
+const cardAudit = require('./card-audit');
 
 const app = express();
 const pool = new Pool({
@@ -174,6 +175,7 @@ async function ensureDatabaseMigrations() {
     VALUES ('system-bot', 'bot', 'Bot', 'n8n', 'NO_LOGIN', 'admin')
     ON CONFLICT (username) DO NOTHING
   `);
+  await pool.query(cardAudit.schema);
 }
 
 app.disable('x-powered-by');
@@ -1249,6 +1251,7 @@ app.post('/api/auth/logout', (_req, res) => {
 });
 
 workspace.register(app, pool, requireAuth, canAccessTeam);
+cardAudit.register(app, pool, requireAuth);
 
 app.get('/api/bootstrap', requireAuth, async (req, res, next) => {
   try {
@@ -2548,6 +2551,7 @@ app.post('/api/cards', requireAuth, async (req, res, next) => {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+      await cardAudit.setActor(client, req.user);
       const cardId = mkId();
       const creadoEn = Date.now();
       const { rows } = await client.query(
@@ -2608,6 +2612,7 @@ app.put('/api/cards/reorder', requireAuth, async (req, res, next) => {
     if (!ids.length) return res.json({ ok: true });
 
     await client.query('BEGIN');
+    await cardAudit.setActor(client, req.user);
     for (let i = 0; i < ids.length; i++) {
       await client.query(
         `UPDATE cards SET position = $1, updated_at = NOW()
@@ -2630,6 +2635,7 @@ app.put('/api/cards/:id', requireAuth, async (req, res, next) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    await cardAudit.setActor(client, req.user);
     const current = await client.query('SELECT * FROM cards WHERE id = $1 FOR UPDATE', [req.params.id]);
     if (!current.rows[0]) {
       await client.query('ROLLBACK');
@@ -2721,6 +2727,7 @@ async function handleExternalCardStatusUpdate(req, res, next, options = {}) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    await cardAudit.setActor(client, null, 'automation');
 
     let targetCard = null;
     let action = 'update';
@@ -2904,6 +2911,7 @@ async function handleExternalLeadEnrich(req, res, next) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    await cardAudit.setActor(client, null, 'automation');
 
     let targetCard = null;
     if (cardId) {
@@ -3030,21 +3038,15 @@ function todayInArgentina() {
 // Toggle del check diario de una card
 app.post('/api/cards/:id/daily-check', requireAuth, async (req, res, next) => {
   try {
-    const { rows: cur } = await pool.query(
-      'SELECT equipo, daily_check_date FROM cards WHERE id = $1',
-      [req.params.id]
-    );
-    if (!cur[0]) return res.status(404).json({ error: 'Card no encontrada.' });
-    if (!canAccessTeam(req.user, cur[0].equipo)) return res.status(403).json({ error: 'Sin permiso.' });
-
     const today = todayInArgentina();
-    const wasOn = String(cur[0].daily_check_date || '') === today;
-    const newVal = wasOn ? '' : today;
-
-    await pool.query(
-      'UPDATE cards SET daily_check_date = $1, updated_at = NOW() WHERE id = $2',
-      [newVal, req.params.id]
-    );
+    const newVal = await cardAudit.withActor(pool, req.user, async client => {
+      const { rows } = await client.query('SELECT equipo, daily_check_date FROM cards WHERE id = $1 FOR UPDATE', [req.params.id]);
+      if (!rows[0]) throw Object.assign(new Error('Tarjeta no encontrada.'), { status: 404 });
+      if (!canAccessTeam(req.user, rows[0].equipo)) throw Object.assign(new Error('Sin permiso.'), { status: 403 });
+      const value = String(rows[0].daily_check_date || '') === today ? '' : today;
+      await client.query('UPDATE cards SET daily_check_date = $1, updated_at = NOW() WHERE id = $2', [value, req.params.id]);
+      return value;
+    });
     cardEvents.emit('change', { action: 'daily-check', id: req.params.id, dailyCheckDate: newVal });
     res.json({ id: req.params.id, dailyCheckDate: newVal, today });
   } catch (err) { next(err); }
@@ -3083,21 +3085,18 @@ app.put('/api/calendars/:team', requireAuth, async (req, res, next) => {
 // Soft-delete (papelera). El borrado fisico esta deshabilitado.
 app.delete('/api/cards/:id', requireAuth, async (req, res, next) => {
   try {
-    const current = await pool.query('SELECT equipo, deleted_at FROM cards WHERE id = $1', [req.params.id]);
-    if (!current.rows[0]) return res.status(404).json({ error: 'Tarjeta no encontrada.' });
-    if (!canAccessTeam(req.user, current.rows[0].equipo)) return res.status(403).json({ error: 'Sin permiso.' });
-    if (current.rows[0].deleted_at) return res.status(400).json({ error: 'La tarjeta ya esta en la papelera.' });
-    const { rows } = await pool.query(
-      `UPDATE cards SET deleted_at = NOW(), updated_at = NOW() WHERE id = $1 RETURNING *`,
-      [req.params.id]
-    );
-    if (!rows[0]) return res.status(404).json({ error: 'Tarjeta no encontrada.' });
-    const card = await cardDTOWithLatestWhatsappTimestamp(rows[0]);
+    const row = await cardAudit.withActor(pool, req.user, async client => {
+      const current = await client.query('SELECT equipo, deleted_at FROM cards WHERE id = $1 FOR UPDATE', [req.params.id]);
+      if (!current.rows[0]) throw Object.assign(new Error('Tarjeta no encontrada.'), { status: 404 });
+      if (!canAccessTeam(req.user, current.rows[0].equipo)) throw Object.assign(new Error('Sin permiso.'), { status: 403 });
+      if (current.rows[0].deleted_at) throw Object.assign(new Error('La tarjeta ya está en la papelera.'), { status: 400 });
+      const { rows } = await client.query('UPDATE cards SET deleted_at = NOW(), updated_at = NOW() WHERE id = $1 RETURNING *', [req.params.id]);
+      return rows[0];
+    });
+    const card = await cardDTOWithLatestWhatsappTimestamp(row);
     cardEvents.emit('change', { action: 'delete', id: req.params.id, card });
     res.json({ ok: true });
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 });
 
 // Listar papelera de tarjetas (segun equipos visibles del usuario)
@@ -3112,6 +3111,7 @@ app.post('/api/cards/:id/restore', requireAuth, async (req, res, next) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    await cardAudit.setActor(client, req.user);
     const current = await client.query(
       'SELECT * FROM cards WHERE id = $1 FOR UPDATE',
       [req.params.id]
@@ -3148,16 +3148,16 @@ app.post('/api/cards/:id/restore', requireAuth, async (req, res, next) => {
 // Eliminar definitivamente una tarjeta que ya esta en la papelera
 app.delete('/api/cards/:id/purge', requireAuth, async (req, res, next) => {
   try {
-    const current = await pool.query('SELECT equipo, deleted_at FROM cards WHERE id = $1', [req.params.id]);
-    if (!current.rows[0]) return res.status(404).json({ error: 'Tarjeta no encontrada.' });
-    if (!canAccessTeam(req.user, current.rows[0].equipo)) return res.status(403).json({ error: 'Sin permiso.' });
-    if (!current.rows[0].deleted_at) return res.status(400).json({ error: 'La tarjeta no esta en la papelera.' });
-    await pool.query('DELETE FROM cards WHERE id = $1', [req.params.id]);
+    await cardAudit.withActor(pool, req.user, async client => {
+      const current = await client.query('SELECT equipo, deleted_at FROM cards WHERE id = $1 FOR UPDATE', [req.params.id]);
+      if (!current.rows[0]) throw Object.assign(new Error('Tarjeta no encontrada.'), { status: 404 });
+      if (!canAccessTeam(req.user, current.rows[0].equipo)) throw Object.assign(new Error('Sin permiso.'), { status: 403 });
+      if (!current.rows[0].deleted_at) throw Object.assign(new Error('La tarjeta no está en la papelera.'), { status: 400 });
+      await client.query('DELETE FROM cards WHERE id = $1', [req.params.id]);
+    });
     cardEvents.emit('change', { action: 'purge', id: req.params.id });
     res.json({ ok: true });
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 });
 
 // ── COBRANZAS: facturación ARCA + avisos via n8n ──
@@ -3754,7 +3754,7 @@ app.use('/api', (_req, res) => {
 
 // Assets estáticos (logo, favicons). Se sirven explícitamente para no exponer
 // el resto del directorio (server.js, .env, db/, node_modules, etc.).
-const STATIC_FILES = ['logo.webp', 'favicon.svg', 'favicon.png', 'workspace-ui.js'];
+const STATIC_FILES = ['logo.webp', 'favicon.svg', 'favicon.png', 'workspace-ui.js', 'card-audit-ui.js'];
 for (const file of STATIC_FILES) {
   app.get('/' + file, (_req, res) => res.sendFile(path.join(__dirname, file)));
 }

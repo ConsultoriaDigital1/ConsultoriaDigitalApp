@@ -4,6 +4,8 @@
   "private": true,
   "main": "server.js",
   "scripts": {
+    "test:audit": "node --test scripts/card-audit.test.js",
+    "test:audit:db": "node scripts/card-audit-integration.js",
     "test:workspace": "node --test scripts/workspace.test.js",
     "start": "node server.js",
     "dev": "node scripts/dev.js",

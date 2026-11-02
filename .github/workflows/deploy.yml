@@ -20,6 +20,8 @@ jobs:
       - name: Verificar sintaxis del servidor
         run: |
           node --check server.js
+          node --check card-audit.js
+          node --check card-audit-ui.js
           node --check whatsapp-service.js
           node --check google-calendar.js
           node --check db/schema.js

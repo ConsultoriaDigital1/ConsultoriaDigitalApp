@@ -9217,6 +9217,13 @@
       #card-overlay .card-detail-modal:not(.ventas-chat-mode) .modal-foot { flex-wrap:wrap; padding:.65rem; gap:.4rem; }
       #card-overlay .card-detail-modal:not(.ventas-chat-mode) .modal-foot .btn { flex:1 1 120px; min-height:calc(44px / var(--zoom)); font-size:.75rem; }
     }
+
+    dialog.ws-audit-dialog { width:min(1100px,calc(100% - 32px)); padding:24px; }
+    .audit-head { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; }.audit-head h2 { font-size:1.1rem; }.audit-head p,.audit-note { color:var(--muted); font-size:.65rem; margin-top:8px; }.audit-note { margin:14px 0; line-height:1.5; }
+    .audit-filters { display:grid; grid-template-columns:minmax(0,1.5fr) minmax(0,1fr) auto; gap:12px; align-items:end; margin-top:20px; }.audit-filters label { display:flex; flex-direction:column; gap:6px; font-size:.65rem; }.audit-filters input,.audit-filters select { width:100%; min-width:0; }.audit-filters .btn { align-self:end; min-height:44px; }
+    .audit-entry { border:1px solid var(--border2); border-radius:10px; background:var(--bg2); padding:16px; margin-top:12px; }.audit-entry-head { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; }.audit-entry time { color:var(--muted); font-size:.6rem; }.audit-entry h3 { font-size:.85rem; margin:12px 0 6px; padding:0; overflow-wrap:anywhere; }.audit-entry p { font-size:.7rem; overflow-wrap:anywhere; }.audit-entry summary { cursor:pointer; font-size:.67rem; padding:12px 0 2px; color:#9dc4ff; }.audit-changes section { border-top:1px solid var(--border); padding-top:12px; margin-top:12px; }.audit-changes h4 { font-size:.7rem; margin-bottom:8px; }.audit-change-values { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }.audit-change-values>div { min-width:0; }.audit-change-values span { color:var(--muted); font-size:.6rem; }.audit-change-values pre { white-space:pre-wrap; overflow-wrap:anywhere; font:inherit; font-size:.65rem; line-height:1.5; margin-top:4px; max-height:240px; overflow:auto; }.audit-more { margin-top:16px; }.audit-more[hidden] { display:none; }
+    @media(max-width:700px) { #clientes-cbar > div:last-child { grid-template-columns:repeat(2,minmax(0,1fr)) !important; } }
+    @media(max-width:600px) { dialog.ws-audit-dialog { padding:16px; }.audit-filters { grid-template-columns:1fr; }.audit-change-values { grid-template-columns:1fr; }.audit-filters input,.audit-filters select,.audit-filters .btn { min-height:44px; } }
   </style>
 </head>
 
@@ -9382,6 +9389,7 @@
                 <i class="ico-ph" data-ico="trash"></i> Papelera <span id="cards-trash-count" class="trash-count"
                   style="display:none"></span>
               </button>
+              <button type="button" class="btn btn-trash btn-sm" onclick="openCardAudit()"><i class="ico-ph" data-ico="history"></i> Trazabilidad</button>
               <button id="btn-my-clients" class="btn btn-trash btn-sm" onclick="toggleMyClients()"
                 title="Mostrar solo las tarjetas en las que sos miembro" aria-pressed="false">
                 <i class="ico-ph" data-ico="user"></i> Ver mis clientes
@@ -9435,6 +9443,7 @@
                 <i class="ico-ph" data-ico="trash"></i> Papelera <span id="ventas-trash-count" class="trash-count"
                   style="display:none"></span>
               </button>
+              <button type="button" class="btn btn-trash btn-sm" onclick="openCardAudit()"><i class="ico-ph" data-ico="history"></i> Trazabilidad</button>
               <button id="btn-ventas-active" class="btn btn-ghost btn-sm" onclick="switchVentasView('active')"
                 style="display:none" title="Volver al tablero">
                 <i class="ico-ph" data-ico="back"></i> Volver al tablero
@@ -9554,6 +9563,19 @@
   <!-- ═══════════════════════════════════════════
      CARD MODAL
      ═══════════════════════════════════════════ -->
+  <dialog id="card-audit-dialog" class="ws-wrap ws-schedule-dialog ws-audit-dialog" aria-labelledby="card-audit-title"
+    oncancel="event.preventDefault();closeCardAudit()" onclick="if(event.target===this)closeCardAudit()">
+    <header class="audit-head"><div><h2 id="card-audit-title">Trazabilidad</h2><p id="card-audit-context"></p></div><button type="button" class="modal-close" aria-label="Cerrar trazabilidad" onclick="closeCardAudit()">×</button></header>
+    <form class="audit-filters" onsubmit="event.preventDefault();loadCardAudit()">
+      <label>Cliente o usuario<input id="card-audit-search" type="search" maxlength="200" placeholder="Buscar en el historial…"></label>
+      <label>Acción<select id="card-audit-action"></select></label>
+      <button type="submit" class="btn btn-primary">Buscar</button>
+    </form>
+    <p class="audit-note">Se muestran los cambios registrados desde la activación de Trazabilidad.</p>
+    <div id="card-audit-entries" aria-live="polite"></div>
+    <button id="card-audit-more" type="button" class="btn btn-ghost audit-more" hidden onclick="loadCardAudit(false)">Ver más movimientos</button>
+  </dialog>
+
   <dialog id="ws-schedule-dialog" class="ws-wrap ws-schedule-dialog" aria-labelledby="ws-editor-title"
     oncancel="event.preventDefault();closeWorkspaceEditor()" onclick="if(event.target===this)closeWorkspaceEditor()">
     <button type="button" class="modal-close ws-dialog-close" aria-label="Cerrar registro" onclick="closeWorkspaceEditor()">×</button>
@@ -10664,6 +10686,7 @@
      JAVASCRIPT
      ═══════════════════════════════════════════ -->
   <script src="workspace-ui.js"></script>
+  <script src="card-audit-ui.js"></script>
   <script>
     'use strict';
 
@@ -10711,6 +10734,7 @@
        ICON SYSTEM  (Lucide-style inline SVG, themeable via currentColor)
     ───────────────────────────────────────── */
     const ICONS = {
+      history: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/>',
       home: '<path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1Z"/><path d="M9 21v-8h6v8"/>',
       search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
       user: '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
@@ -13466,6 +13490,7 @@
 
 
     async function doLogout() {
+      closeCardAudit();
       await api('/api/auth/logout', { method: 'POST' }).catch(() => { });
       clearWorkspace();
       $('marketing-home').innerHTML = '';
