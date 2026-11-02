@@ -43,11 +43,11 @@ function toggleMonthlySection(channel, enabled) {
 function openMonthlyWorkspaceEditor(entry, clients) {
   const d = entry?.data || {};
   const currentMonth = new Date().toLocaleDateString('sv-SE').slice(0, 7);
-  $('ws-editor').innerHTML = `<form class="ws-form ws-monthly-form" data-format="monthly" onsubmit="saveWorkspaceEntry(event)"><h3 class="ws-full">Resultados mensuales</h3><label>Cliente<select name="cardId" ${entry ? 'disabled' : ''}>${clients.map(c => `<option value="${esc(c.id)}" ${c.id === (entry?.cardId || $('ws-client-filter').value) ? 'selected' : ''}>${esc(c.nf || c.rs || 'Cliente')}</option>`).join('')}</select></label><label>Mes del reporte<input name="month" type="month" value="${esc(d.month || currentMonth)}" min="2000-01" max="2100-12" required></label><fieldset class="ws-full ws-ads-toggle"><legend>¿Tuvo pauta activa?</legend><label><input type="radio" name="adsActive" value="yes" ${d.adsActive ? 'checked' : ''} onchange="toggleMonthlySection('pauta', true)" required> Sí</label><label><input type="radio" name="adsActive" value="no" ${d.adsActive ? '' : 'checked'} onchange="toggleMonthlySection('pauta', false)"> No</label></fieldset>${Object.entries(MONTHLY_FIELDS).map(([channel, group]) => {
+  $('ws-schedule-editor').innerHTML = `<form class="ws-form ws-monthly-form" data-format="monthly" onsubmit="saveWorkspaceEntry(event)"><h3 class="ws-full" id="ws-editor-title">${entry ? 'Editar reporte mensual' : 'Nuevo reporte mensual'}</h3><label>Cliente<select name="cardId" ${entry ? 'disabled' : ''}>${clients.map(c => `<option value="${esc(c.id)}" ${c.id === (entry?.cardId || $('ws-client-filter').value) ? 'selected' : ''}>${esc(c.nf || c.rs || 'Cliente')}</option>`).join('')}</select></label><label>Mes del reporte<input name="month" type="month" value="${esc(d.month || currentMonth)}" min="2000-01" max="2100-12" required></label><fieldset class="ws-full ws-ads-toggle"><legend>¿Tuvo pauta activa?</legend><label><input type="radio" name="adsActive" value="yes" ${d.adsActive ? 'checked' : ''} onchange="toggleMonthlySection('pauta', true)" required> Sí</label><label><input type="radio" name="adsActive" value="no" ${d.adsActive ? '' : 'checked'} onchange="toggleMonthlySection('pauta', false)"> No</label></fieldset>${Object.entries(MONTHLY_FIELDS).map(([channel, group]) => {
     const enabled = channel === 'pauta' ? !!d.adsActive : entry ? !!d.sections[channel] : channel === 'instagram';
     return `${channel === 'pauta' ? '' : `<label class="ws-full ws-channel-toggle"><input type="checkbox" ${enabled ? 'checked' : ''} onchange="toggleMonthlySection('${channel}', this.checked)"> Incluir ${group.title.replace('Resultados de ', '')}</label>`}<fieldset id="ws-monthly-${channel}" class="ws-full ws-monthly-section" ${enabled ? '' : 'hidden disabled'}><legend>${group.title}</legend>${group.fields.map(([key, label, type]) => `<label>${label}<input name="${channel}.${key}" type="${type || 'number'}" value="${esc(d.sections?.[channel]?.[key] ?? '')}" ${type === 'text' ? 'maxlength="200"' : 'min="0" max="9007199254740991" step="1" required'}></label>`).join('')}</fieldset>`;
   }).join('')}<p class="ws-full ws-monthly-help">Una carga por cliente y mes. Las variaciones se calculan con el mes anterior cuando hay datos disponibles.</p><label class="ws-full">Análisis y próximos pasos<textarea name="notes" rows="3" maxlength="8000">${esc(d.notes)}</textarea></label><div class="ws-actions ws-full"><button type="submit" class="btn btn-primary">Guardar resultados</button><button type="button" class="btn btn-ghost" onclick="closeWorkspaceEditor()">Cancelar</button></div></form>`;
-  $('ws-editor').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  showWorkspaceDialog('[name="month"]');
 }
 
 function workspaceAllowed(tab) {
@@ -170,13 +170,17 @@ function openWorkspaceEditor(id = '', date = '', clientId = '') {
   if (workspaceKind === 'cronograma') fields = field('title', 'Tarea / publicación', 'text', d.title) + field('date', 'Fecha', 'date', d.date || date || today) + select('owner', 'Responsable', { '': 'Sin responsable', ...(d.owner ? { [d.owner]: d.owner } : {}), ...Object.fromEntries(usersCache.filter(u => u.equipo === 'marketing').map(u => { const name = [u.nombre, u.apellido].filter(Boolean).join(' '); return [name, name]; })) }, d.owner) + select('status', 'Estado', WORKSPACE_STATUS, d.status || 'programado');
   if (workspaceKind === 'estadisticas') fields = select('channel', 'Canal', WORKSPACE_CHANNELS, d.channel || 'redes') + field('start', 'Desde', 'date', d.start || today) + field('end', 'Hasta', 'date', d.end || today) + `<label class="ws-full">Métricas (una por línea: nombre = valor)<textarea name="metrics" rows="5" required placeholder="Alcance = 12000&#10;Interacciones = 850&#10;Consultas = 36">${esc(d.metrics?.map(m => m.label + ' = ' + m.value).join('\n') || '')}</textarea></label>`;
   if (workspaceKind === 'credenciales') fields = `<label>Plataforma<input name="platform" list="ws-platforms" value="${esc(d.platform)}" required maxlength="2000"><datalist id="ws-platforms">${['Facebook', 'Instagram', 'TikTok', 'Mail', 'Kommo', 'Hosting', 'WordPress', 'Dominio', 'GitHub'].map(p => `<option value="${p}">`).join('')}</datalist></label>` + field('username', 'Usuario / correo', 'text', d.username) + field('password', entry ? 'Nueva contraseña (vacío conserva la actual)' : 'Contraseña', 'password', '', !entry) + field('url', 'URL de acceso', 'url', d.url, false);
-  const target = $(workspaceKind === 'cronograma' ? 'ws-schedule-editor' : 'ws-editor');
+  const target = $(workspaceKind === 'credenciales' ? 'ws-editor' : 'ws-schedule-editor');
   target.innerHTML = `<form class="ws-form" onsubmit="saveWorkspaceEntry(event)"><h3 class="ws-full" id="ws-editor-title">${entry ? 'Editar registro' : 'Nuevo registro'}</h3><label class="ws-full">Cliente<select name="cardId" ${entry ? 'disabled' : ''}>${clients.map(c => `<option value="${esc(c.id)}" ${c.id === (entry?.cardId || clientId || $('ws-client-filter').value) ? 'selected' : ''}>${esc(c.nf || c.rs || 'Cliente')}</option>`).join('')}</select></label>${fields}<label class="ws-full">${workspaceKind === 'estadisticas' ? 'Análisis y próximos pasos' : 'Notas'}<textarea name="notes" maxlength="${workspaceKind === 'estadisticas' ? 8000 : 2000}" rows="3">${esc(d.notes)}</textarea></label><div class="ws-actions ws-full"><button class="btn btn-primary" type="submit">Guardar</button><button class="btn btn-ghost" type="button" onclick="closeWorkspaceEditor()">Cancelar</button></div></form>`;
-  if (workspaceKind === 'cronograma') {
-    enhanceDateTimeFields(target);
-    $('ws-schedule-dialog').showModal();
-    target.querySelector('[name="title"]').focus();
-  } else target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  if (workspaceKind !== 'credenciales') showWorkspaceDialog('[name="title"], [name="start"]');
+  else target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+function showWorkspaceDialog(focusSelector) {
+  const dialog = $('ws-schedule-dialog');
+  dialog.classList.toggle('ws-report-dialog', workspaceKind === 'estadisticas');
+  enhanceDateTimeFields($('ws-schedule-editor'));
+  dialog.showModal();
+  dialog.querySelector(focusSelector)?.focus();
 }
 function closeWorkspaceEditor() {
   const dialog = $('ws-schedule-dialog');
