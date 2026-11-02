@@ -67,6 +67,7 @@ function syncWorkspaceNav() {
 }
 
 function clearWorkspace() {
+  closeWorkspaceEditor();
   workspaceRequest++;
   workspaceEntries = [];
   workspaceEditing = '';
@@ -166,13 +167,24 @@ function openWorkspaceEditor(id = '', date = '', clientId = '') {
   const select = (name, label, options, value) => `<label>${label}<select name="${name}">${Object.entries(options).map(([key, title]) => `<option value="${esc(key)}" ${key === value ? 'selected' : ''}>${esc(title)}</option>`).join('')}</select></label>`;
   const today = workspaceDate(new Date());
   let fields = '';
-  if (workspaceKind === 'cronograma') fields = field('title', 'Tarea / publicación', 'text', d.title) + field('date', 'Fecha', 'date', d.date || date || today) + select('owner', 'Responsable', { '': 'Sin responsable', ...Object.fromEntries(usersCache.filter(u => u.equipo === 'marketing').map(u => [u.nombre + ' ' + (u.apellido || ''), u.nombre + ' ' + (u.apellido || '')])) }, d.owner) + select('status', 'Estado', WORKSPACE_STATUS, d.status || 'programado');
+  if (workspaceKind === 'cronograma') fields = field('title', 'Tarea / publicación', 'text', d.title) + field('date', 'Fecha', 'date', d.date || date || today) + select('owner', 'Responsable', { '': 'Sin responsable', ...(d.owner ? { [d.owner]: d.owner } : {}), ...Object.fromEntries(usersCache.filter(u => u.equipo === 'marketing').map(u => { const name = [u.nombre, u.apellido].filter(Boolean).join(' '); return [name, name]; })) }, d.owner) + select('status', 'Estado', WORKSPACE_STATUS, d.status || 'programado');
   if (workspaceKind === 'estadisticas') fields = select('channel', 'Canal', WORKSPACE_CHANNELS, d.channel || 'redes') + field('start', 'Desde', 'date', d.start || today) + field('end', 'Hasta', 'date', d.end || today) + `<label class="ws-full">Métricas (una por línea: nombre = valor)<textarea name="metrics" rows="5" required placeholder="Alcance = 12000&#10;Interacciones = 850&#10;Consultas = 36">${esc(d.metrics?.map(m => m.label + ' = ' + m.value).join('\n') || '')}</textarea></label>`;
   if (workspaceKind === 'credenciales') fields = `<label>Plataforma<input name="platform" list="ws-platforms" value="${esc(d.platform)}" required maxlength="2000"><datalist id="ws-platforms">${['Facebook', 'Instagram', 'TikTok', 'Mail', 'Kommo', 'Hosting', 'WordPress', 'Dominio', 'GitHub'].map(p => `<option value="${p}">`).join('')}</datalist></label>` + field('username', 'Usuario / correo', 'text', d.username) + field('password', entry ? 'Nueva contraseña (vacío conserva la actual)' : 'Contraseña', 'password', '', !entry) + field('url', 'URL de acceso', 'url', d.url, false);
-  $('ws-editor').innerHTML = `<form class="ws-form" onsubmit="saveWorkspaceEntry(event)"><h3 class="ws-full">${entry ? 'Editar registro' : 'Nuevo registro'}</h3><label class="ws-full">Cliente<select name="cardId" ${entry ? 'disabled' : ''}>${clients.map(c => `<option value="${esc(c.id)}" ${c.id === (entry?.cardId || clientId || $('ws-client-filter').value) ? 'selected' : ''}>${esc(c.nf || c.rs || 'Cliente')}</option>`).join('')}</select></label>${fields}<label class="ws-full">${workspaceKind === 'estadisticas' ? 'Análisis y próximos pasos' : 'Notas'}<textarea name="notes" maxlength="${workspaceKind === 'estadisticas' ? 8000 : 2000}" rows="3">${esc(d.notes)}</textarea></label><div class="ws-actions ws-full"><button class="btn btn-primary" type="submit">Guardar</button><button class="btn btn-ghost" type="button" onclick="closeWorkspaceEditor()">Cancelar</button></div></form>`;
-  $('ws-editor').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  const target = $(workspaceKind === 'cronograma' ? 'ws-schedule-editor' : 'ws-editor');
+  target.innerHTML = `<form class="ws-form" onsubmit="saveWorkspaceEntry(event)"><h3 class="ws-full" id="ws-editor-title">${entry ? 'Editar registro' : 'Nuevo registro'}</h3><label class="ws-full">Cliente<select name="cardId" ${entry ? 'disabled' : ''}>${clients.map(c => `<option value="${esc(c.id)}" ${c.id === (entry?.cardId || clientId || $('ws-client-filter').value) ? 'selected' : ''}>${esc(c.nf || c.rs || 'Cliente')}</option>`).join('')}</select></label>${fields}<label class="ws-full">${workspaceKind === 'estadisticas' ? 'Análisis y próximos pasos' : 'Notas'}<textarea name="notes" maxlength="${workspaceKind === 'estadisticas' ? 8000 : 2000}" rows="3">${esc(d.notes)}</textarea></label><div class="ws-actions ws-full"><button class="btn btn-primary" type="submit">Guardar</button><button class="btn btn-ghost" type="button" onclick="closeWorkspaceEditor()">Cancelar</button></div></form>`;
+  if (workspaceKind === 'cronograma') {
+    enhanceDateTimeFields(target);
+    $('ws-schedule-dialog').showModal();
+    target.querySelector('[name="title"]').focus();
+  } else target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
-function closeWorkspaceEditor() { if ($('ws-editor')) $('ws-editor').innerHTML = ''; workspaceEditing = ''; }
+function closeWorkspaceEditor() {
+  const dialog = $('ws-schedule-dialog');
+  if (dialog?.open) dialog.close();
+  if ($('ws-schedule-editor')) $('ws-schedule-editor').innerHTML = '';
+  if ($('ws-editor')) $('ws-editor').innerHTML = '';
+  workspaceEditing = '';
+}
 
 async function saveWorkspaceEntry(event) {
   event.preventDefault();

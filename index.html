@@ -9142,6 +9142,10 @@
     @media(max-width:600px) { .ws-monthly-section,.ws-results { grid-template-columns:1fr; } }
     .ws-form { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px; margin-bottom:24px; max-width:900px; }.ws-form label { display:flex; flex-direction:column; gap:8px; font-size:13px; }.ws-full { grid-column:1/-1; }.ws-form h3,.ws-form .ws-actions { margin:0; }
     .ws-secret { display:flex; gap:6px; margin-top:12px; }.ws-secret input { width:100%; }
+    dialog.ws-schedule-dialog { width:min(680px,calc(100% - 32px)); max-height:calc(100dvh - 32px); margin:auto; padding:0; color:var(--text-hi); background:var(--surface); border:1px solid var(--border2); border-radius:16px; box-shadow:var(--shadow-lg); overflow:auto; }
+    .ws-schedule-dialog::backdrop { background:rgba(0,0,0,.72); backdrop-filter:blur(3px); }
+    .ws-schedule-dialog .ws-form { margin:0; max-width:none; border:0; border-radius:0; padding:28px; }
+    .ws-schedule-dialog h3 { padding-right:32px; }.ws-dialog-close { position:absolute; right:16px; top:16px; }
     .nav-tabs { overflow-x:auto; min-width:0; }.nav-tab { flex-shrink:0; }
     @media(max-width:1000px) { .ws-home-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
     @media(max-width:700px) { .mobile-bottom-nav { display:flex; overflow-x:auto; overflow-y:hidden; justify-content:flex-start; }.mobile-nav-tab { flex:0 0 104px; } }
@@ -9470,6 +9474,12 @@
   <!-- ═══════════════════════════════════════════
      CARD MODAL
      ═══════════════════════════════════════════ -->
+  <dialog id="ws-schedule-dialog" class="ws-wrap ws-schedule-dialog" aria-labelledby="ws-editor-title"
+    oncancel="event.preventDefault();closeWorkspaceEditor()" onclick="if(event.target===this)closeWorkspaceEditor()">
+    <button type="button" class="modal-close ws-dialog-close" aria-label="Cerrar registro" onclick="closeWorkspaceEditor()">×</button>
+    <div id="ws-schedule-editor"></div>
+  </dialog>
+
   <div id="card-overlay" class="overlay" onclick="overlayBg(event)">
     <div class="modal card-detail-modal" onclick="event.stopPropagation()">
       <div id="modal-cover-strip" class="card-cover-strip">
