@@ -42,10 +42,12 @@ async function request(path, team, method = 'GET', body) {
 }
 
 test('valida fechas reales, períodos, canales y URLs seguras', () => {
-  assert.throws(() => validate('cronograma', { title: 'Post', date: '2026-02-30', status: 'pendiente' }), /Fecha/);
+  assert.throws(() => validate('cronograma', { title: 'Post', date: '2026-02-30', status: 'programado' }), /Fecha/);
   assert.throws(() => validate('estadisticas', { channel: 'redes', start: '2026-11-02', end: '2026-11-01' }), /período/);
   assert.throws(() => validate('credenciales', { platform: 'Mail', username: 'a', url: 'javascript:alert(1)' }), /URL/);
   assert.throws(() => validate('estadisticas', { channel: 'otro' }), /Canal/);
+  for (const status of ['programado', 'publicado', 'cancelado']) assert.equal(validate('cronograma', { title: 'Post', date: '2026-11-02', status }).status, status);
+  for (const status of ['pendiente', 'en_proceso', 'completado']) assert.throws(() => validate('cronograma', { title: 'Post', date: '2026-11-02', status }), /Estado/);
 });
 
 test('cifra con IV aleatorio, detecta alteraciones y rechaza una clave débil', () => {
@@ -84,12 +86,12 @@ test('CRUD de credenciales protege contraseñas y aísla equipos', async () => {
 });
 
 test('cronograma y reportes se guardan solo para Marketing; varios canales por cliente', async () => {
-  const task = { title: 'Publicar reel', date: '2026-11-02', status: 'pendiente', owner: 'Eliana' };
+  const task = { title: 'Publicar reel', date: '2026-11-02', status: 'programado', owner: 'Eliana' };
   assert.equal((await request('cronograma', 'desarrollo', 'POST', { cardId: 'd1', data: task })).status, 403);
   const created = await request('cronograma', 'marketing', 'POST', { cardId: 'm1', data: task });
   assert.equal(created.status, 201);
   const id = created.body.entry.id;
-  assert.equal((await request(`entries/${id}`, 'marketing', 'PUT', { data: { ...task, status: 'completado' } })).body.entry.data.status, 'completado');
+  assert.equal((await request(`entries/${id}`, 'marketing', 'PUT', { data: { ...task, status: 'publicado' } })).body.entry.data.status, 'publicado');
   for (const channel of ['redes', 'pauta', 'web', 'whatsapp']) {
     assert.equal((await request('estadisticas', 'marketing', 'POST', { cardId: 'm1', data: { channel, start: '2026-11-01', end: '2026-11-30', metrics: [{ label: 'Consultas', value: '40' }] } })).status, 201);
   }

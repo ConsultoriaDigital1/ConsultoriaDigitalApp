@@ -290,3 +290,7 @@ CREATE TABLE IF NOT EXISTS workspace_entries (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_workspace_entries_card ON workspace_entries(card_id, kind);
+UPDATE workspace_entries
+SET data = jsonb_set(data, '{status}', to_jsonb(CASE data->>'status'
+  WHEN 'completado' THEN 'publicado' ELSE 'programado' END)), updated_at = NOW()
+WHERE kind = 'cronograma' AND data->>'status' IN ('pendiente', 'en_proceso', 'completado');

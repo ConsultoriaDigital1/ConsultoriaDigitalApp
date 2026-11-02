@@ -9123,9 +9123,16 @@
     .ws-entry dl div { display:flex; gap:12px; justify-content:space-between; border-bottom:1px solid var(--border); padding:10px 0; }.ws-entry dd { font-weight:700; margin:0; }
     .ws-pre { white-space:pre-wrap; }.ws-entry .ws-actions { margin:16px 0 0; }.ws-badge { font-size:11px; padding:4px 8px; border-radius:4px; background:var(--surface3); }
     .ws-schedule-scroll { overflow-x:auto; border:1px solid var(--border); border-radius:10px; }
-    .ws-schedule { border-collapse:separate; border-spacing:0; width:100%; table-layout:fixed; min-width:1450px; }
-    .ws-schedule th,.ws-schedule td { padding:12px; border-right:1px solid var(--border); border-bottom:1px solid var(--border); vertical-align:top; text-align:left; }
-    .ws-schedule thead th { background:var(--surface2); font-size:12px; }.ws-schedule tbody th { position:sticky; left:0; z-index:1; background:var(--surface); font-size:13px; overflow-wrap:anywhere; }.ws-schedule td { height:140px; background:var(--bg2); }.ws-schedule .ws-entry { padding:10px; margin:8px 0; }.ws-empty { padding:20px; font-size:13px; }
+    .ws-schedule { border-collapse:separate; border-spacing:0; width:100%; table-layout:fixed; min-width:1000px; }
+    .ws-schedule th,.ws-schedule td { padding:8px; border-right:1px solid var(--border); border-bottom:1px solid var(--border); vertical-align:top; text-align:left; }
+    .ws-schedule thead th { background:var(--surface2); font-size:12px; }.ws-schedule tbody th { position:sticky; left:0; z-index:1; background:var(--surface); font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }.ws-schedule td { background:var(--bg2); }.ws-empty { padding:20px; font-size:13px; }
+    .ws-day-tasks { display:flex; align-items:center; gap:6px; height:38px; overflow-x:auto; overflow-y:hidden; white-space:nowrap; }
+    .ws-day-tasks>.btn { flex-shrink:0; padding:4px; }
+    .ws-schedule-task { display:inline-flex; align-items:center; flex:0 0 auto; gap:2px; max-width:100%; border:1px solid var(--border); border-radius:6px; background:var(--surface); }
+    .ws-task-edit { display:flex; align-items:center; gap:6px; min-width:0; padding:6px; background:none; border:0; color:var(--text-hi); font:inherit; font-size:12px; cursor:pointer; text-align:left; }
+    .ws-task-title { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:130px; }.ws-schedule-task .ws-badge { flex-shrink:0; font-size:10px; padding:3px 5px; }
+    .ws-task-delete { background:none; border:0; color:var(--muted); cursor:pointer; padding:4px; font-size:16px; }.ws-task-delete:hover { color:#ff8f87; }
+    .ws-status-programado { color:#8fc1ff; background:#579dff22; }.ws-status-publicado { color:#7ee2b8; background:#4ade8022; }.ws-status-cancelado { color:#ff9c95; background:#f8716822; }
     .ws-form { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px; margin-bottom:24px; max-width:900px; }.ws-form label { display:flex; flex-direction:column; gap:8px; font-size:13px; }.ws-full { grid-column:1/-1; }.ws-form h3,.ws-form .ws-actions { margin:0; }
     .ws-secret { display:flex; gap:6px; margin-top:12px; }.ws-secret input { width:100%; }
     .nav-tabs { overflow-x:auto; min-width:0; }.nav-tab { flex-shrink:0; }

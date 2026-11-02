@@ -8,7 +8,11 @@ const schema = `CREATE TABLE IF NOT EXISTS workspace_entries (
   updated_by TEXT REFERENCES users(id) ON DELETE SET NULL,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX IF NOT EXISTS idx_workspace_entries_card ON workspace_entries(card_id, kind);`;
+CREATE INDEX IF NOT EXISTS idx_workspace_entries_card ON workspace_entries(card_id, kind);
+UPDATE workspace_entries
+SET data = jsonb_set(data, '{status}', to_jsonb(CASE data->>'status'
+  WHEN 'completado' THEN 'publicado' ELSE 'programado' END)), updated_at = NOW()
+WHERE kind = 'cronograma' AND data->>'status' IN ('pendiente', 'en_proceso', 'completado');`;
 
 function secretKey() {
   const secret = process.env.CREDENTIALS_SECRET || process.env.SESSION_SECRET;
@@ -50,7 +54,7 @@ function validate(kind, input) {
   };
   if (kind === 'cronograma') {
     const status = text('status');
-    if (!['pendiente', 'en_proceso', 'completado'].includes(status)) fail('Estado inválido.');
+    if (!['programado', 'publicado', 'cancelado'].includes(status)) fail('Estado inválido.');
     return { title: required('title'), date: date('date'), owner: text('owner', 200), status, notes: text('notes') };
   }
   if (kind === 'estadisticas') {
