@@ -69,6 +69,22 @@ const AN_MES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', '
   .an-wf label.inactivo{opacity:.55}
   .an-ayuda{font-size:12px;color:var(--muted);margin:0}
   .an-dialog .an-pie{display:flex;gap:8px;justify-content:flex-end}
+  .an-chat-boton{position:fixed;right:24px;bottom:24px;z-index:900;background:var(--lime);color:#11161b;border:0;border-radius:999px;padding:12px 18px;font:inherit;font-weight:800;font-size:14px;box-shadow:var(--shadow-lg);cursor:pointer}
+  .an-chat{position:fixed;right:24px;bottom:24px;z-index:901;width:min(460px,calc(100vw - 32px));height:min(640px,calc(100vh - 120px));background:var(--surface);border:1px solid var(--border2);border-radius:16px;box-shadow:var(--shadow-lg);display:flex;flex-direction:column;overflow:hidden}
+  .an-chat header{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--border)}
+  .an-chat header strong{flex:1;color:var(--text-hi);font-size:15px}
+  .an-chat header button{background:none;border:0;color:var(--muted);font:inherit;font-size:12px;cursor:pointer;padding:4px 6px}
+  .an-chat-msjs{flex:1;overflow:auto;padding:14px;display:flex;flex-direction:column;gap:10px}
+  .an-msj{max-width:88%;padding:9px 12px;border-radius:12px;font-size:14px;line-height:1.45;white-space:normal;overflow-wrap:anywhere}
+  .an-msj.yo{align-self:flex-end;background:var(--surface3);color:var(--text-hi);border-bottom-right-radius:4px}
+  .an-msj.bot{align-self:flex-start;background:var(--bg2);color:var(--text);border-bottom-left-radius:4px}
+  .an-msj.bot b{color:var(--text-hi)} .an-msj.error{color:var(--danger)}
+  .an-msj.pensando{color:var(--muted);font-style:italic}
+  .an-sugerencias{display:flex;flex-direction:column;gap:6px}
+  .an-sugerencias button{text-align:left;background:var(--bg2);border:1px solid var(--border2);color:var(--text);border-radius:10px;padding:8px 10px;font:inherit;font-size:13px;cursor:pointer}
+  .an-chat form{display:flex;gap:8px;padding:10px;border-top:1px solid var(--border)}
+  .an-chat textarea{flex:1;resize:none;background:var(--bg2);color:var(--text-hi);border:1px solid var(--border2);border-radius:10px;padding:8px 10px;font:inherit;font-size:14px;max-height:120px}
+  @media(max-width:600px){.an-chat{right:8px;bottom:70px;height:calc(100vh - 150px)}.an-chat-boton{right:12px;bottom:78px}}
   @media(max-width:600px){.an-wrap{padding:16px}.an-graficos{grid-template-columns:1fr}.an-dialog .an-fila{grid-template-columns:1fr}.an-live{margin-left:0}}`;
   const tag = document.createElement('style');
   tag.id = 'analisis-estilos';
@@ -105,11 +121,12 @@ function anHace(fecha) {
 function anMetricasDe(cliente) { return AN_CLAVES.filter(k => cliente.metricas[k] && Object.keys(cliente.metricas[k]).length); }
 
 // ── Ciclo de vida de la pestaña ──
-function stopAnalisis() { clearInterval(analisisTimer); analisisTimer = null; analisisPedido++; }
+function stopAnalisis() { clearInterval(analisisTimer); analisisTimer = null; analisisPedido++; ocultarChatAnalisis(); }
 
 async function renderAnalisis() {
   stopAnalisis();
   if (!isAdmin()) return;
+  mostrarChatAnalisis();
   if (!analisisEstado.hasta) { analisisEstado.hasta = anMesHoy(); analisisEstado.desde = anSumarMes(analisisEstado.hasta, -5); }
   const root = $('analisis-root');
   if (!analisisData) root.innerHTML = '<p class="an-vacio">Cargando…</p>';
@@ -396,4 +413,88 @@ async function descargarPdfAnalisis(ev, id) {
     setTimeout(() => URL.revokeObjectURL(a.href), 10000);
     cerrarAnDialogo();
   } catch (err) { toast(err.message, 'error'); boton.disabled = false; boton.textContent = 'Descargar PDF'; }
+}
+
+// ── Chat de preguntas (n8n + DeepSeek) ──
+// Vive afuera de #analisis-root: el refresco de cada minuto redibuja el tablero y no tiene que borrar la charla.
+const AN_CHAT_KEY = 'analisis-chat-v1';
+const AN_SUGERENCIAS = [
+  '¿Qué proyecto viene mejor este mes y cuál peor?',
+  '¿Qué bots tuvieron más errores este mes?',
+  'Resumime cómo viene Unimed para mandarle al cliente',
+  '¿Qué porcentaje de las conversaciones resuelve solo el bot de Unimed, mes a mes?',
+];
+let anChat = (() => {
+  try { const g = JSON.parse(sessionStorage.getItem(AN_CHAT_KEY)); if (g && Array.isArray(g.mensajes)) return { abierto: false, ...g, esperando: false }; } catch (_) {}
+  return { abierto: false, charla: anNuevaCharlaId(), mensajes: [], esperando: false };
+})();
+function anNuevaCharlaId() { return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8); }
+function anGuardarChat() { try { sessionStorage.setItem(AN_CHAT_KEY, JSON.stringify({ abierto: anChat.abierto, charla: anChat.charla, mensajes: anChat.mensajes.slice(-40) })); } catch (_) {} }
+
+// Lo que contesta el modelo se escapa entero; después se permiten solo negritas y saltos de línea.
+function anTextoBot(t) {
+  return esc(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/^#{1,4}\s*(.+)$/gm, '<b>$1</b>').replace(/\n/g, '<br>');
+}
+
+function mostrarChatAnalisis() {
+  if (!$('an-chat-boton')) {
+    const b = document.createElement('button');
+    b.id = 'an-chat-boton'; b.className = 'an-chat-boton'; b.type = 'button';
+    b.textContent = '💬 Preguntale al análisis';
+    b.onclick = () => { anChat.abierto = true; anGuardarChat(); dibujarChatAnalisis(); };
+    document.body.appendChild(b);
+  }
+  dibujarChatAnalisis();
+}
+
+function ocultarChatAnalisis() {
+  $('an-chat-boton')?.remove();
+  $('an-chat')?.remove();
+}
+
+function dibujarChatAnalisis() {
+  const boton = $('an-chat-boton');
+  if (boton) boton.hidden = anChat.abierto;
+  let panel = $('an-chat');
+  if (!anChat.abierto) { panel?.remove(); return; }
+  if (!panel) {
+    panel = document.createElement('section');
+    panel.id = 'an-chat'; panel.className = 'an-chat'; panel.setAttribute('aria-label', 'Preguntas sobre el análisis');
+    panel.innerHTML = `<header><strong>Preguntale al análisis</strong><button type="button" onclick="nuevaCharlaAnalisis()">Nueva charla</button><button type="button" onclick="anChat.abierto=false;anGuardarChat();dibujarChatAnalisis()" aria-label="Cerrar">✕</button></header>
+      <div class="an-chat-msjs" id="an-chat-msjs" aria-live="polite"></div>
+      <form onsubmit="preguntarAnalisis(event)"><textarea id="an-chat-input" rows="2" maxlength="2000" placeholder="Ej.: ¿cómo viene MedalCap contra el mes pasado?" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();this.form.requestSubmit()}"></textarea><button class="btn btn-primary" type="submit" id="an-chat-enviar">Enviar</button></form>`;
+    document.body.appendChild(panel);
+    setTimeout(() => $('an-chat-input')?.focus(), 0);
+  }
+  const lista = $('an-chat-msjs');
+  lista.innerHTML = anChat.mensajes.length
+    ? anChat.mensajes.map(m => `<div class="an-msj ${m.de}${m.error ? ' error' : ''}">${m.de === 'bot' ? anTextoBot(m.texto) : esc(m.texto)}</div>`).join('') + (anChat.esperando ? '<div class="an-msj bot pensando">Mirando los números…</div>' : '')
+    : `<p class="an-ayuda">Contesta con los números de esta pestaña, en vivo. Probá con:</p><div class="an-sugerencias">${AN_SUGERENCIAS.map(s => `<button type="button" onclick="preguntarAnalisis(null, this.textContent)">${esc(s)}</button>`).join('')}</div>`;
+  lista.scrollTop = lista.scrollHeight;
+  const enviar = $('an-chat-enviar');
+  if (enviar) enviar.disabled = anChat.esperando;
+}
+
+function nuevaCharlaAnalisis() {
+  anChat.charla = anNuevaCharlaId(); anChat.mensajes = []; anChat.esperando = false;
+  anGuardarChat(); dibujarChatAnalisis();
+}
+
+async function preguntarAnalisis(ev, texto) {
+  ev?.preventDefault();
+  const input = $('an-chat-input');
+  const pregunta = (texto || input?.value || '').trim();
+  if (!pregunta || anChat.esperando) return;
+  if (input) input.value = '';
+  anChat.mensajes.push({ de: 'yo', texto: pregunta });
+  anChat.esperando = true; anGuardarChat(); dibujarChatAnalisis();
+  try {
+    const r = await api('/api/analisis/preguntar', { method: 'POST', body: JSON.stringify({ pregunta, charla: anChat.charla }) });
+    anChat.mensajes.push({ de: 'bot', texto: r.respuesta });
+  } catch (err) {
+    anChat.mensajes.push({ de: 'bot', texto: err.message || 'No se pudo contestar.', error: true });
+  } finally {
+    anChat.esperando = false; anGuardarChat();
+    if ($('an-chat')) dibujarChatAnalisis();
+  }
 }

@@ -1,0 +1,86 @@
+{
+  "name": "Consultoria - Preguntas de Analisis",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "analisis-preguntas",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "5f0a8a8e-6f1c-4d55-9b0e-0a1f00000001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "credentials": {
+        "httpHeaderAuth": { "id": "KjrbSY7WIwi3zlae", "name": "Analisis Consultoria - clave del webhook" }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.body.pregunta }}",
+        "options": {
+          "systemMessage": "=Sos el analista de datos de Consultoría Digital, la agencia de Gonzalo Romero. Gonzalo te pregunta por los números de los proyectos de la agencia (bots de WhatsApp, turnerías, cobranzas, sistemas de gestión) para entender cómo van y para preparar devoluciones a los clientes.\n\nREGLAS QUE NO SE ROMPEN:\n1. Contestá SOLO con los datos de abajo. Si algo no está en los datos, decilo claro (\"eso no lo tengo medido\") y, si sirve, decí qué habría que conectar o cargar a mano en la pestaña Análisis. Nunca inventes un número ni lo estimes sin avisar.\n   Ejemplo: \"¿Cuántas ventas cerró el cliente X?\" y no hay ventas cargadas → \"No tengo ventas de X: de ese proyecto solo se miden los mensajes del bot. Si querés el dato, se puede cargar a mano por mes en la pestaña Análisis.\" (Este ejemplo es inventado: los números reales están solo en DATOS.)\n2. El mes en curso está incompleto (lo dice FECHA). Si comparás el mes en curso con uno cerrado, compará el ritmo por día o avisá que es parcial. Ejemplo inventado: \"En este mes van 300 turnos en 10 días; el mes pasado, al mismo ritmo, a esta altura iban 400, así que viene un 25 % abajo.\"\n3. \"Mensajes atendidos por el bot\" son ejecuciones del workflow de n8n: cada mensaje que entra cuenta una. No son conversaciones ni clientes distintos. El historial de n8n arranca el 2026-11-08: antes de esa fecha no hay datos de mensajes, y eso no significa que el bot no trabajó.\n4. Los valores marcados con * fueron cargados a mano.\n\nCÓMO CONTESTAR:\n- En castellano rioplatense, con voseo, directo y corto: primero la respuesta, después el detalle si hace falta.\n- Números con punto de miles (4.106) y porcentajes redondeados (91 %).\n- Cuando compares, decí contra qué (mes anterior, mismo período, promedio).\n- Si te piden un texto para un cliente (resumen, devolución, mail), escribilo listo para pegar, sin datos internos (errores de ejecución, fuentes, nombres de workflows).\n- Podés usar listas cortas y negritas; nada de tablas largas.\n\nFECHA: {{ $json.body.fecha }}\n\nDATOS DE LA PESTAÑA ANÁLISIS:\n{{ $json.body.datos }}"
+        }
+      },
+      "id": "5f0a8a8e-6f1c-4d55-9b0e-0a1f00000002",
+      "name": "Analista",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.9,
+      "position": [260, 0],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "model": "deepseek-v4-flash",
+        "options": { "temperature": 0.2 }
+      },
+      "id": "5f0a8a8e-6f1c-4d55-9b0e-0a1f00000003",
+      "name": "DeepSeek",
+      "type": "@n8n/n8n-nodes-langchain.lmChatDeepSeek",
+      "typeVersion": 1,
+      "position": [200, 220],
+      "credentials": {
+        "deepSeekApi": { "id": "oST7gXVUuSfj1Vw2", "name": "DeepSeek account" }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Webhook').item.json.body.sessionId }}",
+        "contextWindowLength": 12
+      },
+      "id": "5f0a8a8e-6f1c-4d55-9b0e-0a1f00000004",
+      "name": "Memoria de la charla",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [360, 220]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { respuesta: $json.output || '', error: $json.error ? String($json.error.message || $json.error) : '' } }}",
+        "options": {}
+      },
+      "id": "5f0a8a8e-6f1c-4d55-9b0e-0a1f00000005",
+      "name": "Responder",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [560, 0]
+    }
+  ],
+  "connections": {
+    "Webhook": { "main": [[{ "node": "Analista", "type": "main", "index": 0 }]] },
+    "DeepSeek": { "ai_languageModel": [[{ "node": "Analista", "type": "ai_languageModel", "index": 0 }]] },
+    "Memoria de la charla": { "ai_memory": [[{ "node": "Analista", "type": "ai_memory", "index": 0 }]] },
+    "Analista": { "main": [[{ "node": "Responder", "type": "main", "index": 0 }]] }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "uFZC8kWV49blHqgI",
+    "timezone": "America/Argentina/Buenos_Aires"
+  }
+}

@@ -274,6 +274,39 @@ async function correrReceta(nombre, desdeMes) {
   throw ultimoError;
 }
 
+// ── Texto para el chat de preguntas ──
+// Los números de los últimos 13 meses, compactos y legibles por el modelo. Lo cargado a mano lleva *.
+function textoParaPreguntas(clientes, ahora = new Date()) {
+  const hoy = hoyLocal(ahora);
+  const mes = hoy.slice(0, 7);
+  const [y, m] = mes.split('-').map(Number);
+  const diasMes = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const desde = sumarMes(mes, -12);
+  const num = n => new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 }).format(n);
+  const bloques = [];
+  const sinDatos = [];
+  for (const c of clientes.filter(x => !x.oculto)) {
+    const lineas = [];
+    for (const [k, def] of Object.entries(METRICAS)) {
+      const valores = Object.entries(c.metricas[k] || {}).filter(([mm]) => mm >= desde).sort(([a], [b]) => a.localeCompare(b));
+      if (valores.length) lineas.push(`  ${k} (${def.label}): ` + valores.map(([mm, v]) => `${mm}=${num(v.valor)}${v.origen === 'manual' ? '*' : ''}`).join(', '));
+    }
+    const fuentes = c.fuentes.map(f => {
+      const clave = f.tipo === 'n8n' ? 'n8n' : 'receta:' + f.receta;
+      const st = c.estadoFuentes.find(e => e.fuente === clave);
+      return (f.tipo === 'n8n' ? 'bot de n8n' : 'base del cliente') + (st && !st.ok ? ' (CON ERROR: ' + st.detalle + ')' : '');
+    });
+    const cabecera = `CLIENTE: ${c.nombre} | ${CATEGORIAS[c.categoria] || 'Sin categoría'} | estado del proyecto en el tablero: ${c.estado}` + (fuentes.length ? ` | se mide con: ${fuentes.join(', ')}` : ' | sin fuente en vivo') + (c.descripcion ? `\n  qué hace: ${c.descripcion}` : '');
+    if (lineas.length) bloques.push(cabecera + '\n' + lineas.join('\n'));
+    else sinDatos.push(`${c.nombre} (${CATEGORIAS[c.categoria] || 'Sin categoría'})`);
+  }
+  if (sinDatos.length) bloques.push('PROYECTOS SIN NÚMEROS TODAVÍA: ' + sinDatos.join(', '));
+  return {
+    fecha: `${hoy} (el mes ${mes} va por el día ${Number(hoy.slice(8, 10))} de ${diasMes}: sus números son parciales)`,
+    datos: bloques.join('\n\n') || 'Todavía no hay números cargados.',
+  };
+}
+
 // ── Refresco ──
 function register(app, pool, requireAdmin, opciones = {}) {
   let refrescando = null;
@@ -413,6 +446,37 @@ function register(app, pool, requireAdmin, opciones = {}) {
     } catch (err) { next(err); }
   });
 
+  // Chat de preguntas: la app junta los números del momento y se los pasa al agente de n8n
+  // (DeepSeek) junto con la pregunta. n8n no lee la base: contesta solo con lo que le llega.
+  app.post('/api/analisis/preguntar', requireAdmin, async (req, res, next) => {
+    try {
+      const pregunta = typeof req.body?.pregunta === 'string' ? req.body.pregunta.trim() : '';
+      if (!pregunta) fail('Escribí una pregunta.');
+      if (pregunta.length > 2000) fail('La pregunta es demasiado larga.');
+      const charla = typeof req.body?.charla === 'string' && /^[a-z0-9-]{6,40}$/i.test(req.body.charla) ? req.body.charla : 'general';
+      const url = process.env.ANALISIS_N8N_URL;
+      let clave = process.env.ANALISIS_N8N_CLAVE || '';
+      if (!clave && process.env.ANALISIS_N8N_CLAVE_FILE) { try { clave = fs.readFileSync(process.env.ANALISIS_N8N_CLAVE_FILE, 'utf8').trim(); } catch (_) {} }
+      if (!url || !clave) fail('El chat no está conectado: faltan ANALISIS_N8N_URL y la clave en el servidor.', 409);
+      const { clientes } = await leerTodo();
+      const body = { pregunta, sessionId: `analisis-${req.user.id}-${charla}`, ...textoParaPreguntas(clientes) };
+      let respuesta;
+      try {
+        const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Analisis-Clave': clave }, body: JSON.stringify(body), signal: AbortSignal.timeout(120000) });
+        respuesta = await r.json().catch(() => ({}));
+        if (!r.ok) fail(`n8n respondió ${r.status}.`, 409);
+      } catch (err) {
+        if (err.status) throw err;
+        fail(err.name === 'TimeoutError' ? 'El analista tardó demasiado en contestar. Probá de nuevo.' : 'No se pudo hablar con n8n.', 409);
+      }
+      if (!respuesta.respuesta) {
+        console.error('[analisis] preguntar sin respuesta:', respuesta.error || '(vacío)');
+        fail(/payment|402|balance|insufficient/i.test(respuesta.error || '') ? 'La cuenta de DeepSeek se quedó sin saldo.' : 'El analista no pudo contestar. Probá de nuevo en un rato.', 409);
+      }
+      res.json({ respuesta: String(respuesta.respuesta).slice(0, 20000) });
+    } catch (err) { next(err); }
+  });
+
   app.get('/api/analisis/n8n/workflows', requireAdmin, async (_req, res, next) => {
     try { res.json({ workflows: await n8nApi.workflows() }); } catch (err) { next(err); }
   });
@@ -492,4 +556,4 @@ function register(app, pool, requireAdmin, opciones = {}) {
   return { refrescarTodo, leerTodo };
 }
 
-module.exports = { schema, register, validarConfig, validarManual, mesesEntre, sumarMes, CATEGORIAS, METRICAS, RECETAS, contarEjecuciones };
+module.exports = { schema, register, validarConfig, validarManual, mesesEntre, sumarMes, textoParaPreguntas, CATEGORIAS, METRICAS, RECETAS, contarEjecuciones };

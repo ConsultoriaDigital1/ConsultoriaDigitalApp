@@ -95,3 +95,59 @@ test('el PDF sale, con o sin números', async () => {
   const vacio = await construirPdf({ ...base, cliente: { nombre: 'Sin datos', categoria: null, metricas: {} } });
   assert.equal(vacio.subarray(0, 5).toString(), '%PDF-');
 });
+
+test('el texto para el chat lleva fecha parcial, números y lo cargado a mano', () => {
+  const cliente = {
+    nombre: 'Unimed', categoria: 'turneria', estado: 'finalizado', oculto: false, descripcion: 'Da turnos.',
+    fuentes: [{ tipo: 'receta', receta: 'turneria-unimed' }], estadoFuentes: [{ fuente: 'receta:turneria-unimed', ok: true, detalle: '' }],
+    metricas: { turnos_bot: { '2026-10': { valor: 921, origen: 'receta' }, '2026-11': { valor: 1999, origen: 'manual' }, '2024-01': { valor: 5, origen: 'receta' } } },
+  };
+  const vacio = { nombre: 'Fox', categoria: 'gestion', estado: 'en_proceso', oculto: false, fuentes: [], estadoFuentes: [], metricas: {} };
+  const oculto = { ...vacio, nombre: 'Servidor', oculto: true };
+  const t = analisis.textoParaPreguntas([cliente, vacio, oculto], new Date('2026-11-10T15:00:00Z'));
+  assert.match(t.fecha, /^2026-11-10 \(el mes 2026-11 va por el día 10 de 30/);
+  assert.match(t.datos, /turnos_bot \(Turnos dados por el bot\): 2026-10=921, 2026-11=1\.999\*/);
+  assert.doesNotMatch(t.datos, /2024-01/, 'solo los últimos 13 meses');
+  assert.match(t.datos, /SIN NÚMEROS TODAVÍA: Fox \(Sistemas de gestión y webs\)/);
+  assert.doesNotMatch(t.datos, /Servidor/);
+});
+
+test('el chat le pasa los datos a n8n con la clave y traduce la falta de saldo', async () => {
+  const express = require('express');
+  const pool = { async query(sql) {
+    if (sql.includes('FROM cards')) return { rows: [{ id: 'c1', nf: 'Unimed', rs: '', equipo: 'desarrollo', estado: 'finalizado' }] };
+    if (sql.includes('FROM analisis_config')) return { rows: [{ card_id: 'c1', categoria: 'turneria', oculto: false, fuentes: [], descripcion: '', desde: '' }] };
+    if (sql.includes('FROM analisis_mensual')) return { rows: [{ card_id: 'c1', metrica: 'turnos_bot', mes: '2026-10', origen: 'receta', valor: '921' }] };
+    return { rows: [] };
+  } };
+  const app = express(); app.use(express.json());
+  analisis.register(app, pool, (req, _res, next) => { req.user = { id: 'u1', equipo: 'admin' }; next(); }, { automatico: false });
+  app.use((err, _req, res, _next) => res.status(err.status || 500).json({ error: err.message }));
+  const server = app.listen(0); const base = `http://127.0.0.1:${server.address().port}`;
+  const fetchReal = global.fetch;
+  let enviado, contestar = { respuesta: 'Unimed dio 921 turnos en octubre.' };
+  global.fetch = async (url, opts) => {
+    if (String(url).startsWith(base)) return fetchReal(url, opts);
+    enviado = { url, clave: opts.headers['X-Analisis-Clave'], body: JSON.parse(opts.body) };
+    return { ok: true, status: 200, json: async () => contestar };
+  };
+  const preguntar = body => fetchReal(base + '/api/analisis/preguntar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(async r => ({ status: r.status, ...(await r.json()) }));
+  try {
+    delete process.env.ANALISIS_N8N_URL;
+    assert.match((await preguntar({ pregunta: 'hola' })).error, /no está conectado/);
+    process.env.ANALISIS_N8N_URL = 'http://n8n.prueba/webhook/analisis-preguntas'; process.env.ANALISIS_N8N_CLAVE = 'clave-de-prueba';
+    assert.equal((await preguntar({ pregunta: '  ' })).status, 400);
+    const ok = await preguntar({ pregunta: '¿Cómo viene Unimed?', charla: 'abc123' });
+    assert.equal(ok.respuesta, 'Unimed dio 921 turnos en octubre.');
+    assert.equal(enviado.clave, 'clave-de-prueba');
+    assert.equal(enviado.body.sessionId, 'analisis-u1-abc123');
+    assert.match(enviado.body.datos, /CLIENTE: Unimed[\s\S]*2026-10=921/);
+    contestar = { respuesta: '', error: 'Payment required - perhaps check your payment details?' };
+    const sinSaldo = await preguntar({ pregunta: 'hola', charla: 'abc123' });
+    assert.equal(sinSaldo.status, 409);
+    assert.match(sinSaldo.error, /DeepSeek se quedó sin saldo/);
+  } finally {
+    global.fetch = fetchReal; server.close();
+    delete process.env.ANALISIS_N8N_URL; delete process.env.ANALISIS_N8N_CLAVE;
+  }
+});
