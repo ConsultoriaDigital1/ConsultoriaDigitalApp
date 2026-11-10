@@ -11,6 +11,7 @@ const arca = require('./arca-service');
 const { buildInvoicePdf } = require('./invoice-pdf');
 const workspace = require('./workspace');
 const cardAudit = require('./card-audit');
+const analisis = require('./analisis');
 
 const app = express();
 const pool = new Pool({
@@ -176,6 +177,7 @@ async function ensureDatabaseMigrations() {
     ON CONFLICT (username) DO NOTHING
   `);
   await pool.query(cardAudit.schema);
+  await pool.query(analisis.schema);
 }
 
 app.disable('x-powered-by');
@@ -1252,6 +1254,7 @@ app.post('/api/auth/logout', (_req, res) => {
 
 workspace.register(app, pool, requireAuth, canAccessTeam);
 cardAudit.register(app, pool, requireAuth);
+analisis.register(app, pool, requireAdmin);
 
 app.get('/api/bootstrap', requireAuth, async (req, res, next) => {
   try {
@@ -3754,7 +3757,7 @@ app.use('/api', (_req, res) => {
 
 // Assets estáticos (logo, favicons). Se sirven explícitamente para no exponer
 // el resto del directorio (server.js, .env, db/, node_modules, etc.).
-const STATIC_FILES = ['logo.webp', 'favicon.svg', 'favicon.png', 'workspace-ui.js', 'card-audit-ui.js'];
+const STATIC_FILES = ['logo.webp', 'favicon.svg', 'favicon.png', 'workspace-ui.js', 'card-audit-ui.js', 'analisis-ui.js'];
 for (const file of STATIC_FILES) {
   app.get('/' + file, (_req, res) => res.sendFile(path.join(__dirname, file)));
 }

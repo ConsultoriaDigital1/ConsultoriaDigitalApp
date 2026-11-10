@@ -9308,6 +9308,7 @@
         <button class="nav-tab" data-tab="cronograma" onclick="switchTab('cronograma')" style="display:none">CRONOGRAMA</button>
         <button class="nav-tab" data-tab="estadisticas" onclick="switchTab('estadisticas')" style="display:none">ESTADÍSTICAS</button>
         <button class="nav-tab" data-tab="credenciales" onclick="switchTab('credenciales')" style="display:none">CREDENCIALES</button>
+        <button class="nav-tab" data-tab="analisis" onclick="switchTab('analisis')" style="display:none">ANÁLISIS</button>
         <button class="nav-tab active" data-tab="clientes" onclick="switchTab('clientes')">CLIENTES</button>
         <button class="nav-tab" data-tab="calendario" onclick="switchTab('calendario')">CALENDARIO</button>
       </div>
@@ -9384,6 +9385,7 @@
         <div id="tab-cronograma" class="tab-panel"><div class="cbar"><div><div class="cbar-title">CRONOGRAMA</div><div class="cbar-sub">Planificación semanal por cliente</div></div></div><div id="workspace-cronograma" class="ws-wrap"></div></div>
         <div id="tab-estadisticas" class="tab-panel"><div class="cbar"><div><div class="cbar-title">Estadísticas</div><div class="cbar-sub">Resultados mensuales por cliente y comparación con el mes anterior</div></div></div><div id="workspace-estadisticas" class="ws-wrap"></div></div>
         <div id="tab-credenciales" class="tab-panel"><div class="cbar"><div><div class="cbar-title">Credenciales</div><div class="cbar-sub">Accesos de clientes · Marketing y Devs</div></div></div><div id="workspace-credenciales" class="ws-wrap"></div></div>
+        <div id="tab-analisis" class="tab-panel"><div class="cbar"><div><div class="cbar-title">Análisis</div><div class="cbar-sub">Números en vivo de cada proyecto, por cliente y por categoría · PDF para el cliente</div></div></div><div id="analisis-root" class="an-wrap"></div></div>
         <!-- ── CLIENTES TAB ── -->
         <div id="tab-clientes" class="tab-panel active" data-team="all">
           <div class="cbar" id="clientes-cbar">
@@ -9550,6 +9552,7 @@
       <button class="mobile-nav-tab" data-tab="cronograma" onclick="switchTab('cronograma')" style="display:none"><i class="ico-ph" data-ico="calendar"></i><span>Cronograma</span></button>
       <button class="mobile-nav-tab" data-tab="estadisticas" onclick="switchTab('estadisticas')" style="display:none"><i class="ico-ph" data-ico="chart"></i><span>Estadísticas</span></button>
       <button class="mobile-nav-tab" data-tab="credenciales" onclick="switchTab('credenciales')" style="display:none"><i class="ico-ph" data-ico="lock"></i><span>Credenciales</span></button>
+      <button class="mobile-nav-tab" data-tab="analisis" onclick="switchTab('analisis')" style="display:none"><i class="ico-ph" data-ico="chart"></i><span>Análisis</span></button>
       <button class="mobile-nav-tab active" data-tab="clientes" onclick="switchTab('clientes')">
         <i class="ico-ph" data-ico="users"></i><span>Clientes</span>
       </button>
@@ -10695,6 +10698,7 @@
      ═══════════════════════════════════════════ -->
   <script src="workspace-ui.js"></script>
   <script src="card-audit-ui.js"></script>
+  <script src="analisis-ui.js"></script>
   <script>
     'use strict';
 
@@ -13561,6 +13565,7 @@
 
     function applyAccessUi() {
       syncWorkspaceNav();
+      document.querySelectorAll('[data-tab="analisis"]').forEach(el => { el.style.display = isAdmin() ? '' : 'none'; });
       document.querySelectorAll('.sb-btn[data-team]').forEach(btn => {
         btn.style.display = canViewTeam(btn.dataset.team) ? '' : 'none';
         btn.classList.toggle('active', btn.dataset.team === activeTeam);
@@ -14043,9 +14048,12 @@
     ───────────────────────────────────────── */
     function switchTab(tab) {
       if (['inicio', 'cronograma', 'estadisticas', 'credenciales'].includes(tab) && !workspaceAllowed(tab)) return;
+      if (tab === 'analisis' && !isAdmin()) return;
       clearWorkspace();
+      stopAnalisis();
       activeTab = tab;
-      const workspaceTab = ['inicio', 'cronograma', 'estadisticas', 'credenciales'].includes(tab);
+      const workspaceTab = ['inicio', 'cronograma', 'estadisticas', 'credenciales', 'analisis'].includes(tab);
+      if (tab === 'analisis') renderAnalisis();
       $('cnotes-handle').style.display = workspaceTab ? 'none' : '';
       if (workspaceTab) toggleClientesNotes(false);
       if (tab === 'inicio') renderMarketingHome();
