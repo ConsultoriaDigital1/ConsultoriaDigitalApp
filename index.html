@@ -13559,6 +13559,8 @@
       } else {
         switchTab(u.equipo === 'marketing' ? 'inicio' : 'clientes');
       }
+      // Enlace directo: app.consultoriadigital.io/#analisis abre la pestaña Análisis (solo admin).
+      if (location.hash === '#analisis' && isAdmin()) switchTab('analisis');
       if (activeTab === 'notas') renderNotas();
       renderTalentos();
     }
